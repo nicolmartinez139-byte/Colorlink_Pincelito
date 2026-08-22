@@ -1,0 +1,6 @@
+{
+  "name": "Formulario Mínimo Viable - Captura de Proyectos",
+  "description": "Diseño y captura inteligente de solicitudes de proyectos con campos estructurados en Identificación, Proyecto, Técnico y Evidencia para automatización de cotizaciones y decisiones técnicas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

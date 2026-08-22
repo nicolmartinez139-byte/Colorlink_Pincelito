@@ -1,0 +1,88 @@
+export interface FormFieldSpec {
+  id: string;
+  module: 'Identificación' | 'Proyecto' | 'Técnico' | 'Evidencia';
+  name: string;
+  technicalKey: string;
+  dataType: string;
+  sqlType: string;
+  required: boolean;
+  validation: string;
+  businessRule: string;
+  automationRole: string;
+  options?: string[];
+  placeholder?: string;
+  exampleValue: string | number | boolean;
+}
+
+export interface RedundantFieldEliminated {
+  field: string;
+  reason: string;
+  alternative: string;
+}
+
+export interface ProjectFormData {
+  // Identificación
+  cliente: string;
+  nitDocumento: string;
+  responsable: string;
+  emailResponsable: string;
+  telefonoResponsable: string;
+  canalEntrada: 'App Web' | 'WhatsApp / Call Center' | 'Fuerza Comercial' | 'Punto de Venta' | 'Portal Clientes';
+
+  // Proyecto
+  ciudad: string;
+  tipoObra: 'Fachada Edificio' | 'Muros Interiores' | 'Pisos Industriales' | 'Estructura Metálica' | 'Cielorrasos' | 'Institucional / Hospitalario';
+  areaM2: number;
+  fechaRequerida: string;
+
+  // Técnico
+  superficie: 'Concreto / Revoque' | 'Drywall / Yeso' | 'Metal Ferroso' | 'Metal Galvanizado / Aluminio' | 'Madera' | 'Pintura Existente';
+  ambiente: 'Exterior Intemperie' | 'Interior Seco' | 'Interior Húmedo (Baños/Cocinas)' | 'Industrial Severo / Químico' | 'Tráfico Peatonal / Vehicular';
+  condicion: 'Nueva sin pintar' | 'Pintada en buen estado' | 'Fisuras leves y humedad' | 'Descascaramiento severo' | 'Oxidación superficial' | 'Contaminación / Grasa';
+  colorAcabado: string;
+
+  // Evidencia
+  descripcionLibre: string;
+  fotos: Array<{ name: string; size: string; previewUrl?: string }>;
+  observaciones: string;
+  consentimiento: boolean;
+}
+
+export interface BudgetItem {
+  id: string;
+  name: string;
+  presentation: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  description: string;
+}
+
+export interface BudgetBreakdown {
+  items: BudgetItem[];
+  subtotalMateriales: number;
+  descuentoPorcentaje: number;
+  descuentoValor: number;
+  subtotalConDescuento: number;
+  fleteEnvio: number;
+  ivaPorcentaje: number;
+  ivaValor: number;
+  totalPresupuesto: number;
+  ciudadDestino: string;
+  tiempoEntregaDias: string;
+}
+
+export interface TechnicalCalculationResult {
+  productoRecomendado: string;
+  tipoSolucion: string;
+  selladorImprimanteRequerido: string;
+  manosSugeridas: number;
+  rendimientoTeoricoM2Galon: number;
+  galonesRequeridos: number;
+  cuñetesRequeridos: number;
+  galonesSueltosRequeridos: number;
+  tiempoEstimadoSecado: string;
+  requiereVisitaEspecialista: boolean;
+  alertaPatologia: string | null;
+  presupuesto: BudgetBreakdown;
+}
