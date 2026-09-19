@@ -324,9 +324,9 @@ export function ClientAIAssistant({
   }
 
   return (
-    <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 w-[95vw] sm:w-[440px] max-h-[85vh] h-[640px] flex flex-col bg-white rounded-3xl shadow-2xl border border-blue-200 overflow-hidden animate-fadeIn">
+    <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 w-[95vw] sm:w-[440px] max-h-[85vh] h-[640px] flex flex-col bg-white rounded-3xl shadow-2xl border border-pink-200 overflow-hidden animate-fadeIn">
       {/* HEADER DE PINCELITO */}
-      <div className="bg-gradient-to-r from-blue-700 via-indigo-600 to-pink-600 text-white p-4 sm:p-5 flex items-center justify-between shadow-sm relative shrink-0">
+      <div className="bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] text-white p-4 sm:p-5 flex items-center justify-between shadow-md relative shrink-0">
         <div className="flex items-center gap-3">
           {/* Avatar de Pincelito */}
           <div className="w-11 h-11 rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center p-1 shadow-inner relative">
@@ -595,13 +595,13 @@ export function ClientAIAssistant({
                 ? 'Añade una nota o presiona enviar...'
                 : 'Pregúntale a Pincelito o escribe tus m²...'
             }
-            className="flex-1 px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium text-slate-900"
+            className="flex-1 px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#E5007D] transition-all font-medium text-slate-900"
           />
 
           <button
             type="submit"
             disabled={!inputQuery.trim() && !attachedImage}
-            className="p-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:hover:bg-blue-600 text-white rounded-xl shadow-xs transition-all cursor-pointer shrink-0"
+            className="p-2.5 bg-gradient-to-r from-[#FF6A00] to-[#E5007D] hover:from-[#FF7A10] hover:to-[#F00084] disabled:opacity-40 text-white rounded-xl shadow-xs transition-all cursor-pointer shrink-0"
             title="Enviar mensaje"
           >
             <Send className="w-4 h-4" />
@@ -613,7 +613,7 @@ export function ClientAIAssistant({
           <button
             type="button"
             onClick={handleConnectAdvisor}
-            className="text-blue-600 hover:underline font-semibold cursor-pointer"
+            className="text-[#E5007D] hover:underline font-semibold cursor-pointer"
           >
             {advisorConnected ? '✓ Asesor conectado' : '¿Prefieres hablar con un asesor? Haz clic aquí'}
           </button>

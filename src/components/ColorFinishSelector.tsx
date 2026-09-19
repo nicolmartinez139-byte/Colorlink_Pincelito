@@ -196,7 +196,7 @@ export function ColorFinishSelector({ value, onChange, error }: ColorFinishSelec
                 onClick={() => handleSelectPreset(color)}
                 className={`relative flex items-center gap-2.5 p-2 rounded-xl border text-left transition-all ${
                   isSelected
-                    ? 'border-blue-600 bg-blue-50/70 ring-2 ring-blue-500/30 shadow-sm'
+                    ? 'border-[#009FE3] bg-sky-50/70 ring-2 ring-[#009FE3]/25 shadow-xs'
                     : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
                 }`}
               >
@@ -284,7 +284,7 @@ export function ColorFinishSelector({ value, onChange, error }: ColorFinishSelec
                 onClick={() => handleFinishChange(finish.id)}
                 className={`p-2.5 rounded-xl border text-center transition-all ${
                   isSelected
-                    ? 'border-blue-600 bg-blue-600 text-white shadow-sm font-bold'
+                    ? 'border-[#009FE3] bg-[#009FE3] text-white shadow-xs font-bold'
                     : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                 }`}
               >
@@ -292,7 +292,7 @@ export function ColorFinishSelector({ value, onChange, error }: ColorFinishSelec
                 {finish.isRecommended && (
                   <span
                     className={`inline-block text-[9px] mt-0.5 px-1.5 py-0.2 rounded font-medium ${
-                      isSelected ? 'bg-blue-800 text-blue-100' : 'bg-emerald-100 text-emerald-800'
+                      isSelected ? 'bg-sky-800 text-sky-100' : 'bg-emerald-100 text-emerald-800'
                     }`}
                   >
                     Recomendado Fachadas
@@ -305,10 +305,10 @@ export function ColorFinishSelector({ value, onChange, error }: ColorFinishSelec
       </div>
 
       {/* Resumen Visual del Color & Acabado Seleccionado */}
-      <div className="p-3.5 bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-xl border border-slate-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <div className="p-3.5 bg-slate-900 text-white rounded-2xl border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
         <div className="flex items-center gap-3">
           <div
-            className="w-10 h-10 rounded-xl border-2 border-white/40 shadow-md shrink-0 flex items-center justify-center"
+            className="w-10 h-10 rounded-xl border-2 border-white/40 shadow-sm shrink-0 flex items-center justify-center"
             style={{ backgroundColor: activeColorHex }}
           >
             <CheckCircle2
@@ -318,11 +318,11 @@ export function ColorFinishSelector({ value, onChange, error }: ColorFinishSelec
             />
           </div>
           <div>
-            <span className="text-[10px] text-slate-300 uppercase tracking-wider block">Selección Final Guardada:</span>
+            <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-semibold">Selección Final Guardada:</span>
             <span className="text-sm font-bold text-white block">
               {value || (activePreset ? `${activePreset.name} (${selectedFinish})` : `Gris (${selectedFinish})`)}
             </span>
-            <span className="text-[11px] text-blue-300 font-mono block">Código Hex: {activeColorHex}</span>
+            <span className="text-[11px] text-sky-400 font-mono block">Código Hex: {activeColorHex}</span>
           </div>
         </div>
 

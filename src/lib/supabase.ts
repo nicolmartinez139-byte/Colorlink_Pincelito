@@ -1,5 +1,10 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
+const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL as string) || 'https://placeholder-project.supabase.co';
+const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string) || 'placeholder-anon-key';
+
+export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+
 let supabaseClient: SupabaseClient | null = null;
 
 /**
@@ -12,15 +17,15 @@ export function getSupabase(): SupabaseClient | null {
     return supabaseClient;
   }
 
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const url = import.meta.env.VITE_SUPABASE_URL;
+  const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-  if (!supabaseUrl || !supabaseAnonKey) {
+  if (!url || !key) {
     return null;
   }
 
   try {
-    supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+    supabaseClient = createClient(url, key);
     return supabaseClient;
   } catch (error) {
     console.error('Error al inicializar cliente de Supabase:', error);

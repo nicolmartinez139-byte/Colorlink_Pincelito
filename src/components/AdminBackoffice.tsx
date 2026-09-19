@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Inbox,
   UserCheck,
@@ -76,7 +76,7 @@ interface AdminBackofficeProps {
     id: string;
     submittedAt: string;
     formData: ProjectFormData;
-    status: 'Validado' | 'En Tintometría' | 'En Despacho' | 'Completado';
+    status: 'Validado' | 'En Tintometría' | 'En Despacho' | 'Completado' | 'Pendiente' | 'Rechazado';
     totalCOP: number;
     currentPipelineStep: number;
   }>;
@@ -175,6 +175,32 @@ export function AdminBackoffice({
   ]);
 
   const [selectedOrderId, setSelectedOrderId] = useState<string>('PED-2026-081');
+
+  useEffect(() => {
+    if (submittedProjects && submittedProjects.length > 0) {
+      const mappedOrders: OrderItem[] = submittedProjects.map((p) => ({
+        id: p.id,
+        cliente: p.formData.cliente || 'Cliente Colorlink',
+        nit: p.formData.nitDocumento || 'S/N',
+        responsable: p.formData.responsable || 'Responsable de Obra',
+        telefono: p.formData.telefonoResponsable || '+57 300 000 0000',
+        email: p.formData.emailResponsable || 'contacto@colorlink.com.co',
+        ciudad: p.formData.ciudad || 'Medellín',
+        areaM2: p.formData.areaM2 || 50,
+        tipoPintura: p.formData.tipoPintura || 'Pintura Tipo 1 Exterior',
+        color: p.formData.colorAcabado || 'Color Específico',
+        totalCOP: p.totalCOP || 1500000,
+        status: 'pendiente',
+        notificaciones: []
+      }));
+
+      setOrders((prev) => {
+        const existingIds = new Set(prev.map((o) => o.id));
+        const newOnes = mappedOrders.filter((o) => !existingIds.has(o.id));
+        return newOnes.length > 0 ? [...newOnes, ...prev] : prev;
+      });
+    }
+  }, [submittedProjects]);
   const [notificationToast, setNotificationToast] = useState<string | null>(null);
   const [showNotificationModal, setShowNotificationModal] = useState<boolean>(false);
   const [modalNotificationData, setModalNotificationData] = useState<{

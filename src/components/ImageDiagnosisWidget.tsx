@@ -282,9 +282,9 @@ export function ImageDiagnosisWidget({
   };
 
   return (
-    <div className="bg-white rounded-3xl border border-blue-200 shadow-xl overflow-hidden animate-fadeIn">
+    <div className="bg-white rounded-3xl border border-pink-200 shadow-xl overflow-hidden animate-fadeIn">
       {/* HEADER DEL DIAGNÓSTICO IA */}
-      <div className="bg-gradient-to-r from-blue-700 via-indigo-600 to-blue-800 text-white p-4 sm:p-5 flex items-center justify-between">
+      <div className="bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] text-white p-4 sm:p-5 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center text-amber-300 shadow-inner">
             <Camera className="w-5 h-5" />
@@ -568,7 +568,7 @@ export function ImageDiagnosisWidget({
                   <button
                     type="button"
                     onClick={handleApplyToForm}
-                    className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 shrink-0"
+                    className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] hover:from-[#FF7A10] hover:via-[#F00084] hover:to-[#7B1FA2] text-white font-black text-xs rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 shrink-0"
                   >
                     {applied ? (
                       <>

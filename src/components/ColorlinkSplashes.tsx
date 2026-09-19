@@ -8,9 +8,9 @@ import React from 'react';
 export function ColorlinkPaintSplashes({ className = '' }: { className?: string }) {
   return (
     <div className={`pointer-events-none select-none overflow-hidden ${className}`}>
-      {/* Mancha 1: Esquina Superior Derecha - Amarillo Brillante + Salpicaduras Naranja */}
+      {/* Mancha 1: Esquina Superior Derecha - Amarillo Cálido + Ámbar Dorado */}
       <svg
-        className="absolute -top-6 -right-6 w-44 h-44 opacity-80"
+        className="absolute -top-6 -right-6 w-44 h-44 opacity-45"
         viewBox="0 0 200 200"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
@@ -21,19 +21,15 @@ export function ColorlinkPaintSplashes({ className = '' }: { className?: string 
         />
         {/* Gotas satélite */}
         <circle cx="185" cy="40" r="7" fill="#FFD100" />
-        <circle cx="160" cy="20" r="4.5" fill="#FF8A00" />
+        <circle cx="160" cy="20" r="4.5" fill="#FF9E00" />
         <circle cx="195" cy="90" r="5" fill="#FFD100" />
-        <circle cx="50" cy="185" r="6" fill="#FF8A00" />
+        <circle cx="50" cy="185" r="6" fill="#FF9E00" />
         <circle cx="30" cy="165" r="3.5" fill="#FFD100" />
-        <path
-          d="M140,80 C150,70 165,85 155,95 C145,105 135,90 140,80 Z"
-          fill="#FF6D00"
-        />
       </svg>
 
-      {/* Mancha 2: Lateral Izquierdo Superior - Cyan Eléctrico y Azul Real */}
+      {/* Mancha 2: Lateral Izquierdo Superior - Cyan Eléctrico Colorlink */}
       <svg
-        className="absolute top-20 -left-10 w-48 h-48 opacity-75"
+        className="absolute top-16 -left-10 w-48 h-48 opacity-45"
         viewBox="0 0 200 200"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
@@ -43,15 +39,15 @@ export function ColorlinkPaintSplashes({ className = '' }: { className?: string 
           fill="#009FE3"
         />
         <circle cx="20" cy="45" r="8" fill="#009FE3" />
-        <circle cx="45" cy="20" r="5" fill="#0056B3" />
+        <circle cx="45" cy="20" r="5" fill="#0077B6" />
         <circle cx="10" cy="120" r="6" fill="#009FE3" />
-        <circle cx="185" cy="50" r="4.5" fill="#00A8FF" />
-        <circle cx="95" cy="185" r="5" fill="#0056B3" />
+        <circle cx="185" cy="50" r="4.5" fill="#38BDF8" />
+        <circle cx="95" cy="185" r="5" fill="#0077B6" />
       </svg>
 
-      {/* Mancha 3: Esquina Inferior Derecha - Magenta Vibrante / Fucsia Colorlink */}
+      {/* Mancha 3: Esquina Inferior Derecha - Magenta Suave Colorlink */}
       <svg
-        className="absolute -bottom-10 -right-8 w-52 h-52 opacity-70"
+        className="absolute -bottom-10 -right-8 w-52 h-52 opacity-40"
         viewBox="0 0 200 200"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
@@ -61,34 +57,32 @@ export function ColorlinkPaintSplashes({ className = '' }: { className?: string 
           fill="#E5007D"
         />
         <circle cx="180" cy="165" r="8" fill="#E5007D" />
-        <circle cx="150" cy="190" r="5" fill="#C20066" />
+        <circle cx="150" cy="190" r="5" fill="#BE185D" />
         <circle cx="195" cy="115" r="6" fill="#E5007D" />
-        <circle cx="40" cy="30" r="5.5" fill="#FF1493" />
-        <circle cx="15" cy="70" r="4" fill="#C20066" />
+        <circle cx="40" cy="30" r="5.5" fill="#F43F5E" />
       </svg>
 
-      {/* Mancha 4: Lateral Inferior Izquierdo - Verde Lima / Esmeralda */}
+      {/* Mancha 4: Lateral Inferior Izquierdo - Verde Esmeralda */}
       <svg
-        className="absolute bottom-28 -left-8 w-36 h-36 opacity-70"
+        className="absolute bottom-24 -left-8 w-36 h-36 opacity-40"
         viewBox="0 0 200 200"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
       >
         <path
           d="M80,120 C60,140 30,120 40,90 C50,60 25,40 55,20 C85,0 110,30 130,45 C150,60 145,95 125,115 C105,135 100,100 80,120 Z"
-          fill="#00A651"
+          fill="#10B981"
         />
-        <circle cx="25" cy="140" r="6" fill="#00A651" />
-        <circle cx="45" cy="160" r="4" fill="#78BE20" />
-        <circle cx="150" cy="30" r="5" fill="#00A651" />
-        <circle cx="140" cy="130" r="4.5" fill="#78BE20" />
+        <circle cx="25" cy="140" r="6" fill="#10B981" />
+        <circle cx="45" cy="160" r="4" fill="#059669" />
+        <circle cx="150" cy="30" r="5" fill="#10B981" />
       </svg>
 
       {/* Gotitas decorativas sutiles en el centro */}
-      <div className="absolute top-1/3 right-12 w-3 h-3 rounded-full bg-amber-400 opacity-60" />
-      <div className="absolute top-1/3 right-16 w-1.5 h-1.5 rounded-full bg-pink-500 opacity-60" />
-      <div className="absolute top-2/3 left-14 w-2.5 h-2.5 rounded-full bg-cyan-400 opacity-60" />
-      <div className="absolute top-2/3 left-20 w-1.5 h-1.5 rounded-full bg-emerald-500 opacity-50" />
+      <div className="absolute top-1/3 right-12 w-2.5 h-2.5 rounded-full bg-amber-400 opacity-40" />
+      <div className="absolute top-1/3 right-16 w-1.5 h-1.5 rounded-full bg-rose-400 opacity-40" />
+      <div className="absolute top-2/3 left-14 w-2 h-2 rounded-full bg-sky-400 opacity-40" />
+      <div className="absolute top-2/3 left-20 w-1.5 h-1.5 rounded-full bg-emerald-400 opacity-35" />
     </div>
   );
 }

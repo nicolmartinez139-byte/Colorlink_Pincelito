@@ -56,27 +56,95 @@ export function createColorlinkPDFDoc(formData: ProjectFormData, technicalCalc: 
 
   let currentY = 16;
 
-  // --- 2. HEADER: LOGO COLORLINK & METADATA ---
-  // Logo Box
-  doc.setFillColor(0, 56, 130); // Dark Blue
-  doc.roundedRect(margin, currentY, 28, 18, 3, 3, 'F');
+  // --- 2. HEADER: LOGO PINGÜINITO COLORLINK & METADATA ---
+  let imageAdded = false;
 
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.text('COLORLINK', margin + 2.5, currentY + 11);
+  if (typeof document !== 'undefined') {
+    const penguinImgEl = document.querySelector('img[alt*="Pingüin"], img[src*="colorlink_penguin"]') as HTMLImageElement | null;
+    if (penguinImgEl && penguinImgEl.complete && penguinImgEl.naturalWidth > 0) {
+      try {
+        // Marco institucional para el pingüinito
+        doc.setFillColor(255, 255, 255);
+        doc.setDrawColor(0, 159, 227); // Colorlink Cyan
+        doc.setLineWidth(0.6);
+        doc.roundedRect(margin, currentY - 1, 20, 20, 3.5, 3.5, 'FD');
+
+        doc.addImage(penguinImgEl, 'JPEG', margin + 1, currentY, 18, 18);
+        imageAdded = true;
+      } catch {
+        imageAdded = false;
+      }
+    }
+  }
+
+  // Si no se cargó el elemento DOM o es entorno aislado, dibujamos el pingüinito vector de alta precisión
+  if (!imageAdded) {
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(0, 159, 227);
+    doc.setLineWidth(0.6);
+    doc.roundedRect(margin, currentY - 1, 20, 20, 3.5, 3.5, 'FD');
+
+    const cx = margin + 10;
+    const cy = currentY + 9;
+
+    // Sombra suave en los pies
+    doc.setFillColor(210, 220, 230);
+    doc.ellipse(cx, cy + 7.5, 6, 1.2, 'F');
+
+    // Patitas naranjas
+    doc.setFillColor(245, 158, 11);
+    doc.ellipse(cx - 2.8, cy + 7, 2.2, 1, 'F');
+    doc.ellipse(cx + 2.8, cy + 7, 2.2, 1, 'F');
+
+    // Cuerpo negro pizarra
+    doc.setFillColor(30, 41, 59);
+    doc.ellipse(cx, cy + 2, 5.5, 6, 'F'); // cuerpo
+    doc.circle(cx, cy - 2.5, 4.2, 'F'); // cabeza
+
+    // Alitas saludando
+    doc.ellipse(cx - 5.2, cy + 2, 1.6, 3.5, 'F');
+    doc.ellipse(cx + 5.2, cy + 2, 1.6, 3.5, 'F');
+
+    // Pecho blanco
+    doc.setFillColor(255, 255, 255);
+    doc.ellipse(cx, cy + 2.2, 3.8, 4.8, 'F');
+    doc.ellipse(cx, cy - 1.8, 3, 2.8, 'F');
+
+    // Ojitos
+    doc.setFillColor(15, 23, 42);
+    doc.circle(cx - 1.3, cy - 2.4, 0.7, 'F');
+    doc.circle(cx + 1.3, cy - 2.4, 0.7, 'F');
+    doc.setFillColor(255, 255, 255);
+    doc.circle(cx - 1.1, cy - 2.6, 0.25, 'F');
+    doc.circle(cx + 1.5, cy - 2.6, 0.25, 'F');
+
+    // Mejillas rosadas
+    doc.setFillColor(251, 113, 133);
+    doc.circle(cx - 2.3, cy - 1.2, 0.7, 'F');
+    doc.circle(cx + 2.3, cy - 1.2, 0.7, 'F');
+
+    // Pico naranja
+    doc.setFillColor(245, 158, 11);
+    doc.triangle(cx - 1.1, cy - 1.5, cx + 1.1, cy - 1.5, cx, cy - 0.2, 'F');
+
+    // Boina de pintor celeste Colorlink
+    doc.setFillColor(0, 159, 227);
+    doc.ellipse(cx - 0.5, cy - 5.8, 3.8, 1.2, 'F');
+    doc.circle(cx - 0.5, cy - 6.6, 0.6, 'F');
+  }
 
   // Title Text
+  const textX = margin + 24;
   doc.setTextColor(15, 23, 42); // slate-900
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
-  doc.text('COLORLINK®', margin + 32, currentY + 7);
+  doc.text('COLORLINK®', textX, currentY + 7);
 
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(71, 85, 105); // slate-600
-  doc.text('El color de la calidad • Sistema Integral de Recubrimientos Arquitectónicos', margin + 32, currentY + 12);
-  doc.text('Línea Profesional Especializada para Obras y Constructoras', margin + 32, currentY + 16.5);
+  doc.text('El color de la calidad • Sistema Integral de Recubrimientos Arquitectónicos', textX, currentY + 12);
+  doc.text('Línea Profesional Especializada para Obras y Constructoras', textX, currentY + 16.5);
 
   // Right Header: Folio & Date
   doc.setFont('helvetica', 'bold');

@@ -245,19 +245,19 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen bg-[#f8fafc] text-slate-800 flex flex-col font-sans selection:bg-[#E5007D] selection:text-white">
       {/* Barra de Colores Institucional Colorlink */}
-      <ColorlinkRainbowBar className="h-1.5 w-full" />
+      <ColorlinkRainbowBar className="h-2 w-full" />
 
       {/* TOP HEADER */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-2xs">
+      <header className="bg-white/95 backdrop-blur-xs border-b border-slate-200/80 sticky top-0 z-40 shadow-2xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between py-3.5 gap-4">
             {/* Logo y Branding Colorlink con Pingüinito Pintor */}
             <div className="flex items-center gap-3">
               <PenguinLogo size="md" />
               {userRole === 'admin' && (
-                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-300">
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-full bg-slate-900 text-amber-300 border border-amber-400/40">
                   Modo Administrador
                 </span>
               )}
@@ -268,15 +268,15 @@ export default function App() {
               {userRole === 'client' ? (
                 <>
                   {/* Info de contacto cliente */}
-                  <div className="hidden lg:flex items-center gap-2 text-xs text-slate-500 border-r border-slate-200 pr-3 mr-1">
-                    <Phone className="w-3.5 h-3.5 text-blue-600" />
+                  <div className="hidden lg:flex items-center gap-2 text-xs text-slate-600 border-r border-slate-200/80 pr-3 mr-1 font-semibold">
+                    <Phone className="w-3.5 h-3.5 text-[#FF6A00]" />
                     <span>Línea Constructoras: (604) 448-0000</span>
                   </div>
 
                   {activeClient && (
                     <div className="flex items-center gap-2 mr-1">
-                      <span className="hidden sm:inline-flex items-center gap-1.5 text-xs text-slate-700 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-xl font-semibold">
-                        <User className="w-3.5 h-3.5 text-blue-600" />
+                      <span className="hidden sm:inline-flex items-center gap-1.5 text-xs text-slate-700 bg-white border border-slate-200/90 px-3 py-1.5 rounded-xl font-bold shadow-2xs">
+                        <User className="w-3.5 h-3.5 text-[#E5007D]" />
                         <span className="truncate max-w-[160px]">{activeClient.responsable || activeClient.empresa}</span>
                       </span>
                       <button
@@ -285,7 +285,7 @@ export default function App() {
                           logoutFromSupabase();
                           setActiveClient(null);
                         }}
-                        className="px-3 py-1.5 text-xs font-bold text-rose-700 hover:text-white bg-rose-50 hover:bg-rose-600 border border-rose-200 hover:border-rose-600 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                        className="px-3 py-1.5 text-xs font-bold text-rose-600 hover:text-white bg-white hover:bg-rose-500 border border-rose-200/90 hover:border-rose-500 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
                         title="Cerrar sesión y volver a la pantalla del pingüino"
                       >
                         <LogOut className="w-3.5 h-3.5" />
@@ -298,22 +298,22 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => setShowAdminLoginModal(true)}
-                    className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 rounded-xl transition-all border border-slate-200/90 shadow-2xs cursor-pointer active:scale-95"
+                    className="p-2.5 bg-white hover:bg-slate-50 text-slate-500 hover:text-slate-800 rounded-xl transition-all border border-slate-200/90 shadow-2xs cursor-pointer active:scale-95"
                     title="Acceso Administrador"
                   >
-                    <Lock className="w-4 h-4 text-slate-600" />
+                    <Lock className="w-4 h-4 text-amber-500" />
                   </button>
                 </>
               ) : (
                 /* Controles cuando está en Modo Administrador */
                 <div className="flex items-center gap-2">
-                  <span className="hidden sm:inline-flex text-xs text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-xl font-bold">
+                  <span className="hidden sm:inline-flex text-xs text-slate-700 bg-white border border-slate-200 px-3 py-1.5 rounded-xl font-bold shadow-2xs">
                     Ing. Carlos Restrepo
                   </span>
                   <button
                     type="button"
                     onClick={() => setUserRole('client')}
-                    className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+                    className="px-4 py-2 bg-gradient-to-r from-[#E5007D] via-[#6A0DAD] to-[#009FE3] hover:opacity-95 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
                   >
                     <span>Volver a Vista Cliente</span>
                   </button>

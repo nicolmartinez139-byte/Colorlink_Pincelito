@@ -4,6 +4,7 @@ import { CASE_STUDY_PRESET } from '../data/dictionaryData';
 import { calculateTechnicalRequirements, formatCOP } from '../utils/calculator';
 import { generateColorlinkPDF, printColorlinkPDF } from '../utils/generateColorlinkPDF';
 import { ColorFinishSelector } from './ColorFinishSelector';
+import { ColorlinkPenguin } from './ColorlinkPenguin';
 import { ColorlinkPaintSplashes, ColorlinkRainbowBar } from './ColorlinkSplashes';
 import { ColorlinkConfettiDots, ColorlinkDotsCompact } from './ColorlinkDots';
 import { ClientAIAssistant } from './ClientAIAssistant';
@@ -600,7 +601,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
 
                   <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 text-right shrink-0">
                     <span className="text-[10px] text-slate-500 uppercase font-bold block">Valor Total Liquidado:</span>
-                    <strong className="text-xl font-black text-blue-700 font-mono">
+                    <strong className="text-xl font-black bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] bg-clip-text text-transparent font-mono">
                       {formatCOP(presupuesto.totalPresupuesto)} COP
                     </strong>
                   </div>
@@ -617,7 +618,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         El precio de los cuñetes y galones se recalcula inmediatamente al cambiar de opción.
                       </p>
                     </div>
-                    <span className="text-[10px] bg-blue-100 text-blue-800 px-2 py-0.5 rounded-md font-bold shrink-0">
+                    <span className="text-[10px] bg-gradient-to-r from-amber-500 via-rose-500 to-purple-600 text-white px-2.5 py-0.5 rounded-full font-bold shrink-0 shadow-2xs">
                       Actualización en Vivo
                     </span>
                   </div>
@@ -629,14 +630,14 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       onClick={() => handleSwitchPaintType('Tipo 1')}
                       className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer ${
                         (formData.tipoPintura || 'Tipo 1') === 'Tipo 1'
-                          ? 'border-blue-600 bg-blue-50/90 shadow-xs ring-2 ring-blue-500/20'
+                          ? 'border-violet-600 bg-violet-50/90 shadow-xs ring-2 ring-violet-500/20'
                           : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="font-black text-xs text-blue-950">Pintura Tipo 1</span>
+                        <span className="font-black text-xs text-violet-950">Pintura Tipo 1</span>
                         {(formData.tipoPintura || 'Tipo 1') === 'Tipo 1' ? (
-                          <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold">
+                          <span className="w-5 h-5 rounded-full bg-violet-600 text-white flex items-center justify-center text-xs font-bold">
                             ✓
                           </span>
                         ) : (
@@ -759,8 +760,8 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                 </div>
 
                 {/* NOTA INFORMATIVA DE EMISIÓN DE RECIBO OFICIAL */}
-                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-600 flex items-start gap-2.5">
-                  <Lock className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                <div className="p-3.5 bg-sky-50/60 rounded-2xl border border-sky-100 text-xs text-slate-700 flex items-start gap-2.5">
+                  <Lock className="w-4 h-4 text-[#009FE3] shrink-0 mt-0.5" />
                   <p className="leading-relaxed">
                     <strong>Generación Oficial de Recibo:</strong> El recibo formal con firma fiscal, código QR de certificación y la orden de entrega en ruta se generarán y enviarán a su correo <strong>{formData.emailResponsable}</strong> inmediatamente después de presionar <strong>"Aceptar Cotización"</strong>.
                   </p>
@@ -771,27 +772,27 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                   <button
                     type="button"
                     onClick={handleAcceptQuotation}
-                    className="flex-1 py-3.5 px-6 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-black text-xs rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                    className="flex-1 py-3.5 px-6 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-600 hover:via-teal-600 hover:to-cyan-600 text-white font-black text-xs sm:text-sm rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
                   >
-                    <CheckCircle2 className="w-4 h-4 text-blue-200" />
+                    <CheckCircle2 className="w-4.5 h-4.5 text-white" />
                     <span>Aceptar Cotización y Generar Recibo Oficial</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handleModifyQuotation(2)}
-                    className="py-3.5 px-5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-2xl border border-slate-200 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    className="py-3.5 px-5 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-2xl border border-slate-200 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
                   >
-                    <Edit3 className="w-4 h-4 text-blue-600" />
+                    <Edit3 className="w-4 h-4 text-purple-600" />
                     <span>Modificar datos</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setShowRejectModal(true)}
-                    className="py-3.5 px-5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-2xl border border-rose-200 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    className="py-3.5 px-5 bg-rose-50/80 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-2xl border border-rose-200/80 transition-all flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    <ThumbsDown className="w-4 h-4 text-rose-600" />
+                    <ThumbsDown className="w-4 h-4 text-rose-500" />
                     <span>Rechazar Cotización</span>
                   </button>
                 </div>
@@ -801,25 +802,25 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
             {/* 2. SI LA COTIZACIÓN FUE ACEPTADA */}
             {quotationDecision === 'accepted' && (
               <div className="space-y-4 animate-fadeIn">
-                <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-800 text-white rounded-3xl p-6 sm:p-7 shadow-xl border border-blue-500 space-y-4">
+                <div className="bg-gradient-to-r from-[#003882] via-[#6A0DAD] to-[#E5007D] text-white rounded-3xl p-6 sm:p-7 shadow-lg border border-purple-800 space-y-4">
                   <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                     <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center font-bold text-white shadow-inner shrink-0">
+                      <div className="w-14 h-14 rounded-2xl bg-white/15 backdrop-blur-xs flex items-center justify-center font-bold text-white shadow-inner shrink-0">
                         <CheckCheck className="w-7 h-7 text-white" />
                       </div>
                       <div className="space-y-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="bg-white text-blue-950 font-mono text-xs px-3 py-1 rounded-full font-black shadow-xs">
+                          <span className="bg-white text-purple-900 font-mono text-xs px-3 py-1 rounded-full font-black shadow-xs">
                             ORDEN AUTORIZADA: {orderNumber}
                           </span>
-                          <span className="text-xs bg-blue-900/50 text-blue-100 px-2.5 py-0.5 rounded-full font-semibold">
+                          <span className="text-xs bg-white/15 text-white/90 px-2.5 py-0.5 rounded-full font-semibold">
                             Aceptada: {decisionTimestamp}
                           </span>
                         </div>
                         <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
                           Cotización aceptada
                         </h3>
-                        <p className="text-xs sm:text-sm text-blue-100 leading-relaxed max-w-2xl">
+                        <p className="text-xs sm:text-sm text-pink-100 leading-relaxed max-w-2xl">
                           Su orden de pintura con especificación <strong>{formData.tipoPintura || 'Tipo 1'}</strong> ha sido confirmada y transmitida a la planta de Tintometría Colorlink en Medellín. Se ha emitido su recibo oficial a continuación.
                         </p>
                       </div>
@@ -829,15 +830,15 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       <button
                         type="button"
                         onClick={handleDownloadPDF}
-                        className="px-4 py-3 bg-white text-blue-900 hover:bg-blue-50 text-xs font-extrabold rounded-2xl shadow-sm transition-all flex items-center gap-2 cursor-pointer"
+                        className="px-4 py-3 bg-white text-slate-900 hover:bg-slate-50 text-xs font-black rounded-2xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
                       >
-                        <Download className="w-4 h-4 text-blue-700" />
+                        <Download className="w-4 h-4 text-[#E5007D]" />
                         <span>Descargar Recibo PDF</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => setQuotationDecision('pending')}
-                        className="px-3.5 py-3 bg-white/15 hover:bg-white/25 text-white text-xs font-bold rounded-2xl transition-all cursor-pointer"
+                        className="px-3.5 py-3 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-2xl transition-all cursor-pointer"
                         title="Revertir y evaluar otras opciones"
                       >
                         Reevaluar
@@ -1061,14 +1062,11 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
               {/* ENCABEZADO CORPORATIVO COLORLINK CON ONDA DE COLORES */}
               <div className="border-b border-slate-200 pb-5 space-y-3">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  {/* Logo Colorlink & Título */}
-                  <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#003882] via-[#009FE3] to-[#FFD100] p-1 shadow-md flex items-center justify-center">
-                      <div className="w-full h-full bg-white rounded-xl flex items-center justify-center font-black text-xl text-[#003882] tracking-tighter">
-                        <span className="text-[#003882]">C</span>
-                        <span className="text-[#E30613]">O</span>
-                        <span className="text-[#FFD100]">L</span>
-                        <span className="text-[#00A651]">K</span>
+                  {/* Logo Colorlink (Pingüinito Mascota Oficial) & Título */}
+                  <div className="flex items-center gap-3.5 sm:gap-4">
+                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#003882] via-[#009FE3] to-[#FFD100] p-0.5 shadow-md flex items-center justify-center shrink-0">
+                      <div className="w-full h-full bg-white rounded-[14px] flex items-center justify-center p-1 overflow-hidden">
+                        <ColorlinkPenguin size="lg" className="w-full h-full" />
                       </div>
                     </div>
                     <div>
@@ -1266,9 +1264,9 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         <span className="font-mono font-bold text-slate-900">{formatCOP(presupuesto.subtotalConDescuento)}</span>
                       </div>
 
-                      <div className="flex justify-between text-xs text-blue-900 bg-blue-50/70 backdrop-blur-xs px-2 py-1 rounded-lg border border-blue-100 font-medium">
-                        <span className="flex items-center gap-1 font-semibold text-blue-900">
-                          <Truck className="w-3.5 h-3.5 text-blue-600" /> Flete Terrestre Asegurado ({formData.ciudad}):
+                      <div className="flex justify-between text-xs text-purple-900 bg-purple-50/70 backdrop-blur-xs px-2 py-1 rounded-lg border border-purple-100 font-medium">
+                        <span className="flex items-center gap-1 font-semibold text-purple-900">
+                          <Truck className="w-3.5 h-3.5 text-[#FF6A00]" /> Flete Terrestre Asegurado ({formData.ciudad}):
                         </span>
                         <span className="font-mono font-bold text-slate-900">{formatCOP(presupuesto.fleteEnvio)}</span>
                       </div>
@@ -1284,9 +1282,11 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                           <span className="text-[11px] text-slate-900 uppercase tracking-wider block font-black">
                             TOTAL GENERAL A PAGAR:
                           </span>
-                          <span className="text-[10px] text-blue-700 font-bold">Materiales + Despacho + IVA</span>
+                          <span className="text-[10px] bg-gradient-to-r from-amber-500 via-rose-500 to-purple-600 bg-clip-text text-transparent font-black">
+                            Materiales + Despacho + IVA
+                          </span>
                         </div>
-                        <span className="text-2xl sm:text-3xl font-black text-blue-700 font-mono tracking-tight">
+                        <span className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-[#E5007D] via-[#6A0DAD] to-[#009FE3] bg-clip-text text-transparent font-mono tracking-tight">
                           {formatCOP(presupuesto.totalPresupuesto)}
                         </span>
                       </div>
@@ -1303,8 +1303,11 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                 </div>
 
                 <div className="flex items-center gap-3 p-2 bg-slate-50 rounded-xl border border-slate-200">
-                  <div className="w-8 h-8 rounded-xl bg-blue-900 text-white flex items-center justify-center">
-                    <QrCode className="w-5 h-5 text-blue-300" />
+                  <div className="w-9 h-9 rounded-xl bg-white border border-sky-200 p-0.5 flex items-center justify-center overflow-hidden shrink-0 shadow-2xs">
+                    <ColorlinkPenguin size="xs" className="w-full h-full" />
+                  </div>
+                  <div className="w-8 h-8 rounded-xl bg-[#003882] text-white flex items-center justify-center">
+                    <QrCode className="w-5 h-5 text-sky-200" />
                   </div>
                   <div className="text-[10px]">
                     <span className="font-bold text-slate-900 block">Certificación Digital Colorlink</span>
@@ -1332,7 +1335,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                 id="btn-download-pdf-bottom"
                 onClick={handleDownloadPDF}
                 disabled={isGeneratingPDF}
-                className="w-full sm:w-auto px-7 py-3.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-bold text-xs rounded-2xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 disabled:opacity-75 cursor-pointer"
+                className="w-full sm:w-auto px-7 py-3.5 bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] hover:from-[#FF7A10] hover:via-[#F00084] hover:to-[#7B1FA2] text-white font-black text-xs rounded-2xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 disabled:opacity-75 cursor-pointer active:scale-95"
               >
                 {isGeneratingPDF ? (
                   <>
@@ -1450,7 +1453,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       <span className="text-xs font-black text-slate-900">
                         ¿Tienes dudas con tus medidas, fotos o pintura? Pincelito 🐧 te ayuda
                       </span>
-                      <span className="px-2 py-0.5 bg-gradient-to-r from-pink-500 to-amber-400 text-white text-[10px] font-black rounded-md">
+                      <span className="px-2 py-0.5 bg-gradient-to-r from-amber-500 to-rose-500 text-white text-[10px] font-black rounded-md shadow-2xs">
                         IA & Asesor
                       </span>
                     </div>
@@ -1462,19 +1465,40 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                 <button
                   type="button"
                   onClick={() => setIsAiAssistantOpen(true)}
-                  className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-2 shrink-0 cursor-pointer active:scale-95"
+                  className="px-4 py-2 bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] hover:from-[#FF7A10] hover:via-[#F00084] hover:to-[#7B1FA2] text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-2 shrink-0 cursor-pointer active:scale-95"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-amber-300" />
                   <span>Consultar con Pincelito 🐧</span>
                 </button>
               </div>
 
-              {/* Stepper Visual de 3 Pasos */}
+              {/* Stepper Visual de 3 Pasos con Colores Vivos y Distintivos */}
               <div className="mt-6 pt-6 border-t border-slate-200/80 grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {[
-                  { step: 1, title: '1. Ubicación & Área', desc: 'Ciudad, m² y Fechas de Obra', icon: Layers },
-                  { step: 2, title: '2. Parámetros Técnicos', desc: 'Sustrato, Pintura y Color', icon: Sparkles },
-                  { step: 3, title: '3. Diagnóstico & Envío', desc: 'Evidencias y Confirmación', icon: FileCheck }
+                  {
+                    step: 1,
+                    title: '1. Ubicación & Área',
+                    desc: 'Ciudad, m² y Fechas de Obra',
+                    icon: Layers,
+                    activeBorder: 'border-amber-400 ring-2 ring-amber-400/30 bg-amber-50/50',
+                    activeIcon: 'bg-gradient-to-tr from-amber-500 to-orange-500 text-white shadow-xs'
+                  },
+                  {
+                    step: 2,
+                    title: '2. Parámetros Técnicos',
+                    desc: 'Sustrato, Pintura y Color',
+                    icon: Sparkles,
+                    activeBorder: 'border-emerald-400 ring-2 ring-emerald-400/30 bg-emerald-50/50',
+                    activeIcon: 'bg-gradient-to-tr from-emerald-500 to-teal-500 text-white shadow-xs'
+                  },
+                  {
+                    step: 3,
+                    title: '3. Diagnóstico & Envío',
+                    desc: 'Evidencias y Confirmación',
+                    icon: FileCheck,
+                    activeBorder: 'border-purple-400 ring-2 ring-purple-400/30 bg-purple-50/50',
+                    activeIcon: 'bg-gradient-to-tr from-purple-600 to-pink-500 text-white shadow-xs'
+                  }
                 ].map((item) => {
                   const isCompleted = currentStep > item.step;
                   const isCurrent = currentStep === item.step;
@@ -1484,9 +1508,9 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       key={item.step}
                       type="button"
                       onClick={() => setCurrentStep(item.step)}
-                      className={`p-3 rounded-2xl text-left border transition-all flex items-center gap-3 backdrop-blur-xs ${
+                      className={`p-3 rounded-2xl text-left border transition-all flex items-center gap-3 backdrop-blur-xs cursor-pointer ${
                         isCurrent
-                          ? 'border-blue-600 bg-white/95 shadow-xs ring-2 ring-blue-500/20'
+                          ? `${item.activeBorder} shadow-xs`
                           : isCompleted
                           ? 'border-emerald-200 bg-emerald-50/70 text-emerald-900'
                           : 'border-slate-200 bg-white/80 text-slate-500 hover:border-slate-300'
@@ -1495,7 +1519,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       <div
                         className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 transition-colors ${
                           isCurrent
-                            ? 'bg-blue-600 text-white shadow-sm'
+                            ? item.activeIcon
                             : isCompleted
                             ? 'bg-emerald-600 text-white'
                             : 'bg-slate-100 text-slate-500'
@@ -1504,7 +1528,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         {isCompleted ? <CheckCircle2 className="w-5 h-5" /> : <Icon className="w-4 h-4" />}
                       </div>
                       <div className="min-w-0">
-                        <span className={`text-xs font-bold block truncate ${isCurrent ? 'text-blue-900' : 'text-slate-800'}`}>
+                        <span className={`text-xs font-bold block truncate ${isCurrent ? 'text-slate-900 font-extrabold' : 'text-slate-800'}`}>
                           {item.title}
                         </span>
                         <span className="text-[11px] text-slate-500 block truncate">{item.desc}</span>
@@ -1527,13 +1551,13 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         <h3 className="text-lg font-bold text-slate-900">1. Ubicación, Área y Fechas</h3>
                         <p className="text-xs text-slate-500">Variables para calcular el flete de despacho y la cantidad de envases.</p>
                       </div>
-                      <span className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full">Paso 1 de 3</span>
+                      <span className="text-xs font-bold text-amber-700 bg-amber-50 px-3 py-1 rounded-full border border-amber-200/80">Paso 1 de 3</span>
                     </div>
 
                     {/* Resumen del cliente registrado */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-blue-50/70 border border-blue-200/70 rounded-2xl text-xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-amber-50/40 border border-amber-100 rounded-2xl text-xs">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold shadow-xs shrink-0">
+                        <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center font-bold shadow-2xs shrink-0">
                           <Building2 className="w-4 h-4" />
                         </div>
                         <div>
@@ -1560,7 +1584,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                           id="standalone-select-ciudad"
                           value={formData.ciudad}
                           onChange={(e) => handleInputChange('ciudad', e.target.value)}
-                          className="w-full px-4 py-3 text-sm bg-slate-50/80 border border-slate-200 rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all font-semibold text-slate-800"
+                          className="w-full px-4 py-3 text-sm bg-slate-50/80 border border-slate-200 rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all font-semibold text-slate-800"
                         >
                           <option value="Medellín">Medellín</option>
                           <option value="Bogotá D.C.">Bogotá D.C.</option>
@@ -1582,7 +1606,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                           id="standalone-select-tipo-obra"
                           value={formData.tipoObra}
                           onChange={(e) => handleInputChange('tipoObra', e.target.value)}
-                          className="w-full px-4 py-3 text-sm bg-slate-50/80 border border-slate-200 rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium"
+                          className="w-full px-4 py-3 text-sm bg-slate-50/80 border border-slate-200 rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all font-medium"
                         >
                           <option value="Fachada Edificio">Fachada de edificio</option>
                           <option value="Muros Interiores">Muros interiores y áreas comunes</option>
@@ -1607,7 +1631,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                             value={formData.areaM2 || ''}
                             onChange={(e) => handleInputChange('areaM2', parseFloat(e.target.value) || 0)}
                             className={`w-full pl-4 pr-12 py-3 text-sm bg-slate-50/80 border ${
-                              errors.areaM2 ? 'border-rose-400 focus:ring-rose-400 bg-rose-50/20' : 'border-slate-200 focus:ring-blue-500'
+                              errors.areaM2 ? 'border-rose-400 focus:ring-rose-400 bg-rose-50/20' : 'border-slate-200 focus:ring-amber-500'
                             } rounded-2xl focus:bg-white focus:outline-none focus:ring-2 font-black text-slate-900 transition-all`}
                           />
                           <span className="absolute right-4 top-3 text-xs font-bold text-slate-400">m²</span>
@@ -1627,7 +1651,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                             value={formData.fechaRequerida}
                             onChange={(e) => handleInputChange('fechaRequerida', e.target.value)}
                             className={`w-full pl-10 pr-4 py-3 text-sm bg-slate-50/80 border ${
-                              errors.fechaRequerida ? 'border-rose-400 focus:ring-rose-400 bg-rose-50/20' : 'border-slate-200 focus:ring-blue-500'
+                              errors.fechaRequerida ? 'border-rose-400 focus:ring-rose-400 bg-rose-50/20' : 'border-slate-200 focus:ring-amber-500'
                             } rounded-2xl focus:bg-white focus:outline-none focus:ring-2 transition-all font-medium`}
                           />
                         </div>
@@ -1636,9 +1660,9 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                     </div>
 
                     {/* Resumen de Envases Requeridos */}
-                    <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/90 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 rounded-xl bg-blue-600 text-white flex flex-col items-center justify-center font-bold">
+                        <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-[#FF6A00] to-[#E5007D] text-white flex flex-col items-center justify-center font-bold shadow-2xs">
                           <span className="text-xs leading-none">{formData.areaM2}</span>
                           <span className="text-[9px] uppercase font-mono">m²</span>
                         </div>
@@ -1651,7 +1675,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                           </span>
                         </div>
                       </div>
-                      <span className="text-[11px] font-bold text-blue-700 bg-blue-50 px-3 py-1 rounded-xl border border-blue-200">
+                      <span className="text-[11px] font-bold text-amber-800 bg-amber-100/70 px-3 py-1 rounded-xl border border-amber-300/60">
                         {technicalCalc.manosSugeridas} Manos Recomendadas
                       </span>
                     </div>
@@ -1660,7 +1684,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       <button
                         type="button"
                         onClick={handleNextStep}
-                        className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-2xl shadow-sm hover:shadow transition-all flex items-center gap-2"
+                        className="px-6 py-3 bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 hover:from-amber-600 hover:via-orange-600 hover:to-rose-600 text-white font-bold text-sm rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer active:scale-95"
                       >
                         Continuar a Parámetros Técnicos <ArrowRight className="w-4 h-4" />
                       </button>
@@ -1676,7 +1700,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         <h3 className="text-lg font-bold text-slate-900">2. Sustrato, Ambiente y Color</h3>
                         <p className="text-xs text-slate-500">Selección química para garantizar máxima durabilidad e impermeabilidad.</p>
                       </div>
-                      <span className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full">Paso 2 de 3</span>
+                      <span className="text-xs font-bold text-fuchsia-700 bg-fuchsia-50 px-3 py-1 rounded-full border border-fuchsia-200/80">Paso 2 de 3</span>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1688,7 +1712,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                           id="standalone-select-sustrato"
                           value={formData.superficie}
                           onChange={(e) => handleInputChange('superficie', e.target.value)}
-                          className="w-full px-3 py-2.5 text-xs bg-slate-50/80 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium"
+                          className="w-full px-3 py-2.5 text-xs bg-slate-50/80 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#009FE3] transition-all font-medium"
                         >
                           <option value="Concreto / Revoque">Concreto, revoque o pañete</option>
                           <option value="Drywall / Yeso">Drywall o panel de yeso</option>
@@ -1707,7 +1731,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                           id="standalone-select-ambiente"
                           value={formData.ambiente}
                           onChange={(e) => handleInputChange('ambiente', e.target.value)}
-                          className="w-full px-3 py-2.5 text-xs bg-slate-50/80 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium"
+                          className="w-full px-3 py-2.5 text-xs bg-slate-50/80 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#009FE3] transition-all font-medium"
                         >
                           <option value="Exterior Intemperie">Exterior intemperie (sol y lluvia)</option>
                           <option value="Interior Seco">Interior seco (habitaciones, oficinas)</option>
@@ -1725,7 +1749,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                           id="standalone-select-condicion"
                           value={formData.condicion}
                           onChange={(e) => handleInputChange('condicion', e.target.value)}
-                          className="w-full px-3 py-2.5 text-xs bg-slate-50/80 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium"
+                          className="w-full px-3 py-2.5 text-xs bg-slate-50/80 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#009FE3] transition-all font-medium"
                         >
                           <option value="Nueva sin pintar">Nueva sin pintar (limpia y seca)</option>
                           <option value="Pintada en buen estado">Pintada en buen estado (cambio de color)</option>
@@ -1742,16 +1766,16 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-2.5">
                         <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                           <span>Tipo de Pintura Requerido (Norma Técnica Colombiana NTC 1335)</span>
-                          <span className="text-[10px] bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-bold">
+                          <span className="text-[10px] bg-sky-100 text-[#003882] px-2 py-0.5 rounded-full font-bold">
                             Define Durabilidad & Tarifa
                           </span>
                         </label>
                         <button
                           type="button"
                           onClick={() => setShowImageDiagnosisModal(true)}
-                          className="text-xs text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1.5 cursor-pointer bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded-xl transition-all"
+                          className="text-xs text-fuchsia-700 hover:text-fuchsia-800 font-bold flex items-center gap-1.5 cursor-pointer bg-fuchsia-50 hover:bg-fuchsia-100 px-3 py-1 rounded-xl transition-all border border-fuchsia-200/60"
                         >
-                          <Camera className="w-3.5 h-3.5 text-blue-600" />
+                          <Camera className="w-3.5 h-3.5 text-fuchsia-600" />
                           <span>¿Dudas? Diagnosticar foto con IA</span>
                         </button>
                       </div>
@@ -1762,13 +1786,13 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                           onClick={() => handleInputChange('tipoPintura', 'Tipo 1')}
                           className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
                             (formData.tipoPintura || 'Tipo 1') === 'Tipo 1'
-                              ? 'border-blue-600 bg-blue-50/70 shadow-xs ring-2 ring-blue-500/20'
+                              ? 'border-[#009FE3] bg-sky-50/70 shadow-xs ring-2 ring-[#009FE3]/20'
                               : 'border-slate-200 hover:border-slate-300 bg-white'
                           }`}
                         >
                           <div className="flex items-center justify-between mb-1">
-                            <span className="font-extrabold text-xs text-blue-950">Pintura Tipo 1</span>
-                            <span className="text-[10px] font-bold bg-blue-600 text-white px-2 py-0.5 rounded-md">
+                            <span className="font-extrabold text-xs text-slate-900">Pintura Tipo 1</span>
+                            <span className="text-[10px] font-bold bg-[#009FE3] text-white px-2 py-0.5 rounded-md">
                               Exterior de alta resistencia
                             </span>
                           </div>
@@ -1844,14 +1868,14 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       <button
                         type="button"
                         onClick={handlePrevStep}
-                        className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-2xl transition-all"
+                        className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-2xl transition-all cursor-pointer"
                       >
                         Atrás
                       </button>
                       <button
                         type="button"
                         onClick={handleNextStep}
-                        className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-2xl shadow-sm hover:shadow transition-all flex items-center gap-2"
+                        className="px-6 py-3 bg-gradient-to-r from-fuchsia-600 via-pink-600 to-rose-500 hover:from-fuchsia-700 hover:via-pink-700 hover:to-rose-600 text-white font-bold text-sm rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer active:scale-95"
                       >
                         Continuar a Evidencias & Diagnóstico <ArrowRight className="w-4 h-4" />
                       </button>
@@ -1867,7 +1891,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         <h3 className="text-lg font-bold text-slate-900">3. Evidencias Fotográficas & Diagnóstico</h3>
                         <p className="text-xs text-slate-500">Valida las patologías para emitir el presupuesto oficial con precios reales.</p>
                       </div>
-                      <span className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full">Paso 3 de 3</span>
+                      <span className="text-xs font-bold text-purple-700 bg-purple-50 px-3 py-1 rounded-full border border-purple-200/80">Paso 3 de 3</span>
                     </div>
 
                     <div className="space-y-4">
@@ -1882,7 +1906,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                           value={formData.descripcionLibre}
                           onChange={(e) => handleInputChange('descripcionLibre', e.target.value)}
                           className={`w-full px-4 py-3 text-sm bg-slate-50/80 border ${
-                            errors.descripcionLibre ? 'border-rose-400 focus:ring-rose-400 bg-rose-50/20' : 'border-slate-200 focus:ring-blue-500'
+                            errors.descripcionLibre ? 'border-rose-400 focus:ring-rose-400 bg-rose-50/20' : 'border-slate-200 focus:ring-purple-500'
                           } rounded-2xl focus:bg-white focus:outline-none focus:ring-2 transition-all leading-relaxed`}
                         />
                         {errors.descripcionLibre && <p className="text-xs text-rose-600 mt-1">{errors.descripcionLibre}</p>}
@@ -1891,9 +1915,9 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       {/* Carga de Fotos & Análisis con IA */}
                       <div className="space-y-3">
                         {/* Banner Destacado para invocar la IA de Visión Artificial */}
-                        <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 p-4 sm:p-5 rounded-2xl border border-blue-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+                        <div className="bg-gradient-to-r from-purple-50 via-pink-50 to-amber-50 p-4 sm:p-5 rounded-2xl border border-pink-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold shadow-xs shrink-0">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-pink-500 text-white flex items-center justify-center font-bold shadow-xs shrink-0">
                               <Camera className="w-5 h-5 text-white" />
                             </div>
                             <div>
@@ -1901,7 +1925,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                                 <h4 className="text-xs font-bold text-slate-900">
                                   Diagnóstico Fotográfico con Visión Artificial IA
                                 </h4>
-                                <span className="text-[9px] bg-blue-600 text-white font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                <span className="text-[9px] bg-gradient-to-r from-purple-600 to-pink-500 text-white font-black px-2 py-0.5 rounded-full uppercase tracking-wider shadow-2xs">
                                   Nuevo
                                 </span>
                               </div>
@@ -1914,7 +1938,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                           <button
                             type="button"
                             onClick={() => setShowImageDiagnosisModal(true)}
-                            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer shrink-0 active:scale-95"
+                            className="px-4 py-2.5 bg-gradient-to-r from-purple-600 via-fuchsia-600 to-pink-500 hover:from-purple-700 hover:via-fuchsia-700 hover:to-pink-600 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer shrink-0 active:scale-95"
                           >
                             <Sparkles className="w-3.5 h-3.5 text-amber-300" />
                             <span>Examinar Foto con IA</span>
@@ -1928,9 +1952,9 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                           <span className="text-[11px] text-slate-400">Mínimo 1 foto</span>
                         </div>
 
-                        <div className="border-2 border-dashed border-slate-200 hover:border-blue-400 rounded-2xl p-4 text-center bg-slate-50/50 hover:bg-blue-50/20 transition-all">
+                        <div className="border-2 border-dashed border-slate-200 hover:border-[#009FE3] rounded-2xl p-4 text-center bg-slate-50/50 hover:bg-sky-50/20 transition-all">
                           <div className="max-w-md mx-auto space-y-2">
-                            <Upload className="w-6 h-6 text-blue-600 mx-auto" />
+                            <Upload className="w-6 h-6 text-[#009FE3] mx-auto" />
                             <p className="text-xs font-semibold text-slate-700">
                               Sube fotos de la fachada, superficie o patologías
                             </p>
@@ -1938,16 +1962,16 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                               <button
                                 type="button"
                                 onClick={handleAddMockPhoto}
-                                className="px-3.5 py-1.5 bg-white hover:bg-slate-100 text-blue-600 font-bold text-xs rounded-xl border border-blue-200 shadow-xs transition-all"
+                                className="px-3.5 py-1.5 bg-white hover:bg-slate-100 text-[#009FE3] font-bold text-xs rounded-xl border border-sky-200 shadow-xs transition-all cursor-pointer"
                               >
                                 + Adjuntar Foto de Evidencia
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setShowImageDiagnosisModal(true)}
-                                className="px-3.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs rounded-xl border border-indigo-200 transition-all flex items-center gap-1"
+                                className="px-3.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-[#003882] font-bold text-xs rounded-xl border border-sky-200 transition-all flex items-center gap-1 cursor-pointer"
                               >
-                                <Camera className="w-3.5 h-3.5 text-indigo-600" />
+                                <Camera className="w-3.5 h-3.5 text-[#009FE3]" />
                                 <span>Diagnosticar con IA</span>
                               </button>
                             </div>
@@ -1963,7 +1987,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                                 className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200"
                               >
                                 <div className="flex items-center gap-2 truncate">
-                                  <FileText className="w-4 h-4 text-blue-600 shrink-0" />
+                                  <FileText className="w-4 h-4 text-[#009FE3] shrink-0" />
                                   <span className="text-xs font-medium text-slate-800 truncate">{foto.name}</span>
                                   <span className="text-[10px] text-slate-400 font-mono">({foto.size})</span>
                                 </div>
@@ -1991,7 +2015,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                           placeholder="Ej. Acceso por andamios colgantes certificados de obra..."
                           value={formData.observaciones}
                           onChange={(e) => handleInputChange('observaciones', e.target.value)}
-                          className="w-full px-4 py-2.5 text-xs bg-slate-50/80 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                          className="w-full px-4 py-2.5 text-xs bg-slate-50/80 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#009FE3] transition-all"
                         />
                       </div>
 
@@ -2002,7 +2026,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                             type="checkbox"
                             checked={formData.consentimiento}
                             onChange={(e) => handleInputChange('consentimiento', e.target.checked)}
-                            className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
+                            className="mt-0.5 rounded border-slate-300 text-[#009FE3] focus:ring-[#009FE3] w-4 h-4"
                           />
                           <span className="text-xs text-slate-600 leading-relaxed font-medium">
                             Autorizo el tratamiento de mis datos de contacto conforme a la Ley de Protección de Datos (Habeas Data) para la emisión formal de la cotización y despacho. <span className="text-rose-500">*</span>
@@ -2016,14 +2040,14 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       <button
                         type="button"
                         onClick={handlePrevStep}
-                        className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-2xl transition-all"
+                        className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-2xl transition-all cursor-pointer"
                       >
                         Atrás
                       </button>
                       <button
                         id="standalone-submit-btn"
                         type="submit"
-                        className="px-8 py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-sm rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center gap-2.5 active:scale-95"
+                        className="px-8 py-3.5 bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] hover:from-[#FF7A10] hover:via-[#F00084] hover:to-[#7B1FA2] text-white font-black text-sm rounded-2xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2.5 active:scale-95 cursor-pointer"
                       >
                         <Send className="w-4 h-4" />
                         Emitir Cotización Oficial con Precios Reales
@@ -2040,7 +2064,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
       <button
         type="button"
         onClick={() => setIsAiAssistantOpen(true)}
-        className="fixed bottom-6 right-6 z-40 bg-gradient-to-r from-blue-700 via-indigo-600 to-blue-800 hover:from-blue-600 hover:to-indigo-500 text-white px-4 py-3 rounded-2xl shadow-xl hover:shadow-2xl transition-all flex items-center gap-2.5 group cursor-pointer border border-white/20 active:scale-95"
+        className="fixed bottom-6 right-6 z-40 bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] hover:from-[#FF7A10] hover:via-[#F00084] hover:to-[#7B1FA2] text-white px-4 py-3 rounded-2xl shadow-xl hover:shadow-2xl transition-all flex items-center gap-2.5 group cursor-pointer border-2 border-white/40 active:scale-95"
         title="Abrir Asistente Virtual con IA de Colorlink"
       >
         <div className="w-8 h-8 rounded-xl bg-white/20 backdrop-blur-xs flex items-center justify-center text-amber-300 shadow-inner">
@@ -2051,7 +2075,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
             <span>Asistente IA Colorlink</span>
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
           </div>
-          <div className="text-[10px] text-blue-200">Asesoría de medidas & pintura</div>
+          <div className="text-[10px] text-sky-200">Asesoría de medidas & pintura</div>
         </div>
       </button>
 

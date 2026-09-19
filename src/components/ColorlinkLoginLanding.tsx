@@ -243,7 +243,7 @@ export function ColorlinkLoginLanding({
       <div className="relative z-10 w-full max-w-[430px] bg-white rounded-[36px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.4)] px-6 sm:px-9 pb-8 pt-14 sm:pt-16 border border-white/80 transition-all">
         {/* BADGE CIRCULAR SUPERPUESTO CON EL PINGÜINITO TIERNO (Imagen 2) */}
         <div className="absolute -top-12 left-1/2 -translate-x-1/2 flex items-center justify-center">
-          <div className="p-1.5 rounded-full bg-gradient-to-tr from-cyan-400 via-indigo-500 to-fuchsia-500 shadow-xl">
+          <div className="p-1.5 rounded-full bg-gradient-to-tr from-[#FFD100] via-[#FF6A00] via-[#E5007D] via-[#6A0DAD] to-[#009FE3] shadow-xl animate-pulse">
             <div className="w-20 h-20 sm:w-22 sm:h-22 rounded-full bg-white flex items-center justify-center p-1.5 overflow-hidden border-2 border-white shadow-inner">
               {/* Mascota Pingüino Colorlink */}
               <ColorlinkPenguin size="xl" className="transform hover:scale-105 transition-transform" />
@@ -251,14 +251,14 @@ export function ColorlinkLoginLanding({
           </div>
         </div>
 
-        {/* TÍTULO PRINCIPAL */}
+        {/* TÍTULO PRINCIPAL CON DEGRADADO VIBRANTE COLORIDO */}
         <div className="text-center mb-6">
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-[#159cc4] tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] bg-clip-text text-transparent tracking-tight">
             {mode === 'login' ? 'Inicia sesión ahora' : 'Crear cuenta nueva'}
           </h1>
-          <p className="text-xs text-slate-400 mt-1 font-medium">
+          <p className="text-xs text-slate-500 mt-1 font-semibold">
             {mode === 'login'
-              ? 'Accede para gestionar tus pedidos y cotizaciones'
+              ? 'Accede para gestionar tus pedidos de pintura y cotizaciones'
               : 'Ingresa los datos para registrar tu empresa'}
           </p>
         </div>
@@ -271,17 +271,17 @@ export function ColorlinkLoginLanding({
         )}
 
         {forgotPasswordMsg && (
-          <div className="mb-4 p-3 bg-sky-50 border border-sky-200 rounded-2xl text-xs text-sky-800 text-center">
+          <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-800 text-center">
             Para restablecer tu contraseña o consultar tus datos corporativos, comunícate al PBX <strong>(604) 448-0000</strong> o ingresa con la cuenta demo.
           </div>
         )}
 
         {mode === 'login' ? (
-          /* FORMULARIO DE INICIO DE SESIÓN (Idéntico a la Imagen 1) */
+          /* FORMULARIO DE INICIO DE SESIÓN CON TOQUES COLORIDOS */
           <form onSubmit={handleLogin} className="space-y-4">
             {/* Campo Username */}
             <div className="space-y-1.5 text-left">
-              <label className="block text-xs font-semibold text-slate-500 pl-2">
+              <label className="block text-xs font-bold text-slate-600 pl-2">
                 Username *
               </label>
               <div className="relative">
@@ -290,14 +290,14 @@ export function ColorlinkLoginLanding({
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="Enter your Username (ej: Constructora Horizonte)"
-                  className="w-full bg-[#f1f3f5] hover:bg-[#e9ecef] focus:bg-white text-slate-800 placeholder:text-slate-400 text-sm font-medium px-5 py-3.5 rounded-full border-0 focus:ring-2 focus:ring-[#20b8dc] transition-all outline-none"
+                  className="w-full bg-[#f8fafc] hover:bg-slate-100 focus:bg-white text-slate-800 placeholder:text-slate-400 text-sm font-medium px-5 py-3.5 rounded-full border border-slate-200 focus:border-[#E5007D] focus:ring-2 focus:ring-[#E5007D]/30 transition-all outline-none"
                 />
               </div>
             </div>
 
             {/* Campo Password */}
             <div className="space-y-1.5 text-left">
-              <label className="block text-xs font-semibold text-slate-500 pl-2">
+              <label className="block text-xs font-bold text-slate-600 pl-2">
                 Password *
               </label>
               <div className="relative">
@@ -306,7 +306,7 @@ export function ColorlinkLoginLanding({
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your Password"
-                  className="w-full bg-[#f1f3f5] hover:bg-[#e9ecef] focus:bg-white text-slate-800 placeholder:text-slate-400 text-sm font-medium px-5 py-3.5 pr-11 rounded-full border-0 focus:ring-2 focus:ring-[#20b8dc] transition-all outline-none"
+                  className="w-full bg-[#f8fafc] hover:bg-slate-100 focus:bg-white text-slate-800 placeholder:text-slate-400 text-sm font-medium px-5 py-3.5 pr-11 rounded-full border border-slate-200 focus:border-[#E5007D] focus:ring-2 focus:ring-[#E5007D]/30 transition-all outline-none"
                 />
                 <button
                   type="button"
@@ -321,35 +321,35 @@ export function ColorlinkLoginLanding({
 
             {/* Checkbox Remember me */}
             <div className="flex items-center pt-1 pl-1">
-              <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-500 select-none">
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-600 select-none">
                 <input
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  className="w-4 h-4 text-[#20b8dc] rounded border-slate-300 focus:ring-[#20b8dc] cursor-pointer"
+                  className="w-4 h-4 text-[#E5007D] rounded border-slate-300 focus:ring-[#E5007D] cursor-pointer"
                 />
                 <span>Remember me</span>
               </label>
             </div>
 
-            {/* BOTÓN PRINCIPAL: ACCESO */}
+            {/* BOTÓN PRINCIPAL: ACCESO COLORIDO Y VIBRANTE */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full mt-2 bg-[#20b8dc] hover:bg-[#18a2c2] active:bg-[#148ea9] text-white font-black text-sm tracking-widest uppercase py-3.5 sm:py-4 rounded-full shadow-[0_8px_20px_-4px_rgba(32,184,220,0.6)] hover:shadow-xl transition-all active:scale-[0.98] cursor-pointer"
+              className="w-full mt-2 bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] hover:from-[#FF7A10] hover:via-[#F00084] hover:to-[#7B1FA2] text-white font-black text-sm tracking-widest uppercase py-3.5 sm:py-4 rounded-full shadow-[0_10px_25px_-5px_rgba(229,0,125,0.5)] hover:shadow-[0_15px_30px_-5px_rgba(229,0,125,0.6)] transition-all active:scale-[0.98] cursor-pointer"
             >
               {loading ? 'ACCEDIENDO...' : 'ACCESO'}
             </button>
 
-            {/* ENLACES INFERIORES: ¿No tienes una cuenta? / ¿Se te olvidó tu contraseña? */}
-            <div className="flex items-center justify-between text-xs font-bold pt-2 px-1 text-[#159cc4]">
+            {/* ENLACES INFERIORES VIBRANTES */}
+            <div className="flex items-center justify-between text-xs font-bold pt-2 px-1">
               <button
                 type="button"
                 onClick={() => {
                   setMode('register');
                   setErrorMessage(null);
                 }}
-                className="hover:underline cursor-pointer"
+                className="text-[#E5007D] hover:text-[#FF6A00] hover:underline cursor-pointer transition-colors"
               >
                 ¿No tienes una cuenta?
               </button>
@@ -358,16 +358,16 @@ export function ColorlinkLoginLanding({
                 <button
                   type="button"
                   onClick={() => setForgotPasswordMsg(true)}
-                  className="hover:underline cursor-pointer text-right"
+                  className="text-slate-500 hover:text-slate-800 hover:underline cursor-pointer"
                 >
                   ¿Se te olvidó tu contraseña?
                 </button>
 
-                {/* PUNTO CHIQUITO DE AZUL: Al oprimirse activa la simulación */}
+                {/* PUNTO CHIQUITO COLORIDO: Al oprimirse activa la simulación */}
                 <button
                   type="button"
                   onClick={handleTriggerSimulation}
-                  className="w-2.5 h-2.5 rounded-full bg-[#20b8dc] hover:bg-blue-600 hover:scale-150 transition-all cursor-pointer shadow-xs focus:outline-none"
+                  className="w-3 h-3 rounded-full bg-gradient-to-r from-amber-400 via-rose-500 to-violet-500 hover:scale-150 transition-all cursor-pointer shadow-xs focus:outline-none"
                   title="Simulación"
                   aria-label="Simulación"
                 />
@@ -451,7 +451,7 @@ export function ColorlinkLoginLanding({
             <button
               type="submit"
               disabled={loading}
-              className="w-full mt-3 bg-[#20b8dc] hover:bg-[#18a2c2] text-white font-black text-sm tracking-wider uppercase py-3.5 rounded-full shadow-lg transition-all active:scale-[0.98] cursor-pointer"
+              className="w-full mt-3 bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] hover:from-[#FF7A10] hover:via-[#F00084] hover:to-[#7B1FA2] text-white font-black text-sm tracking-wider uppercase py-3.5 rounded-full shadow-[0_10px_25px_-5px_rgba(229,0,125,0.5)] hover:shadow-[0_15px_30px_-5px_rgba(229,0,125,0.6)] transition-all active:scale-[0.98] cursor-pointer"
             >
               {loading ? 'REGISTRANDO...' : 'REGISTRARME Y ENTRAR'}
             </button>
@@ -463,7 +463,7 @@ export function ColorlinkLoginLanding({
                   setMode('login');
                   setErrorMessage(null);
                 }}
-                className="text-xs font-bold text-[#159cc4] hover:underline cursor-pointer"
+                className="text-xs font-bold text-[#E5007D] hover:text-[#FF6A00] hover:underline cursor-pointer transition-colors"
               >
                 ¿Ya tienes una cuenta? Inicia sesión
               </button>
@@ -471,12 +471,12 @@ export function ColorlinkLoginLanding({
           </form>
         )}
 
-        {/* Punto chiquito de azul en la tarjeta */}
+        {/* Punto chiquito colorido en la tarjeta */}
         <button
           type="button"
           onClick={handleTriggerSimulation}
-          className="absolute bottom-3.5 right-4 w-2.5 h-2.5 rounded-full bg-[#20b8dc] hover:bg-blue-600 hover:scale-150 transition-all cursor-pointer shadow-xs focus:outline-none"
-          title="Simulación"
+          className="absolute bottom-3.5 right-4 w-3 h-3 rounded-full bg-gradient-to-r from-amber-400 via-rose-500 to-violet-500 hover:scale-150 transition-all cursor-pointer shadow-xs focus:outline-none"
+          title="Simulación rápida"
           aria-label="Simulación"
         />
       </div>

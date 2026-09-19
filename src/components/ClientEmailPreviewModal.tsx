@@ -18,6 +18,7 @@ import {
 import { ProjectFormData, TechnicalCalculationResult } from '../types/form';
 import { formatCOP } from '../utils/calculator';
 import { ColorlinkRainbowBar } from './ColorlinkSplashes';
+import { ColorlinkPenguin } from './ColorlinkPenguin';
 
 
 interface ClientEmailPreviewModalProps {
@@ -65,7 +66,7 @@ export function ClientEmailPreviewModal({
         <ColorlinkRainbowBar className="h-1.5 w-full shrink-0" />
 
         {/* Cabecera del Cliente de Correo */}
-        <div className="bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-800 text-white p-4 sm:p-5 flex items-center justify-between border-b border-blue-900/30">
+        <div className="bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] text-white p-4 sm:p-5 flex items-center justify-between border-b border-purple-900/30">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-white/15 text-white border border-white/20 flex items-center justify-center shrink-0 shadow-2xs">
               <Mail className="w-5 h-5" />
@@ -135,16 +136,21 @@ export function ClientEmailPreviewModal({
           {/* Adjunto del Recibo Oficial */}
           <div className="p-4 rounded-2xl bg-blue-50/70 border border-blue-200 space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0">
-                  <FileText className="w-5 h-5" />
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-white border border-blue-200 p-0.5 flex items-center justify-center shrink-0 shadow-2xs overflow-hidden">
+                  <ColorlinkPenguin size="sm" className="w-full h-full" />
                 </div>
                 <div>
-                  <span className="text-xs font-bold text-blue-950 block">
-                    Recibo Oficial de Cotización #{orderNumber}.pdf
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-blue-950 block">
+                      Recibo Oficial de Cotización #{orderNumber}.pdf
+                    </span>
+                    <span className="text-[10px] font-bold bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">
+                      Colorlink®
+                    </span>
+                  </div>
                   <span className="text-[11px] text-blue-800">
-                    Documento comercial con validez tributaria y firma autorizada
+                    Documento comercial con validez tributaria y certificación oficial
                   </span>
                 </div>
               </div>
@@ -152,7 +158,7 @@ export function ClientEmailPreviewModal({
               <button
                 type="button"
                 onClick={onDownloadPDF}
-                className="px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+                className="px-4 py-2 bg-gradient-to-r from-[#FF6A00] to-[#E5007D] hover:from-[#FF7A10] hover:to-[#F00084] text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>Descargar Recibo PDF</span>
@@ -181,8 +187,8 @@ export function ClientEmailPreviewModal({
             </div>
 
             <div className="text-right pt-1">
-              <span className="text-xs text-blue-900 font-medium">Total liquidado a pagar: </span>
-              <strong className="text-sm font-black text-blue-950 font-mono">
+              <span className="text-xs text-slate-700 font-medium">Total liquidado a pagar: </span>
+              <strong className="text-sm font-black bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] bg-clip-text text-transparent font-mono">
                 {formatCOP(presupuesto.totalPresupuesto)} COP
               </strong>
             </div>
@@ -288,7 +294,7 @@ export function ClientEmailPreviewModal({
           <button
             type="button"
             onClick={onDownloadPDF}
-            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-pointer"
+            className="px-5 py-2.5 bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] hover:from-[#FF7A10] hover:via-[#F00084] hover:to-[#7B1FA2] text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center gap-2 cursor-pointer active:scale-95"
           >
             <Download className="w-3.5 h-3.5" />
             <span>Descargar Recibo en PDF</span>
