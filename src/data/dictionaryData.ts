@@ -265,7 +265,8 @@ export const REDUNDANT_FIELDS_ELIMINATED: RedundantFieldEliminated[] = [
 
 export const CASE_STUDY_PRESET: Partial<import('../types/form').ProjectFormData> = {
   cliente: 'Constructora Horizonte S.A.S.',
-  nitDocumento: '900.854.219-3',
+  nitDocumento: '900854219',
+  passwordCliente: 'Horizonte2026*',
   responsable: 'Arq. Valentina Gómez Restrepo',
   emailResponsable: 'vgomez@constructorahorizonte.com.co',
   telefonoResponsable: '3128456721',

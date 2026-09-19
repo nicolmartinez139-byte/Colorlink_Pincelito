@@ -1,4 +1,38 @@
-import { ProjectFormData, TechnicalCalculationResult, BudgetBreakdown, BudgetItem } from '../types/form';
+import { ProjectFormData, TechnicalCalculationResult, BudgetBreakdown, BudgetItem, PaintTypeProfile } from '../types/form';
+
+// Clasificación Oficial según Norma Técnica Colombiana (NTC 1335) para Pinturas Arquitectónicas al Agua
+export const PAINT_TYPE_PROFILES: Record<'Tipo 1' | 'Tipo 2' | 'Tipo 3', PaintTypeProfile> = {
+  'Tipo 1': {
+    tipo: 'Tipo 1',
+    nombreComercial: 'Colorlink Koraza Pro Fachadas 100% Acrílica (Tipo 1)',
+    normaNTC: 'NTC 1335 Tipo 1 (Lavabilidad Superior >80% / >800 ciclos de frote)',
+    resistenciaLavabilidad: 'Máxima resistencia a intemperie, rayos UV, lluvia torrencial y lavado severo',
+    durabilidadAnos: '5 a 7 Años Certificados',
+    usoRecomendado: 'Fachadas exteriores, muros exteriores, patios, zonas húmedas o alto tráfico',
+    precioGalon: 89500,
+    precioCunete: 398000
+  },
+  'Tipo 2': {
+    tipo: 'Tipo 2',
+    nombreComercial: 'Colorlink Viniltex Muros Interiores Lavable (Tipo 2)',
+    normaNTC: 'NTC 1335 Tipo 2 (Lavabilidad Intermedia >400 ciclos de lavado)',
+    resistenciaLavabilidad: 'Resistente a limpieza con esponja, desmanchado doméstico y tráfico medio',
+    durabilidadAnos: '3 a 4 Años',
+    usoRecomendado: 'Muros interiores residenciales, oficinas, pasillos secos, alcobas',
+    precioGalon: 68000,
+    precioCunete: 285000
+  },
+  'Tipo 3': {
+    tipo: 'Tipo 3',
+    nombreComercial: 'Colorlink Económica Cielorrasos & Fondeo (Tipo 3)',
+    normaNTC: 'NTC 1335 Tipo 3 (Bajo frote / Cero abrasión >100 ciclos)',
+    resistenciaLavabilidad: 'Acabado mate básico no lavable al frote húmedo continuo',
+    durabilidadAnos: '1 a 2 Años',
+    usoRecomendado: 'Cielorrasos, sótanos secos, primera mano de fondeo o bodegas provisionales',
+    precioGalon: 45000,
+    precioCunete: 185000
+  }
+};
 
 // Precios de mercado reales vigentes en Colombia (COP) para línea arquitectónica e industrial profesional Pintuco
 export interface ProductPriceItem {
@@ -11,17 +45,22 @@ export const PRODUCT_PRICES: Record<string, ProductPriceItem> = {
   'Koraza Doble Vida / Acrilpintuco Elastómerico': {
     cuñete5Gal: 398000,
     galon: 89500,
-    nombreComercial: 'Koraza Doble Vida Protección Fachadas 100% Acrílica'
+    nombreComercial: 'Colorlink Koraza Pro Fachadas 100% Acrílica (Tipo 1)'
   },
   'Koraza Pro Pintura Exterior Acrílica 100%': {
-    cuñete5Gal: 365000,
-    galon: 82000,
-    nombreComercial: 'Koraza Pro Exterior Fachadas'
+    cuñete5Gal: 398000,
+    galon: 89500,
+    nombreComercial: 'Colorlink Koraza Pro Fachadas 100% Acrílica (Tipo 1)'
   },
   'Viniltex Avanzado / Antibacterial': {
-    cuñete5Gal: 318000,
-    galon: 74500,
-    nombreComercial: 'Viniltex Avanzado Máxima Lavabilidad Antibacterial Tipo 1'
+    cuñete5Gal: 285000,
+    galon: 68000,
+    nombreComercial: 'Colorlink Viniltex Muros Interiores Lavable (Tipo 2)'
+  },
+  'Pintura Economica Cielos Tipo 3': {
+    cuñete5Gal: 185000,
+    galon: 45000,
+    nombreComercial: 'Colorlink Económica Cielorrasos & Fondeo (Tipo 3)'
   },
   'Pintucoat Epóxico Poliamida de Alto Sólidos': {
     cuñete5Gal: 840000,
@@ -86,26 +125,34 @@ export function calculateTechnicalRequirements(formData: Partial<ProjectFormData
   const ciudad = formData.ciudad || 'Medellín';
   const clienteNombre = formData.cliente || '';
 
-  let productoRecomendado = 'Koraza Pro Pintura Exterior Acrílica 100%';
-  let tipoSolucion = 'Sistema Impermeable y Elastomérico para Fachadas';
+  // Determinar Tipo de Pintura (Norma NTC 1335)
+  let tipoPintura: 'Tipo 1' | 'Tipo 2' | 'Tipo 3' = formData.tipoPintura || 'Tipo 1';
+  if (!formData.tipoPintura) {
+    if (ambiente === 'Exterior Intemperie' || formData.tipoObra === 'Fachada Edificio') {
+      tipoPintura = 'Tipo 1';
+    } else if (formData.tipoObra === 'Cielorrasos') {
+      tipoPintura = 'Tipo 3';
+    } else {
+      tipoPintura = 'Tipo 2';
+    }
+  }
+  const tipoPinturaDetalle = PAINT_TYPE_PROFILES[tipoPintura];
+
+  let productoRecomendado = tipoPinturaDetalle.nombreComercial;
+  let tipoSolucion = tipoPintura === 'Tipo 1'
+    ? 'Sistema Impermeable y Elastomérico para Fachadas (Tipo 1)'
+    : tipoPintura === 'Tipo 2'
+    ? 'Recubrimiento Vinil Acrílico Lavable Interior (Tipo 2)'
+    : 'Pintura Económica para Cielorrasos & Fondeo (Tipo 3)';
+
   let selladorImprimanteRequerido = 'Sellador Antialcalino Base Solvente / Acrílico';
-  let manosSugeridas = 2;
-  let rendimientoTeoricoM2Galon = 25; // m² por galón a 2 manos
+  let manosSugeridas = tipoPintura === 'Tipo 1' ? 2 : tipoPintura === 'Tipo 2' ? 2 : 2;
+  let rendimientoTeoricoM2Galon = tipoPintura === 'Tipo 1' ? 22 : tipoPintura === 'Tipo 2' ? 28 : 32; // m² por galón a 2 manos
   let requiereVisitaEspecialista = false;
   let alertaPatologia: string | null = null;
 
-  // Lógica de sustrato y ambiente
-  if (ambiente === 'Exterior Intemperie') {
-    if (superficie === 'Concreto / Revoque') {
-      productoRecomendado = 'Koraza Doble Vida / Acrilpintuco Elastómerico';
-      rendimientoTeoricoM2Galon = 22;
-      selladorImprimanteRequerido = 'Imprimante Sellomax Antialcalino + Masilla Elastomérica';
-    } else if (superficie.includes('Metal')) {
-      productoRecomendado = 'Esmalte Sintético Pintucoat + Anticorrosivo Wash Primer';
-      rendimientoTeoricoM2Galon = 28;
-      selladorImprimanteRequerido = 'Pintulux Anticorrosivo Epóxico';
-    }
-  } else if (ambiente === 'Industrial Severo / Químico') {
+  // Lógica de sustrato y ambiente especial
+  if (ambiente === 'Industrial Severo / Químico') {
     productoRecomendado = 'Pintucoat Epóxico Poliamida de Alto Sólidos';
     tipoSolucion = 'Recubrimiento de Alto Desempeño Químico y Mecánico';
     selladorImprimanteRequerido = 'Primer Epóxico Rico en Zinc';
@@ -116,12 +163,14 @@ export function calculateTechnicalRequirements(formData: Partial<ProjectFormData
     tipoSolucion = 'Sistema de Alta Resistencia a la Abrasión';
     rendimientoTeoricoM2Galon = 16;
     selladorImprimanteRequerido = 'Sello Epóxico de Penetración';
+  } else if (superficie.includes('Metal')) {
+    productoRecomendado = 'Esmalte Sintético Pintucoat + Anticorrosivo Wash Primer';
+    rendimientoTeoricoM2Galon = 28;
+    selladorImprimanteRequerido = 'Pintulux Anticorrosivo Epóxico';
+  } else if (ambiente === 'Exterior Intemperie') {
+    selladorImprimanteRequerido = 'Imprimante Sellomax Antialcalino + Masilla Elastomérica';
   } else {
-    // Interior
-    productoRecomendado = 'Viniltex Avanzado / Antibacterial';
-    tipoSolucion = 'Recubrimiento Vinil Acrílico Lavable Interior';
-    rendimientoTeoricoM2Galon = 30;
-    selladorImprimanteRequerido = 'Sellador Acrílico de Fijación';
+    selladorImprimanteRequerido = 'Sellador Acrílico Viniltex de Fijación';
   }
 
   // Ajustes según condición
@@ -150,12 +199,21 @@ export function calculateTechnicalRequirements(formData: Partial<ProjectFormData
   }
 
   // Factor de desperdicio estándar en obra (10%)
-  const factorDesperdicio = 1.10;
+  const factorDesperdicioPorcentaje = 10;
+  const factorDesperdicio = 1 + (factorDesperdicioPorcentaje / 100);
   
-  // Rendimiento
+  // Rendimiento por mano
   const rendimientoUnaMano = rendimientoTeoricoM2Galon * 2;
   const galonesNetos = (area * manosSugeridas) / rendimientoUnaMano;
   const galonesConDesperdicio = Math.max(1, Math.ceil(galonesNetos * factorDesperdicio * 10) / 10);
+  const galonesNetosSinDesperdicio = Math.round(galonesNetos * 10) / 10;
+  const galonesDesperdicio = Math.max(0.1, Math.round((galonesConDesperdicio - galonesNetosSinDesperdicio) * 10) / 10);
+
+  const explicacionManos = manosSugeridas >= 3
+    ? `3 manos requeridas: Refuerzo técnico por condición de superficie (${condicion}). Mano 1 de sellado penetrante, Manos 2 y 3 de película protectora.`
+    : `2 manos requeridas: Especificación técnica estándar NTC 1335. Mano 1 de anclaje y fondo, Mano 2 de acabado, nivelación y color definitivo.`;
+
+  const explicacionDesperdicio = `Margen técnico del 10% (+${galonesDesperdicio} galones): Absorbe rugosidad del sustrato (${superficie}), recortes de esquinas y mermas en rodillo/brocha para evitar faltantes en obra.`;
   
   // Envases óptimos: Cuñetes (5 gal) + Galones sueltos
   const totalGalonesEnteros = Math.ceil(galonesConDesperdicio);
@@ -163,20 +221,35 @@ export function calculateTechnicalRequirements(formData: Partial<ProjectFormData
   const galonesSueltosRequeridos = totalGalonesEnteros % 5;
 
   // --- CÁLCULO DE PRESUPUESTO COMERCIAL EN COP ---
-  const productPriceConfig = PRODUCT_PRICES[productoRecomendado] || PRODUCT_PRICES['Koraza Pro Pintura Exterior Acrílica 100%'];
-  
+  // Determinar precios unitarios de pintura principal
+  const precioCuneteUnitario = ambiente === 'Industrial Severo / Químico'
+    ? PRODUCT_PRICES['Pintucoat Epóxico Poliamida de Alto Sólidos'].cuñete5Gal
+    : (ambiente.includes('Pisos') || ambiente.includes('Tráfico'))
+    ? PRODUCT_PRICES['Pisos Epóxicos Autonivelante Pintucoat'].cuñete5Gal
+    : superficie.includes('Metal')
+    ? PRODUCT_PRICES['Esmalte Sintético Pintucoat + Anticorrosivo Wash Primer'].cuñete5Gal
+    : tipoPinturaDetalle.precioCunete;
+
+  const precioGalonUnitario = ambiente === 'Industrial Severo / Químico'
+    ? PRODUCT_PRICES['Pintucoat Epóxico Poliamida de Alto Sólidos'].galon
+    : (ambiente.includes('Pisos') || ambiente.includes('Tráfico'))
+    ? PRODUCT_PRICES['Pisos Epóxicos Autonivelante Pintucoat'].galon
+    : superficie.includes('Metal')
+    ? PRODUCT_PRICES['Esmalte Sintético Pintucoat + Anticorrosivo Wash Primer'].galon
+    : tipoPinturaDetalle.precioGalon;
+
   const items: BudgetItem[] = [];
 
   // 1. Producto Principal: Cuñetes
   if (cuñetesRequeridos > 0) {
     items.push({
       id: 'prod-cunetes',
-      name: productPriceConfig.nombreComercial,
+      name: productoRecomendado,
       presentation: 'Cuñete (5 Galones)',
       quantity: cuñetesRequeridos,
-      unitPrice: productPriceConfig.cuñete5Gal,
-      totalPrice: cuñetesRequeridos * productPriceConfig.cuñete5Gal,
-      description: `Acabado ${formData.colorAcabado || 'Gris'} para ${area} m² a ${manosSugeridas} manos.`
+      unitPrice: precioCuneteUnitario,
+      totalPrice: cuñetesRequeridos * precioCuneteUnitario,
+      description: `Pintura ${tipoPintura} (${tipoPinturaDetalle.normaNTC}). Acabado ${formData.colorAcabado || 'Gris'} para ${area} m² a ${manosSugeridas} manos.`
     });
   }
 
@@ -184,12 +257,12 @@ export function calculateTechnicalRequirements(formData: Partial<ProjectFormData
   if (galonesSueltosRequeridos > 0) {
     items.push({
       id: 'prod-galones',
-      name: productPriceConfig.nombreComercial,
+      name: productoRecomendado,
       presentation: 'Galón (3.785 L)',
       quantity: galonesSueltosRequeridos,
-      unitPrice: productPriceConfig.galon,
-      totalPrice: galonesSueltosRequeridos * productPriceConfig.galon,
-      description: `Fracción de pintura de acabado para ajuste exacto (${galonesSueltosRequeridos} gal).`
+      unitPrice: precioGalonUnitario,
+      totalPrice: galonesSueltosRequeridos * precioGalonUnitario,
+      description: `Fracción pintura ${tipoPintura} para ajuste volumétrico exacto (${galonesSueltosRequeridos} gal).`
     });
   }
 
@@ -259,8 +332,15 @@ export function calculateTechnicalRequirements(formData: Partial<ProjectFormData
   return {
     productoRecomendado,
     tipoSolucion,
+    tipoPintura,
+    tipoPinturaDetalle,
     selladorImprimanteRequerido,
     manosSugeridas,
+    explicacionManos,
+    factorDesperdicioPorcentaje,
+    galonesNetosSinDesperdicio,
+    galonesDesperdicio,
+    explicacionDesperdicio,
     rendimientoTeoricoM2Galon,
     galonesRequeridos: totalGalonesEnteros,
     cuñetesRequeridos,
@@ -271,4 +351,6 @@ export function calculateTechnicalRequirements(formData: Partial<ProjectFormData
     presupuesto
   };
 }
+
+
 

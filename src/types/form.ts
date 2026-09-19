@@ -21,9 +21,10 @@ export interface RedundantFieldEliminated {
 }
 
 export interface ProjectFormData {
-  // Identificación
+  // Identificación y Registro Fácil
   cliente: string;
-  nitDocumento: string;
+  nitDocumento: string; // Documento o NIT limpio sin guiones ni puntos
+  passwordCliente?: string; // Contraseña creada por el cliente al registrarse
   responsable: string;
   emailResponsable: string;
   telefonoResponsable: string;
@@ -40,6 +41,7 @@ export interface ProjectFormData {
   ambiente: 'Exterior Intemperie' | 'Interior Seco' | 'Interior Húmedo (Baños/Cocinas)' | 'Industrial Severo / Químico' | 'Tráfico Peatonal / Vehicular';
   condicion: 'Nueva sin pintar' | 'Pintada en buen estado' | 'Fisuras leves y humedad' | 'Descascaramiento severo' | 'Oxidación superficial' | 'Contaminación / Grasa';
   colorAcabado: string;
+  tipoPintura?: 'Tipo 1' | 'Tipo 2' | 'Tipo 3';
 
   // Evidencia
   descripcionLibre: string;
@@ -72,11 +74,29 @@ export interface BudgetBreakdown {
   tiempoEntregaDias: string;
 }
 
+export interface PaintTypeProfile {
+  tipo: 'Tipo 1' | 'Tipo 2' | 'Tipo 3';
+  nombreComercial: string;
+  normaNTC: string;
+  resistenciaLavabilidad: string;
+  durabilidadAnos: string;
+  usoRecomendado: string;
+  precioGalon: number;
+  precioCunete: number;
+}
+
 export interface TechnicalCalculationResult {
   productoRecomendado: string;
   tipoSolucion: string;
+  tipoPintura: 'Tipo 1' | 'Tipo 2' | 'Tipo 3';
+  tipoPinturaDetalle: PaintTypeProfile;
   selladorImprimanteRequerido: string;
   manosSugeridas: number;
+  explicacionManos: string;
+  factorDesperdicioPorcentaje: number;
+  galonesNetosSinDesperdicio: number;
+  galonesDesperdicio: number;
+  explicacionDesperdicio: string;
   rendimientoTeoricoM2Galon: number;
   galonesRequeridos: number;
   cuñetesRequeridos: number;
