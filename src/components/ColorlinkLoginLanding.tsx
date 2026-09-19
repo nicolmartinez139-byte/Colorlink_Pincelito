@@ -289,9 +289,8 @@ export function ColorlinkLoginLanding({
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Enter your Username"
+                  placeholder="Enter your Username (ej: Constructora Horizonte)"
                   className="w-full bg-[#f1f3f5] hover:bg-[#e9ecef] focus:bg-white text-slate-800 placeholder:text-slate-400 text-sm font-medium px-5 py-3.5 rounded-full border-0 focus:ring-2 focus:ring-[#20b8dc] transition-all outline-none"
-                  required
                 />
               </div>
             </div>
@@ -308,7 +307,6 @@ export function ColorlinkLoginLanding({
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your Password"
                   className="w-full bg-[#f1f3f5] hover:bg-[#e9ecef] focus:bg-white text-slate-800 placeholder:text-slate-400 text-sm font-medium px-5 py-3.5 pr-11 rounded-full border-0 focus:ring-2 focus:ring-[#20b8dc] transition-all outline-none"
-                  required
                 />
                 <button
                   type="button"

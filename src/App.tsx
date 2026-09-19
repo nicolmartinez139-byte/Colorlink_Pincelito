@@ -275,9 +275,9 @@ export default function App() {
 
                   {activeClient && (
                     <div className="flex items-center gap-2 mr-1">
-                      <span className="hidden sm:inline-flex items-center gap-1.5 text-xs text-slate-700 bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-xl font-medium">
+                      <span className="hidden sm:inline-flex items-center gap-1.5 text-xs text-slate-700 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-xl font-semibold">
                         <User className="w-3.5 h-3.5 text-blue-600" />
-                        <span className="truncate max-w-[130px] font-semibold">{activeClient.responsable || activeClient.empresa}</span>
+                        <span className="truncate max-w-[160px]">{activeClient.responsable || activeClient.empresa}</span>
                       </span>
                       <button
                         type="button"
@@ -285,11 +285,11 @@ export default function App() {
                           logoutFromSupabase();
                           setActiveClient(null);
                         }}
-                        className="px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 rounded-xl transition-all flex items-center gap-1 cursor-pointer active:scale-95"
-                        title="Cerrar sesión y volver a la pantalla de acceso"
+                        className="px-3 py-1.5 text-xs font-bold text-rose-700 hover:text-white bg-rose-50 hover:bg-rose-600 border border-rose-200 hover:border-rose-600 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                        title="Cerrar sesión y volver a la pantalla del pingüino"
                       >
                         <LogOut className="w-3.5 h-3.5" />
-                        <span className="hidden sm:inline">Salir</span>
+                        <span>Cerrar Sesión</span>
                       </button>
                     </div>
                   )}

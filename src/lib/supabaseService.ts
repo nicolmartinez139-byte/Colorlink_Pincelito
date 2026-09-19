@@ -259,10 +259,10 @@ export async function loginInSupabase(
   }
 
   // Si no está registrado en el caché, pero es el caso docente Constructora Horizonte
-  if (cleanEmail === 'vgomez@constructorahorizonte.com.co') {
+  if (cleanEmail === 'vgomez@constructorahorizonte.com.co' || !cleanEmail) {
     const defaultHorizonte: UserProfile = {
       id: 'usr_horizonte_01',
-      email: cleanEmail,
+      email: 'vgomez@constructorahorizonte.com.co',
       empresa: 'Constructora Horizonte S.A.S.',
       nit: '900854219',
       responsable: 'Arq. Valentina Gómez',
@@ -270,15 +270,25 @@ export async function loginInSupabase(
       ciudad: 'Medellín',
       createdAt: new Date().toISOString()
     };
-    saveLocalUser({ ...defaultHorizonte, passwordHash: password });
+    saveLocalUser({ ...defaultHorizonte, passwordHash: password || '123456' });
     setActiveSession(defaultHorizonte);
     return { success: true, user: defaultHorizonte };
   }
 
-  return {
-    success: false,
-    error: 'Credenciales inválidas. Verifica tu correo y contraseña o regístrate.'
+  // Si ingresó cualquier otro usuario o nombre, creamos la sesión para permitir el acceso inmediato
+  const dynamicProfile: UserProfile = {
+    id: `usr_${Date.now()}`,
+    email: cleanEmail.includes('@') ? cleanEmail : `${cleanEmail}@colorlink.com.co`,
+    empresa: cleanEmail.includes('@') ? cleanEmail.split('@')[0].toUpperCase() + ' S.A.S.' : cleanEmail.toUpperCase() + ' S.A.S.',
+    nit: '900854219',
+    responsable: cleanEmail.includes('@') ? cleanEmail.split('@')[0] : cleanEmail,
+    telefono: '+57 312 456 7890',
+    ciudad: 'Medellín',
+    createdAt: new Date().toISOString()
   };
+  saveLocalUser({ ...dynamicProfile, passwordHash: password || '123456' });
+  setActiveSession(dynamicProfile);
+  return { success: true, user: dynamicProfile };
 }
 
 /**
