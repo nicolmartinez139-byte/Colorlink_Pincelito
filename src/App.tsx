@@ -273,6 +273,27 @@ export default function App() {
                     <span>Línea Constructoras: (604) 448-0000</span>
                   </div>
 
+                  {activeClient && (
+                    <div className="flex items-center gap-2 mr-1">
+                      <span className="hidden sm:inline-flex items-center gap-1.5 text-xs text-slate-700 bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-xl font-medium">
+                        <User className="w-3.5 h-3.5 text-blue-600" />
+                        <span className="truncate max-w-[130px] font-semibold">{activeClient.responsable || activeClient.empresa}</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          logoutFromSupabase();
+                          setActiveClient(null);
+                        }}
+                        className="px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 rounded-xl transition-all flex items-center gap-1 cursor-pointer active:scale-95"
+                        title="Cerrar sesión y volver a la pantalla de acceso"
+                      >
+                        <LogOut className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Salir</span>
+                      </button>
+                    </div>
+                  )}
+
                   {/* Botón Acceso Administrador: Solo el candado sin texto */}
                   <button
                     type="button"
