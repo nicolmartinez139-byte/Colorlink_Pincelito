@@ -614,7 +614,7 @@ export function EndToEndRequirementView({ onOpenClientForm }: EndToEndRequiremen
                       isSelected
                         ? 'bg-blue-600 text-white'
                         : isCompleted
-                        ? 'bg-slate-900 text-white'
+                        ? 'bg-emerald-600 text-white'
                         : 'bg-slate-200 text-slate-700'
                     }`}
                   >

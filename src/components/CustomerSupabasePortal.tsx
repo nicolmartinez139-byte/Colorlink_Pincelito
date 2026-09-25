@@ -235,7 +235,7 @@ export function CustomerSupabasePortal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/45 backdrop-blur-xs animate-fadeIn overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/40 backdrop-blur-xs animate-fadeIn overflow-y-auto">
       <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 my-auto max-h-[92vh] flex flex-col overflow-hidden">
         {/* Barra de Colores Institucional Colorlink */}
         <ColorlinkRainbowBar className="h-1.5 w-full shrink-0" />
@@ -284,7 +284,7 @@ export function CustomerSupabasePortal({
         {!currentUser ? (
           <div className="space-y-4 overflow-y-auto flex-1 p-1">
             <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 text-xs space-y-1">
-              <span className="font-bold text-blue-950 block">
+              <span className="font-bold text-slate-900 block">
                 🔐 Accede a tu cuenta de cliente en Supabase
               </span>
               <p className="text-slate-600">

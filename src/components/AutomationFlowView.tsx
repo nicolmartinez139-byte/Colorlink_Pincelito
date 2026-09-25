@@ -144,19 +144,19 @@ export function AutomationFlowView() {
   return (
     <div id="automation-flow-view" className="space-y-8">
       {/* Header */}
-      <div className="bg-slate-900 text-white p-6 rounded-2xl border border-slate-800">
+      <div className="bg-white text-slate-800 p-6 rounded-3xl border border-slate-200 shadow-sm">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-semibold uppercase mb-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold uppercase mb-2">
               <Workflow className="w-3.5 h-3.5" />
               Flujo Automatizado de Extremo a Extremo
             </div>
-            <h2 className="text-2xl font-bold tracking-tight">El Viaje de los Datos: De la Captura al Valor</h2>
-            <p className="text-slate-300 text-sm mt-1 max-w-3xl">
+            <h2 className="text-2xl font-bold tracking-tight text-slate-900">El Viaje de los Datos: De la Captura al Valor</h2>
+            <p className="text-slate-600 text-sm mt-1 max-w-3xl">
               Cómo los 4 bloques del Formulario Mínimo Viable disparan la automatización completa sin recaptura manual.
             </p>
           </div>
-          <div className="bg-emerald-950/70 border border-emerald-700/50 px-4 py-2 rounded-xl text-emerald-300 text-xs font-mono">
+          <div className="bg-emerald-50 border border-emerald-200 px-4 py-2 rounded-xl text-emerald-800 text-xs font-mono font-bold">
             15 Pasos del Pipeline MVP
           </div>
         </div>
@@ -229,17 +229,17 @@ export function AutomationFlowView() {
                   </p>
                 </div>
 
-                <div className="w-full md:w-80 bg-slate-900 text-white p-5 rounded-xl space-y-3 text-xs shrink-0">
-                  <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                <div className="w-full md:w-80 bg-slate-50 text-slate-800 p-5 rounded-2xl border border-slate-200 space-y-3 text-xs shrink-0">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                     Mapeo de Datos & Tecnología
                   </div>
                   <div>
-                    <span className="text-slate-400 block text-[11px]">Módulo de Entrada Formulario:</span>
-                    <span className="font-semibold text-blue-300 block mt-0.5">{current.module}</span>
+                    <span className="text-slate-500 block text-[11px] font-medium">Módulo de Entrada Formulario:</span>
+                    <span className="font-semibold text-blue-700 block mt-0.5">{current.module}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block text-[11px]">Herramienta / Stack:</span>
-                    <code className="text-emerald-400 font-mono text-xs block mt-0.5">{current.tech}</code>
+                    <span className="text-slate-500 block text-[11px] font-medium">Herramienta / Stack:</span>
+                    <code className="text-emerald-700 font-mono text-xs block mt-0.5 font-bold">{current.tech}</code>
                   </div>
                 </div>
               </div>

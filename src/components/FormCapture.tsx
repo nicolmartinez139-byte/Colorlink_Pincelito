@@ -651,84 +651,84 @@ export function FormCapture({ onSuccessSubmit }: FormCaptureProps) {
         ) : null}
 
         {/* Simulador de Decisión & Motor Técnico */}
-        <div className="bg-slate-900 text-white p-5 rounded-2xl shadow-sm border border-slate-800 space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div className="bg-white text-slate-800 p-5 rounded-3xl shadow-sm border border-slate-200/90 space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-200">
             <div className="flex items-center gap-2">
-              <div className="p-1.5 bg-blue-500/20 text-blue-400 rounded-lg">
+              <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
                 <Calculator className="w-4 h-4" />
               </div>
-              <h4 className="text-sm font-bold">Motor Técnico (Cálculo sin IA)</h4>
+              <h4 className="text-sm font-bold text-slate-900">Motor Técnico (Cálculo sin IA)</h4>
             </div>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-900/60 text-blue-300 border border-blue-700/50">
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-semibold">
               Determinista
             </span>
           </div>
 
           <div className="space-y-3 text-xs">
-            <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700">
-              <span className="text-slate-400 block text-[11px]">Producto Recomendado por Matriz:</span>
-              <span className="font-bold text-white text-sm block mt-0.5">{technicalCalc.productoRecomendado}</span>
-              <span className="text-blue-400 text-[11px] block mt-0.5">{technicalCalc.tipoSolucion}</span>
+            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200">
+              <span className="text-slate-500 block text-[11px] font-medium">Producto Recomendado por Matriz:</span>
+              <span className="font-bold text-slate-900 text-sm block mt-0.5">{technicalCalc.productoRecomendado}</span>
+              <span className="text-blue-600 text-[11px] block mt-0.5 font-medium">{technicalCalc.tipoSolucion}</span>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
-              <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700 text-center">
-                <span className="text-slate-400 block text-[10px] uppercase">Galones Estimados</span>
-                <span className="text-lg font-bold text-emerald-400">{technicalCalc.galonesRequeridos}</span>
-                <span className="text-[10px] text-slate-400 block">({technicalCalc.manosSugeridas} manos)</span>
+              <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-200 text-center">
+                <span className="text-slate-500 block text-[10px] uppercase font-bold">Galones Estimados</span>
+                <span className="text-lg font-black text-emerald-600">{technicalCalc.galonesRequeridos}</span>
+                <span className="text-[10px] text-slate-500 block font-medium">({technicalCalc.manosSugeridas} manos)</span>
               </div>
-              <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700 text-center">
-                <span className="text-slate-400 block text-[10px] uppercase">Cuñetes (5 Gal)</span>
-                <span className="text-lg font-bold text-blue-400">{technicalCalc.cuñetesRequeridos}</span>
-                <span className="text-[10px] text-slate-400 block">+ {technicalCalc.galonesRequeridos % 5} gal sueltos</span>
+              <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-200 text-center">
+                <span className="text-slate-500 block text-[10px] uppercase font-bold">Cuñetes (5 Gal)</span>
+                <span className="text-lg font-black text-blue-600">{technicalCalc.cuñetesRequeridos}</span>
+                <span className="text-[10px] text-slate-500 block font-medium">+ {technicalCalc.galonesRequeridos % 5} gal sueltos</span>
               </div>
             </div>
 
-            <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700">
-              <span className="text-slate-400 block text-[10px]">Preparación / Imprimante Necesario:</span>
-              <span className="text-amber-300 text-xs font-medium block mt-0.5">
+            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200">
+              <span className="text-slate-500 block text-[10px] font-bold">Preparación / Imprimante Necesario:</span>
+              <span className="text-amber-800 text-xs font-semibold block mt-0.5">
                 {technicalCalc.selladorImprimanteRequerido}
               </span>
             </div>
 
             {technicalCalc.alertaPatologia && (
-              <div className="bg-amber-500/20 border border-amber-500/40 p-2.5 rounded-xl text-amber-200 text-[11px] flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div className="bg-amber-50 border border-amber-200 p-2.5 rounded-2xl text-amber-800 text-[11px] flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                 <span>{technicalCalc.alertaPatologia}</span>
               </div>
             )}
 
             {/* Liquidación Financiera en Tiempo Real - Se revela tras Validar / Emitir */}
             {submitted ? (
-              <div className="pt-3 border-t border-slate-700 space-y-2 animate-fadeIn">
-                <div className="flex items-center justify-between text-slate-300 font-bold text-[11px]">
-                  <span className="flex items-center gap-1"><Receipt className="w-3.5 h-3.5 text-emerald-400" /> Presupuesto Oficial Liquidado:</span>
-                  <span className="font-mono text-emerald-400 text-sm font-black">{formatCOP(technicalCalc.presupuesto.totalPresupuesto)}</span>
+              <div className="pt-3 border-t border-slate-200 space-y-2 animate-fadeIn">
+                <div className="flex items-center justify-between text-slate-700 font-bold text-[11px]">
+                  <span className="flex items-center gap-1"><Receipt className="w-3.5 h-3.5 text-emerald-600" /> Presupuesto Oficial Liquidado:</span>
+                  <span className="font-mono text-emerald-600 text-sm font-black">{formatCOP(technicalCalc.presupuesto.totalPresupuesto)}</span>
                 </div>
-                <div className="bg-slate-800/60 p-2.5 rounded-xl border border-slate-700/60 space-y-1 text-[10px] text-slate-300">
+                <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-200 space-y-1 text-[10px] text-slate-600">
                   <div className="flex justify-between">
                     <span>Subtotal Materiales:</span>
-                    <span className="font-mono text-slate-200">{formatCOP(technicalCalc.presupuesto.subtotalMateriales)}</span>
+                    <span className="font-mono text-slate-900 font-semibold">{formatCOP(technicalCalc.presupuesto.subtotalMateriales)}</span>
                   </div>
                   {technicalCalc.presupuesto.descuentoPorcentaje > 0 && (
-                    <div className="flex justify-between text-emerald-400">
+                    <div className="flex justify-between text-emerald-600 font-semibold">
                       <span>Desc. Constructora (-{technicalCalc.presupuesto.descuentoPorcentaje}%):</span>
                       <span className="font-mono">-{formatCOP(technicalCalc.presupuesto.descuentoValor)}</span>
                     </div>
                   )}
                   <div className="flex justify-between">
                     <span>Envío / Flete ({formData.ciudad}):</span>
-                    <span className="font-mono text-slate-200">{formatCOP(technicalCalc.presupuesto.fleteEnvio)}</span>
+                    <span className="font-mono text-slate-900">{formatCOP(technicalCalc.presupuesto.fleteEnvio)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>IVA (19%):</span>
-                    <span className="font-mono text-slate-200">{formatCOP(technicalCalc.presupuesto.ivaValor)}</span>
+                    <span className="font-mono text-slate-900">{formatCOP(technicalCalc.presupuesto.ivaValor)}</span>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="pt-2 border-t border-slate-700/60 text-[10px] text-slate-400 flex items-center gap-1.5">
-                <Receipt className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+              <div className="pt-2 border-t border-slate-200 text-[10px] text-slate-500 flex items-center gap-1.5 font-medium">
+                <Receipt className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                 <span>Precios reales y liquidación total se mostrarán al enviar / emitir cotización.</span>
               </div>
             )}

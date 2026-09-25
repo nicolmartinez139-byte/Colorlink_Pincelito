@@ -305,24 +305,24 @@ export function ColorFinishSelector({ value, onChange, error }: ColorFinishSelec
       </div>
 
       {/* Resumen Visual del Color & Acabado Seleccionado */}
-      <div className="p-3.5 bg-slate-900 text-white rounded-2xl border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+      <div className="p-3.5 bg-slate-50 text-slate-800 rounded-2xl border border-slate-200/90 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
         <div className="flex items-center gap-3">
           <div
-            className="w-10 h-10 rounded-xl border-2 border-white/40 shadow-sm shrink-0 flex items-center justify-center"
+            className="w-10 h-10 rounded-xl border border-slate-200 shadow-xs shrink-0 flex items-center justify-center"
             style={{ backgroundColor: activeColorHex }}
           >
             <CheckCircle2
               className={`w-5 h-5 ${
-                activeColorHex === '#FFFFFF' || activeColorHex === '#E8DFD1' ? 'text-slate-900' : 'text-white'
+                activeColorHex === '#FFFFFF' || activeColorHex === '#E8DFD1' ? 'text-slate-800' : 'text-white'
               }`}
             />
           </div>
           <div>
-            <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-semibold">Selección Final Guardada:</span>
-            <span className="text-sm font-bold text-white block">
+            <span className="text-[10px] text-slate-500 uppercase tracking-wider block font-semibold">Selección Final Guardada:</span>
+            <span className="text-sm font-bold text-slate-900 block">
               {value || (activePreset ? `${activePreset.name} (${selectedFinish})` : `Gris (${selectedFinish})`)}
             </span>
-            <span className="text-[11px] text-sky-400 font-mono block">Código Hex: {activeColorHex}</span>
+            <span className="text-[11px] text-blue-600 font-mono font-bold block">Código Hex: {activeColorHex}</span>
           </div>
         </div>
 

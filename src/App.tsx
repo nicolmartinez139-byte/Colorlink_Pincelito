@@ -114,7 +114,7 @@ export default function App() {
   // mostramos la pantalla de inicio con estilo idéntico a la Imagen 1 y el logo de la Imagen 2.
   if (userRole === 'client' && !activeClient) {
     return (
-      <div className="min-h-screen bg-slate-900 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
+      <div className="min-h-screen bg-slate-50 flex flex-col font-sans selection:bg-[#E5007D] selection:text-white">
         <ColorlinkRainbowBar className="h-1.5 w-full" />
         <ColorlinkLoginLanding
           onLoginSuccess={(user) => {
@@ -125,7 +125,7 @@ export default function App() {
 
         {/* Modal de Acceso de Administrador */}
         {showAdminLoginModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/75 backdrop-blur-xs animate-fadeIn">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fadeIn">
             <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-200 space-y-5">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
@@ -257,7 +257,7 @@ export default function App() {
             <div className="flex items-center gap-3">
               <PenguinLogo size="md" />
               {userRole === 'admin' && (
-                <span className="text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-full bg-slate-900 text-amber-300 border border-amber-400/40">
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2.5 py-1 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-xs">
                   Modo Administrador
                 </span>
               )}
@@ -346,7 +346,7 @@ export default function App() {
 
       {/* MODAL DE INICIO DE SESIÓN DE ADMINISTRADOR */}
       {showAdminLoginModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fadeIn">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-200 space-y-5">
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
@@ -506,12 +506,12 @@ export default function App() {
       />
 
       {/* FOOTER CORPORATIVO */}
-      <footer className="bg-slate-900 border-t border-slate-800 py-6 text-center text-xs text-slate-400">
+      <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 space-y-1.5">
-          <p className="font-semibold text-slate-300">
+          <p className="font-semibold text-slate-700">
             Portal Oficial de Especificación Técnica & Cotizaciones • Colorlink S.A.S.
           </p>
-          <p className="text-[11px] text-slate-500">
+          <p className="text-[11px] text-slate-400">
             {userRole === 'client'
               ? 'Pinturas y Recubrimientos de Alto Rendimiento • Medellín, Colombia'
               : 'Centro de Operaciones y Automatización Backoffice • Colorlink S.A.S.'}

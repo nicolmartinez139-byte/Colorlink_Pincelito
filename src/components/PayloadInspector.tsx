@@ -89,15 +89,15 @@ export function PayloadInspector({ formData }: PayloadInspectorProps) {
 
   return (
     <div id="payload-inspector-view" className="space-y-6">
-      <div className="bg-slate-900 text-white p-6 rounded-2xl border border-slate-800">
+      <div className="bg-white text-slate-800 p-6 rounded-3xl border border-slate-200 shadow-sm">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-300 text-xs font-semibold uppercase mb-2">
-              <Terminal className="w-3.5 h-3.5" />
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold uppercase mb-2 border border-blue-200">
+              <Terminal className="w-3.5 h-3.5 text-blue-600" />
               Payload JSON Normalizado
             </div>
-            <h2 className="text-2xl font-bold tracking-tight">Estructura de Salida para Integración API</h2>
-            <p className="text-slate-300 text-sm mt-1 max-w-2xl">
+            <h2 className="text-2xl font-bold tracking-tight text-slate-900">Estructura de Salida para Integración API</h2>
+            <p className="text-slate-600 text-sm mt-1 max-w-2xl">
               Este payload JSON se transmite a FastAPI / Activepieces / n8n para alimentar la base de datos Supabase PostgreSQL y disparar el cálculo de cotización.
             </p>
           </div>
@@ -111,7 +111,7 @@ export function PayloadInspector({ formData }: PayloadInspectorProps) {
         </div>
       </div>
 
-      <div className="bg-slate-950 rounded-2xl border border-slate-800 p-4 font-mono text-xs text-slate-200 overflow-x-auto shadow-inner">
+      <div className="bg-zinc-900 rounded-2xl border border-zinc-700/80 p-4 font-mono text-xs text-zinc-200 overflow-x-auto shadow-inner">
         <pre>{jsonString}</pre>
       </div>
     </div>

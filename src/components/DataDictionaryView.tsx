@@ -41,26 +41,26 @@ export function DataDictionaryView() {
   return (
     <div id="data-dictionary-view" className="space-y-8">
       {/* Header and Value Statement */}
-      <div className="bg-slate-900 text-white p-6 rounded-2xl shadow-sm border border-slate-800">
+      <div className="bg-white text-slate-800 p-6 rounded-3xl shadow-sm border border-slate-200">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 text-xs font-semibold uppercase tracking-wider mb-2 border border-blue-400/30">
-              <Sparkles className="w-3.5 h-3.5" />
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold uppercase tracking-wider mb-2 border border-blue-200">
+              <Sparkles className="w-3.5 h-3.5 text-blue-600" />
               Arquitectura de Captura Inteligente
             </div>
-            <h2 className="text-2xl font-bold tracking-tight">Diccionario de Datos: Formulario Mínimo Viable (MVP)</h2>
-            <p className="text-slate-300 text-sm mt-1 max-w-3xl">
+            <h2 className="text-2xl font-bold tracking-tight text-slate-900">Diccionario de Datos: Formulario Mínimo Viable (MVP)</h2>
+            <p className="text-slate-600 text-sm mt-1 max-w-3xl">
               Estructura estrictamente normalizada en 4 módulos para alimentar motores de decisión, verificación de inventarios y cotizaciones automáticas sin fricción para el usuario.
             </p>
           </div>
           <div className="flex items-center gap-3 self-start md:self-auto">
-            <div className="bg-slate-800/80 border border-slate-700 px-4 py-2 rounded-xl text-center">
-              <span className="text-2xl font-bold text-blue-400">{FORM_SPECIFICATION.length}</span>
-              <span className="block text-xs text-slate-400 uppercase font-medium">Campos Esenciales</span>
+            <div className="bg-slate-50 border border-slate-200 px-4 py-2 rounded-2xl text-center">
+              <span className="text-2xl font-bold text-blue-600">{FORM_SPECIFICATION.length}</span>
+              <span className="block text-xs text-slate-500 uppercase font-semibold">Campos Esenciales</span>
             </div>
-            <div className="bg-slate-800/80 border border-slate-700 px-4 py-2 rounded-xl text-center">
-              <span className="text-2xl font-bold text-emerald-400">4</span>
-              <span className="block text-xs text-slate-400 uppercase font-medium">Módulos Core</span>
+            <div className="bg-slate-50 border border-slate-200 px-4 py-2 rounded-2xl text-center">
+              <span className="text-2xl font-bold text-emerald-600">4</span>
+              <span className="block text-xs text-slate-500 uppercase font-semibold">Módulos Core</span>
             </div>
           </div>
         </div>
@@ -78,7 +78,7 @@ export function DataDictionaryView() {
               onClick={() => setSelectedModule(mod)}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors shrink-0 ${
                 selectedModule === mod
-                  ? 'bg-slate-900 text-white shadow-sm'
+                  ? 'bg-blue-600 text-white shadow-sm'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >

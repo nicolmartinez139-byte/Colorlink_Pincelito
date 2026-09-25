@@ -66,20 +66,20 @@ export function RelationalModelView() {
   return (
     <div id="relational-model-view" className="space-y-8">
       {/* Header Conceptual */}
-      <div className="bg-slate-900 text-white p-6 rounded-2xl border border-slate-800">
+      <div className="bg-white text-slate-800 p-6 rounded-3xl border border-slate-200 shadow-sm">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-xs font-semibold uppercase mb-2">
-              <Database className="w-3.5 h-3.5" />
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-semibold uppercase mb-2 border border-indigo-200">
+              <Database className="w-3.5 h-3.5 text-indigo-600" />
               Modelo Relacional Normalizado
             </div>
-            <h2 className="text-2xl font-bold tracking-tight">Estructura de Datos y Modelo Relacional Mínimo</h2>
-            <p className="text-slate-300 text-sm mt-1 max-w-3xl">
+            <h2 className="text-2xl font-bold tracking-tight text-slate-900">Estructura de Datos y Modelo Relacional Mínimo</h2>
+            <p className="text-slate-600 text-sm mt-1 max-w-3xl">
               De campos capturados a una base de datos relacional limpia (PostgreSQL / Supabase). Evita duplicidad de clientes, asegura trazabilidad y permite automatización de punta a punta.
             </p>
           </div>
-          <div className="flex items-center gap-2 bg-slate-800/80 px-3.5 py-2 rounded-xl border border-slate-700 text-xs text-slate-300">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <div className="flex items-center gap-2 bg-emerald-50 px-3.5 py-2 rounded-2xl border border-emerald-200 text-xs text-emerald-800 font-bold">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>Tercera Forma Normal (3FN)</span>
           </div>
         </div>

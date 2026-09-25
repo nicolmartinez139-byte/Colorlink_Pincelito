@@ -1355,9 +1355,9 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                 id="btn-print-bottom"
                 onClick={handlePrintDocument}
                 disabled={isPrinting}
-                className="w-full sm:w-auto px-6 py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-2xl transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70"
+                className="w-full sm:w-auto px-6 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-2xl transition-all border border-slate-200 shadow-2xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70"
               >
-                {isPrinting ? <Loader2 className="w-4 h-4 animate-spin text-white" /> : <Printer className="w-4 h-4" />}
+                {isPrinting ? <Loader2 className="w-4 h-4 animate-spin text-slate-700" /> : <Printer className="w-4 h-4 text-slate-700" />}
                 <span>{isPrinting ? 'Preparando Impresión...' : 'Imprimir Documento'}</span>
               </button>
             </div>
@@ -2089,7 +2089,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
 
       {/* MODAL: RECHAZAR COTIZACIÓN */}
       {showRejectModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fadeIn">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
@@ -2174,7 +2174,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
 
       {/* MODAL: DIAGNÓSTICO DE IMÁGENES CON VISIÓN ARTIFICIAL IA */}
       {showImageDiagnosisModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fadeIn">
           <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-7 space-y-4 shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2.5">

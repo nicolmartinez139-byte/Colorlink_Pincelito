@@ -60,7 +60,7 @@ export function ClientEmailPreviewModal({
   const fechaLlegada = getEstimatedArrivalDate(presupuesto.tiempoEntregaDias);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/75 backdrop-blur-sm animate-fadeIn">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/40 backdrop-blur-xs animate-fadeIn">
       <div className="bg-white w-full max-w-2xl max-h-[92vh] rounded-3xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-scaleUp">
         {/* Barra de Colores Institucional Colorlink */}
         <ColorlinkRainbowBar className="h-1.5 w-full shrink-0" />
@@ -116,7 +116,7 @@ export function ClientEmailPreviewModal({
         <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6 text-slate-800 text-xs sm:text-sm">
           {/* Saludo y Confirmación de Cuenta */}
           <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50/60 border border-blue-200 space-y-2">
-            <div className="flex items-center gap-2 text-blue-900 font-bold text-sm">
+            <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
               <span>¡Hola, {formData.responsable || formData.cliente}! Tu cuenta ha sido creada exitosamente</span>
             </div>
@@ -142,7 +142,7 @@ export function ClientEmailPreviewModal({
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold text-blue-950 block">
+                    <span className="text-xs font-bold text-slate-900 block">
                       Recibo Oficial de Cotización #{orderNumber}.pdf
                     </span>
                     <span className="text-[10px] font-bold bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">
@@ -166,7 +166,7 @@ export function ClientEmailPreviewModal({
             </div>
 
             {/* Fila Técnica de Manos y Desperdicio en el Correo */}
-            <div className="pt-2 border-t border-blue-200/80 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-blue-950">
+            <div className="pt-2 border-t border-blue-200/80 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-800">
               <div className="bg-white/90 p-2.5 rounded-xl border border-blue-200">
                 <span className="text-[10px] text-blue-800 font-bold block flex items-center gap-1">
                   <Layers className="w-3 h-3 text-blue-700" /> Número de Manos:
@@ -199,7 +199,7 @@ export function ClientEmailPreviewModal({
             <div className="flex items-center justify-between pb-2.5 border-b border-blue-200/70">
               <div className="flex items-center gap-2">
                 <Truck className="w-5 h-5 text-blue-700" />
-                <span className="text-xs font-black uppercase tracking-wider text-blue-950">
+                <span className="text-xs font-black uppercase tracking-wider text-slate-900">
                   Hoja de Ruta & Vehículo de Transporte Asignado
                 </span>
               </div>
@@ -248,7 +248,7 @@ export function ClientEmailPreviewModal({
                   <Calendar className="w-3.5 h-3.5 text-blue-600" />
                   <strong>Fecha estimada de llegada:</strong>
                 </span>
-                <span className="font-bold text-blue-900 capitalize text-sm">
+                <span className="font-bold text-blue-700 capitalize text-sm">
                   {fechaLlegada}
                 </span>
               </div>

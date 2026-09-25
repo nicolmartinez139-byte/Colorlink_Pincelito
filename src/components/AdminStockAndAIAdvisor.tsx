@@ -517,31 +517,31 @@ export function AdminStockAndAIAdvisor({
       </div>
 
       {/* 3. SIMULADOR DE FÓRMULAS DE COLOR (CÓMO SE MEZCLAN LOS PRIMARIOS + BLANCO Y NEGRO) */}
-      <div className="bg-slate-900 text-white rounded-3xl p-6 sm:p-8 border border-slate-800 shadow-xl space-y-6">
+      <div className="bg-white text-slate-800 rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 bg-amber-400 text-slate-900 text-[10px] font-black rounded-md">
+              <span className="px-2.5 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-black rounded-md">
                 LABORATORIO QUÍMICO
               </span>
-              <h3 className="text-lg sm:text-xl font-black text-white">
+              <h3 className="text-lg sm:text-xl font-black text-slate-900">
                 Simulador de Tintometría: Mezcla de Primarios + Blanco & Negro
               </h3>
             </div>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-slate-500 mt-1">
               Visualiza cómo se dosifica cada mililitro de colorante líquido en la máquina dispensadora para formular el color exacto.
             </p>
           </div>
 
-          <div className="flex items-center gap-2 bg-slate-800 p-1.5 rounded-2xl border border-slate-700">
-            <span className="text-xs text-slate-400 pl-2">Cantidad de Galones a Tinturar:</span>
+          <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-2xl border border-slate-200">
+            <span className="text-xs text-slate-600 pl-2 font-medium">Cantidad de Galones a Tinturar:</span>
             <input
               type="number"
               min="1"
               max="50"
               value={galonesToMix}
               onChange={(e) => setGalonesToMix(Math.max(1, parseInt(e.target.value) || 1))}
-              className="w-16 px-2 py-1 bg-slate-900 text-white font-mono font-bold text-center rounded-xl border border-slate-600 text-xs"
+              className="w-16 px-2 py-1 bg-white text-slate-900 font-mono font-bold text-center rounded-xl border border-slate-300 text-xs"
             />
           </div>
         </div>
@@ -555,18 +555,18 @@ export function AdminStockAndAIAdvisor({
               onClick={() => setSelectedRecipe(recipe)}
               className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
                 selectedRecipe.code === recipe.code
-                  ? 'border-blue-500 bg-slate-800 ring-2 ring-blue-400/30'
-                  : 'border-slate-800 bg-slate-800/40 hover:bg-slate-800'
+                  ? 'border-blue-500 bg-blue-50/60 ring-2 ring-blue-400/30'
+                  : 'border-slate-200 bg-slate-50/70 hover:bg-slate-100'
               }`}
             >
               <div
-                className="w-full h-8 rounded-xl mb-2 border border-white/20 shadow-inner"
+                className="w-full h-8 rounded-xl mb-2 border border-slate-200 shadow-inner"
                 style={{ backgroundColor: recipe.targetHex }}
               />
-              <span className="text-[11px] font-bold block truncate text-white">
+              <span className="text-[11px] font-bold block truncate text-slate-900">
                 {recipe.name}
               </span>
-              <span className="text-[10px] font-mono text-slate-400">
+              <span className="text-[10px] font-mono text-slate-500">
                 {recipe.code}
               </span>
             </button>
@@ -574,102 +574,102 @@ export function AdminStockAndAIAdvisor({
         </div>
 
         {/* DOSIFICACIÓN Y RECETA DE MEZCLA */}
-        <div className="bg-slate-800/80 rounded-2xl p-5 border border-slate-700/80 grid grid-cols-1 md:grid-cols-12 gap-6">
+        <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 grid grid-cols-1 md:grid-cols-12 gap-6">
           <div className="md:col-span-4 space-y-3">
-            <span className="text-[10px] text-slate-400 uppercase tracking-wider block">
+            <span className="text-[10px] text-slate-500 uppercase tracking-wider block font-bold">
               Color Seleccionado
             </span>
             <div className="flex items-center gap-3">
               <div
-                className="w-14 h-14 rounded-2xl border-2 border-white/30 shadow-md shrink-0"
+                className="w-14 h-14 rounded-2xl border-2 border-slate-200 shadow-sm shrink-0"
                 style={{ backgroundColor: selectedRecipe.targetHex }}
               />
               <div>
-                <h4 className="font-bold text-white text-sm">{selectedRecipe.name}</h4>
-                <span className="text-xs text-blue-400 font-mono font-bold">{selectedRecipe.code}</span>
-                <span className="text-[11px] text-slate-400 block mt-0.5">{selectedRecipe.baseRequerida}</span>
+                <h4 className="font-bold text-slate-900 text-sm">{selectedRecipe.name}</h4>
+                <span className="text-xs text-blue-600 font-mono font-bold">{selectedRecipe.code}</span>
+                <span className="text-[11px] text-slate-600 block mt-0.5">{selectedRecipe.baseRequerida}</span>
               </div>
             </div>
-            <p className="text-xs text-slate-400 leading-relaxed">
+            <p className="text-xs text-slate-600 leading-relaxed">
               {selectedRecipe.descripcion}
             </p>
           </div>
 
           <div className="md:col-span-8 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-300">
+              <span className="text-xs font-bold text-slate-700">
                 Dosificación requerida para {galonesToMix} {galonesToMix === 1 ? 'Galón' : 'Galones'}:
               </span>
-              <span className="text-[10px] text-emerald-400 font-mono font-bold">
+              <span className="text-[10px] text-emerald-700 font-mono font-bold">
                 Hero Euro-Tint Precision: ±0.05 ml
               </span>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-xs">
               {/* Blanco */}
-              <div className="bg-slate-900/90 p-3 rounded-xl border border-slate-700">
+              <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
                 <div className="flex items-center justify-center gap-1.5 mb-1">
                   <span className="w-2.5 h-2.5 rounded-full bg-white border border-slate-400" />
-                  <span className="text-[11px] text-slate-300 font-bold">Blanco</span>
+                  <span className="text-[11px] text-slate-700 font-bold">Blanco</span>
                 </div>
-                <span className="font-mono font-black text-white text-base">
+                <span className="font-mono font-black text-slate-900 text-base">
                   {selectedRecipe.formulaPorGalon.blancoMl * galonesToMix} ml
                 </span>
                 <span className="text-[10px] text-slate-500 block">({selectedRecipe.formulaPorGalon.blancoMl} ml/gal)</span>
               </div>
 
               {/* Negro */}
-              <div className="bg-slate-900/90 p-3 rounded-xl border border-slate-700">
+              <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
                 <div className="flex items-center justify-center gap-1.5 mb-1">
-                  <span className="w-2.5 h-2.5 rounded-full bg-black border border-slate-500" />
-                  <span className="text-[11px] text-slate-300 font-bold">Negro</span>
+                  <span className="w-2.5 h-2.5 rounded-full bg-black border border-slate-700" />
+                  <span className="text-[11px] text-slate-700 font-bold">Negro</span>
                 </div>
-                <span className="font-mono font-black text-amber-300 text-base">
+                <span className="font-mono font-black text-slate-900 text-base">
                   {selectedRecipe.formulaPorGalon.negroMl * galonesToMix} ml
                 </span>
                 <span className="text-[10px] text-slate-500 block">({selectedRecipe.formulaPorGalon.negroMl} ml/gal)</span>
               </div>
 
               {/* Amarillo */}
-              <div className="bg-slate-900/90 p-3 rounded-xl border border-slate-700">
+              <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
                 <div className="flex items-center justify-center gap-1.5 mb-1">
                   <span className="w-2.5 h-2.5 rounded-full bg-yellow-500" />
-                  <span className="text-[11px] text-slate-300 font-bold">Amarillo</span>
+                  <span className="text-[11px] text-slate-700 font-bold">Amarillo</span>
                 </div>
-                <span className="font-mono font-black text-white text-base">
+                <span className="font-mono font-black text-slate-900 text-base">
                   {selectedRecipe.formulaPorGalon.amarilloMl * galonesToMix} ml
                 </span>
                 <span className="text-[10px] text-slate-500 block">({selectedRecipe.formulaPorGalon.amarilloMl} ml/gal)</span>
               </div>
 
               {/* Azul */}
-              <div className="bg-slate-900/90 p-3 rounded-xl border border-slate-700">
+              <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
                 <div className="flex items-center justify-center gap-1.5 mb-1">
                   <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-                  <span className="text-[11px] text-slate-300 font-bold">Azul</span>
+                  <span className="text-[11px] text-slate-700 font-bold">Azul</span>
                 </div>
-                <span className="font-mono font-black text-white text-base">
+                <span className="font-mono font-black text-slate-900 text-base">
                   {selectedRecipe.formulaPorGalon.azulMl * galonesToMix} ml
                 </span>
                 <span className="text-[10px] text-slate-500 block">({selectedRecipe.formulaPorGalon.azulMl} ml/gal)</span>
               </div>
 
               {/* Rojo */}
-              <div className="bg-slate-900/90 p-3 rounded-xl border border-slate-700">
+              <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
                 <div className="flex items-center justify-center gap-1.5 mb-1">
                   <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
-                  <span className="text-[11px] text-slate-300 font-bold">Rojo</span>
+                  <span className="text-[11px] text-slate-700 font-bold">Rojo</span>
                 </div>
-                <span className="font-mono font-black text-white text-base">
+                <span className="font-mono font-black text-slate-900 text-base">
                   {selectedRecipe.formulaPorGalon.rojoMl * galonesToMix} ml
                 </span>
                 <span className="text-[10px] text-slate-500 block">({selectedRecipe.formulaPorGalon.rojoMl} ml/gal)</span>
               </div>
             </div>
 
-            <div className="pt-2 flex items-center justify-between text-[11px] text-slate-400">
+            <div className="pt-2 flex items-center justify-between text-[11px] text-slate-500 font-medium">
               <span>Agitación requerida: 3 minutos en agitador giroscópico a 700 RPM</span>
-              <span className="text-emerald-400 font-bold">✓ Homologado NTC</span>
+              <span className="text-emerald-700 font-bold">✓ Homologado NTC</span>
             </div>
           </div>
         </div>

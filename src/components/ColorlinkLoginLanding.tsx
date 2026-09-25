@@ -128,24 +128,23 @@ export function ColorlinkLoginLanding({
   };
 
   return (
-    <div className="relative min-h-screen w-full flex flex-col items-center justify-center p-4 sm:p-6 overflow-x-hidden bg-[#1e144a]">
+    <div className="relative min-h-screen w-full flex flex-col items-center justify-center p-4 sm:p-6 overflow-x-hidden bg-gradient-to-br from-slate-100 via-sky-50 to-pink-50">
       {/* IMAGEN Y MANCHAS DE PINTURA ARTÍSTICAS DE FONDO */}
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none select-none">
         {/* Imagen de fondo generada con manchas y salpicaduras de pintura multicolor */}
         <img
           src={paintSplatterBg}
           alt="Paint Splatter Background"
-          className="w-full h-full object-cover opacity-90 scale-105"
+          className="w-full h-full object-cover opacity-60 scale-105"
           referrerPolicy="no-referrer"
         />
 
         {/* Gradiente suave para asegurar legibilidad de la tarjeta */}
-        <div className="absolute inset-0 bg-slate-950/20 backdrop-blur-[1px]" />
+        <div className="absolute inset-0 bg-white/40 backdrop-blur-[1px]" />
 
         {/* Mancha de pintura 1: Cyan / Turquesa Eléctrico Superior Izquierda */}
         <svg
-          className="absolute -top-10 -left-10 w-72 h-72 opacity-85 animate-pulse"
-          style={{ animationDuration: '6s' }}
+          className="absolute -top-10 -left-10 w-72 h-72 opacity-85"
           viewBox="0 0 200 200"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
@@ -243,7 +242,7 @@ export function ColorlinkLoginLanding({
       <div className="relative z-10 w-full max-w-[430px] bg-white rounded-[36px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.4)] px-6 sm:px-9 pb-8 pt-14 sm:pt-16 border border-white/80 transition-all">
         {/* BADGE CIRCULAR SUPERPUESTO CON EL PINGÜINITO TIERNO (Imagen 2) */}
         <div className="absolute -top-12 left-1/2 -translate-x-1/2 flex items-center justify-center">
-          <div className="p-1.5 rounded-full bg-gradient-to-tr from-[#FFD100] via-[#FF6A00] via-[#E5007D] via-[#6A0DAD] to-[#009FE3] shadow-xl animate-pulse">
+          <div className="p-1.5 rounded-full bg-gradient-to-tr from-[#FFD100] via-[#FF6A00] via-[#E5007D] via-[#6A0DAD] to-[#009FE3] shadow-xl">
             <div className="w-20 h-20 sm:w-22 sm:h-22 rounded-full bg-white flex items-center justify-center p-1.5 overflow-hidden border-2 border-white shadow-inner">
               {/* Mascota Pingüino Colorlink */}
               <ColorlinkPenguin size="xl" className="transform hover:scale-105 transition-transform" />
@@ -482,15 +481,15 @@ export function ColorlinkLoginLanding({
       </div>
 
       {/* PIE DE PÁGINA CON ACCESO ADMINISTRADOR DISCRETO */}
-      <div className="relative z-10 mt-6 flex items-center justify-between w-full max-w-[430px] px-2 text-[11px] text-white/70">
+      <div className="relative z-10 mt-6 flex items-center justify-between w-full max-w-[430px] px-2 text-[11px] text-slate-500 font-medium">
         <span>© 2026 COLORLINK Pinturas & Tintometría</span>
         <button
           type="button"
           onClick={onOpenAdminModal}
-          className="flex items-center gap-1.5 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded-lg backdrop-blur-xs transition-colors cursor-pointer"
+          className="flex items-center gap-1.5 text-slate-600 hover:text-slate-900 bg-white/80 hover:bg-white px-2.5 py-1 rounded-xl border border-slate-200/90 shadow-2xs backdrop-blur-xs transition-colors cursor-pointer"
           title="Acceso restringido para personal técnico y comercial"
         >
-          <Lock className="w-3 h-3 text-cyan-300" />
+          <Lock className="w-3 h-3 text-amber-500" />
           <span>Acceso Administrador</span>
         </button>
       </div>

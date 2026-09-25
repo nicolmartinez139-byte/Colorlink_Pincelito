@@ -482,7 +482,7 @@ export function ImageDiagnosisWidget({
                 </div>
 
                 {/* Tarjeta Principal de Clasificación */}
-                <div className="p-5 rounded-3xl bg-gradient-to-br from-slate-900 to-indigo-950 text-white shadow-md relative overflow-hidden">
+                <div className="p-5 rounded-3xl bg-gradient-to-br from-[#009FE3] via-blue-600 to-[#6A0DAD] text-white shadow-md relative overflow-hidden">
                   <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div>
                       <div className="flex items-center gap-2 mb-1">

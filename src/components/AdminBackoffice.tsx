@@ -369,8 +369,8 @@ export function AdminBackoffice({
     <div className="space-y-6 animate-fadeIn pb-16">
       {/* TOAST DE CONFIRMACIÓN */}
       {notificationToast && (
-        <div className="fixed top-20 right-6 z-50 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-xl border border-slate-700 text-xs font-bold flex items-center gap-2.5 animate-fadeIn">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+        <div className="fixed top-20 right-6 z-50 bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-xl border border-emerald-500 text-xs font-bold flex items-center gap-2.5 animate-fadeIn">
+          <CheckCircle2 className="w-4 h-4 text-white shrink-0" />
           <span>{notificationToast}</span>
         </div>
       )}
@@ -472,7 +472,7 @@ export function AdminBackoffice({
             onClick={() => setActiveTab('evaluacion')}
             className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ml-auto ${
               activeTab === 'evaluacion'
-                ? 'bg-slate-800 text-white shadow-sm'
+                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-sm'
                 : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200'
             }`}
             title="Vista de soporte para el docente o evaluador"
@@ -516,7 +516,7 @@ export function AdminBackoffice({
                             <span className="font-extrabold text-xs text-slate-900">{ord.id}</span>
                             <span className="text-[10px] text-slate-500">• {ord.ciudad}</span>
                           </div>
-                          <h4 className="font-bold text-xs text-blue-950 truncate max-w-[200px]">
+                          <h4 className="font-bold text-xs text-slate-900 truncate max-w-[200px]">
                             {ord.cliente}
                           </h4>
                           <p className="text-[11px] text-slate-600 mt-0.5">
@@ -851,7 +851,7 @@ export function AdminBackoffice({
 
               <div className="flex items-center gap-2">
                 <span className="text-xs text-slate-600 font-medium">Caso Asignado por IA:</span>
-                <span className="text-xs font-black text-blue-900 bg-blue-50 px-3 py-1 rounded-xl border border-blue-200">
+                <span className="text-xs font-black text-blue-700 bg-blue-50 px-3 py-1 rounded-xl border border-blue-200">
                   Constructora Horizonte S.A.S.
                 </span>
               </div>
@@ -860,7 +860,7 @@ export function AdminBackoffice({
             {/* BRIEFING DE LA IA PARA EL ASESOR ("la IA lo actualiza del tema") */}
             <div className="p-5 rounded-2xl bg-gradient-to-r from-blue-50 via-indigo-50/70 to-pink-50/50 border border-blue-200 space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-xs font-black text-blue-950 flex items-center gap-2">
+                <h3 className="text-xs font-black text-slate-900 flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-amber-500" />
                   <span>Resumen Ejecutivo de la IA para el Asesor (Contexto de Obra)</span>
                 </h3>
@@ -1046,7 +1046,7 @@ export function AdminBackoffice({
 
       {/* MODAL DE SIMULACIÓN DE ENVÍO DE WHATSAPP / CORREO */}
       {showNotificationModal && modalNotificationData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fadeIn">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl border border-slate-200 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2.5">

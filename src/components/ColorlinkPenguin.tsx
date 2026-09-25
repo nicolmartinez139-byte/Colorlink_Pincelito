@@ -33,8 +33,10 @@ export function ColorlinkPenguin({
         <img
           src={penguinImg}
           alt="Colorlink Pingüinito Mascota"
-          className={`${sizeMap[size]} object-contain rounded-full`}
+          className={`${sizeMap[size]} object-contain rounded-full select-none`}
           referrerPolicy="no-referrer"
+          loading="eager"
+          decoding="sync"
           onError={() => setImgError(true)}
         />
       ) : (
