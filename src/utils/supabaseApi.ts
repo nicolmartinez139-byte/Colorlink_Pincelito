@@ -13,8 +13,8 @@ export interface SubmittedProject {
   currentPipelineStep: number;
 }
 
-function limpiarNit(nit: string): string {
-  return nit.replace(/[.\-\s]/g, '');
+function limpiarNit(nit?: string): string {
+  return (nit || '').replace(/[.\-\s]/g, '');
 }
 
 // ============================================================================
@@ -42,12 +42,12 @@ export async function submitProjectToSupabase(
     const { data: newClient, error: clientError } = await supabase
       .from('clientes')
       .insert({
-        nombre_razon_social: formData.cliente,
-        nit_documento: nitLimpio,
-        responsable: formData.responsable,
-        email_responsable: formData.emailResponsable,
-        telefono_responsable: formData.telefonoResponsable,
-        canal_entrada: formData.canalEntrada
+        nombre_razon_social: formData.cliente || 'Cliente Solicitante',
+        nit_documento: nitLimpio || `NIT-${Date.now().toString().slice(-6)}`,
+        responsable: formData.responsable || 'Responsable',
+        email_responsable: formData.emailResponsable || `${nitLimpio || 'cliente'}@colorlink.co`,
+        telefono_responsable: formData.telefonoResponsable || null,
+        canal_entrada: formData.canalEntrada || 'Portal Clientes'
       })
       .select('id')
       .single();
@@ -67,7 +67,7 @@ export async function submitProjectToSupabase(
       ciudad: formData.ciudad,
       tipo_obra: formData.tipoObra,
       area_m2: formData.areaM2,
-      fecha_requerida: formData.fechaRequerida,
+      fecha_requerida: formData.fechaRequerida ? formData.fechaRequerida : null,
       estado: 'validado',
       pipeline_step: 8
     })

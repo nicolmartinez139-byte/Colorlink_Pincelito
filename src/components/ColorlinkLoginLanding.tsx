@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, Lock, Mail, Building, User, Phone, Check, ArrowRight, ShieldCheck } from 'lucide-react';
 import { ColorlinkPenguin } from './ColorlinkPenguin';
-import { loginInSupabase, registerInSupabase, UserProfile } from '../lib/supabaseService';
+import { UserProfile } from '../types/form';
+import { supabase } from '../lib/supabase';
 import paintSplatterBg from '../assets/images/paint_splatter_bg_1788742862980.jpg';
 
 interface ColorlinkLoginLandingProps {
-  onLoginSuccess: (user: UserProfile) => void;
+  onLoginSuccess: (user: UserProfile, isSimulation?: boolean) => void;
   onOpenAdminModal: () => void;
 }
 
@@ -34,42 +35,34 @@ export function ColorlinkLoginLanding({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [forgotPasswordMsg, setForgotPasswordMsg] = useState(false);
 
-  // Activación de la simulación con el punto chiquito azul
-  const handleTriggerSimulation = async () => {
-    setLoading(true);
-    setErrorMessage(null);
-    try {
-      const res = await loginInSupabase('vgomez@constructorahorizonte.com.co', '123456');
-      if (res.success && res.user) {
-        onLoginSuccess(res.user);
-      } else {
-        const simProfile: UserProfile = {
-          id: 'horizonte-sim-001',
-          empresa: 'Constructora Horizonte S.A.S.',
-          nit: '900854219',
-          responsable: 'Arq. Valentina Gómez',
-          email: 'vgomez@constructorahorizonte.com.co',
-          telefono: '+57 312 456 7890',
-          ciudad: 'Medellín',
-          createdAt: new Date().toISOString()
-        };
-        onLoginSuccess(simProfile);
-      }
-    } catch {
-      const simProfile: UserProfile = {
-        id: 'horizonte-sim-001',
-        empresa: 'Constructora Horizonte S.A.S.',
-        nit: '900854219',
-        responsable: 'Arq. Valentina Gómez',
-        email: 'vgomez@constructorahorizonte.com.co',
-        telefono: '+57 312 456 7890',
-        ciudad: 'Medellín',
-        createdAt: new Date().toISOString()
-      };
-      onLoginSuccess(simProfile);
-    } finally {
-      setLoading(false);
-    }
+  // Activación de la simulación con el punto chiquito multicolor
+  const handleTriggerSimulation = () => {
+    const simProfile: UserProfile = {
+      id: 'horizonte-sim-001',
+      empresa: 'Constructora Horizonte S.A.S.',
+      nit: '900854219',
+      responsable: 'Arq. Valentina Gómez',
+      email: 'vgomez@constructorahorizonte.com.co',
+      telefono: '+57 312 456 7890',
+      ciudad: 'Medellín',
+      createdAt: new Date().toISOString()
+    };
+    onLoginSuccess(simProfile, true);
+  };
+
+  // Entrada directa como Invitado / Sin cuenta (Modo Real no simulado)
+  const handleGuestEntry = () => {
+    const guestProfile: UserProfile = {
+      id: `guest-${Date.now()}`,
+      empresa: '',
+      nit: '',
+      responsable: '',
+      email: '',
+      telefono: '',
+      ciudad: '',
+      createdAt: new Date().toISOString()
+    };
+    onLoginSuccess(guestProfile, false);
   };
 
   // Acción de Login
@@ -77,19 +70,51 @@ export function ColorlinkLoginLanding({
     e.preventDefault();
     setErrorMessage(null);
 
-    const emailToUse = username.trim() || 'vgomez@constructorahorizonte.com.co';
-    const passToUse = password.trim() || '123456';
+    const emailToUse = username.trim();
+    const passToUse = password.trim();
+
+    if (!emailToUse || !passToUse) {
+      setErrorMessage('Por favor ingresa tu correo y contraseña, o entra como invitado.');
+      return;
+    }
 
     setLoading(true);
     try {
-      const res = await loginInSupabase(emailToUse, passToUse);
-      if (res.success && res.user) {
-        onLoginSuccess(res.user);
-      } else {
-        setErrorMessage(res.error || 'Credenciales inválidas. Revisa tu usuario y contraseña.');
+      // 1. Intentar autenticar con Supabase Auth si coincide
+      let authUser: any = null;
+      try {
+        const { data: authData } = await supabase.auth.signInWithPassword({
+          email: emailToUse,
+          password: passToUse
+        });
+        authUser = authData?.user;
+      } catch {
+        // Continuar verificando en tabla de clientes
       }
+
+      // 2. Buscar datos del cliente en la tabla clientes
+      const nitQuery = emailToUse.replace(/[.\-\s]/g, '');
+      const { data: clientRow } = await supabase
+        .from('clientes')
+        .select('*')
+        .or(`email_responsable.ilike.${emailToUse},nit_documento.eq.${nitQuery},nombre_razon_social.ilike.%${emailToUse}%`)
+        .maybeSingle();
+
+      const userProfile: UserProfile = {
+        id: clientRow?.id || authUser?.id || `usr-${Date.now()}`,
+        empresa: clientRow?.nombre_razon_social || emailToUse.split('@')[0],
+        nit: clientRow?.nit_documento || '',
+        responsable: clientRow?.responsable || emailToUse.split('@')[0],
+        email: clientRow?.email_responsable || emailToUse,
+        telefono: clientRow?.telefono_responsable || '',
+        ciudad: 'Medellín',
+        createdAt: clientRow?.created_at || new Date().toISOString()
+      };
+
+      onLoginSuccess(userProfile, false);
     } catch (err: any) {
-      setErrorMessage(err.message || 'Error al iniciar sesión.');
+      console.error('[Login Error]', err);
+      setErrorMessage('Error al verificar credenciales.');
     } finally {
       setLoading(false);
     }
@@ -107,21 +132,92 @@ export function ColorlinkLoginLanding({
 
     setLoading(true);
     try {
-      const res = await registerInSupabase(regEmail, regPassword, {
-        empresa: regEmpresa || 'Constructora Cliente',
-        nit: regNit || '900123456',
-        responsable: regResponsable || regEmail.split('@')[0],
-        telefono: regTelefono || '+57 300 000 0000',
-        ciudad: 'Medellín'
-      });
+      const nitLimpio = (regNit || '').replace(/[.\-\s]/g, '');
 
-      if (res.success && res.user) {
-        onLoginSuccess(res.user);
-      } else {
-        setErrorMessage(res.error || 'No se pudo crear la cuenta.');
+      // 1. Intentar registrar en Supabase Auth
+      let authUserId: string | null = null;
+      try {
+        const { data: authData } = await supabase.auth.signUp({
+          email: regEmail,
+          password: regPassword,
+          options: {
+            data: {
+              empresa: regEmpresa,
+              responsable: regResponsable,
+              nit: nitLimpio
+            }
+          }
+        });
+        if (authData?.user?.id) {
+          authUserId = authData.user.id;
+        }
+      } catch (authErr) {
+        console.warn('[Supabase Auth] Registro Auth:', authErr);
       }
+
+      // 2. Guardar el nuevo cliente en la tabla 'clientes' de Supabase
+      let clienteId: string | null = null;
+      let existingClient: any = null;
+
+      if (nitLimpio) {
+        const { data } = await supabase
+          .from('clientes')
+          .select('*')
+          .eq('nit_documento', nitLimpio)
+          .maybeSingle();
+        existingClient = data;
+      }
+
+      if (!existingClient && regEmail) {
+        const { data } = await supabase
+          .from('clientes')
+          .select('*')
+          .eq('email_responsable', regEmail)
+          .maybeSingle();
+        existingClient = data;
+      }
+
+      if (existingClient) {
+        clienteId = existingClient.id;
+        console.log('[Supabase] Cliente ya registrado previamente:', clienteId);
+      } else {
+        const { data: newClient, error: clientErr } = await supabase
+          .from('clientes')
+          .insert({
+            auth_user_id: authUserId,
+            nombre_razon_social: regEmpresa || 'Cliente Registrado',
+            nit_documento: nitLimpio || `NIT-${Date.now().toString().slice(-6)}`,
+            responsable: regResponsable || regEmail.split('@')[0],
+            email_responsable: regEmail,
+            telefono_responsable: regTelefono || null,
+            canal_entrada: 'Registro Portal Web'
+          })
+          .select('*')
+          .single();
+
+        if (clientErr) {
+          console.error('[Supabase Clientes] Error al insertar cliente:', clientErr);
+          throw clientErr;
+        }
+        clienteId = newClient.id;
+        console.log('[Supabase] Cliente guardado exitosamente en tabla clientes:', clienteId);
+      }
+
+      const userProfile: UserProfile = {
+        id: clienteId || `usr-${Date.now()}`,
+        empresa: regEmpresa || existingClient?.nombre_razon_social || '',
+        nit: nitLimpio || existingClient?.nit_documento || '',
+        responsable: regResponsable || existingClient?.responsable || regEmail.split('@')[0],
+        email: regEmail,
+        telefono: regTelefono || existingClient?.telefono_responsable || '',
+        ciudad: 'Medellín',
+        createdAt: new Date().toISOString()
+      };
+
+      onLoginSuccess(userProfile, false);
     } catch (err: any) {
-      setErrorMessage(err.message || 'Error al registrarse.');
+      console.error('[Registro Error]', err);
+      setErrorMessage(err?.message || 'Error al conectar con la base de datos de Supabase.');
     } finally {
       setLoading(false);
     }
@@ -340,6 +436,18 @@ export function ColorlinkLoginLanding({
               {loading ? 'ACCEDIENDO...' : 'ACCESO'}
             </button>
 
+            {/* ENTRADA DIRECTA: COTIZAR SIN INICIAR SESIÓN */}
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={handleGuestEntry}
+                className="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-full transition-all border border-slate-200 shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <span>Cotizar directamente sin iniciar sesión</span>
+                <ArrowRight className="w-3.5 h-3.5 text-[#009FE3]" />
+              </button>
+            </div>
+
             {/* ENLACES INFERIORES VIBRANTES */}
             <div className="flex items-center justify-between text-xs font-bold pt-2 px-1">
               <button
@@ -419,18 +527,32 @@ export function ColorlinkLoginLanding({
               </div>
             </div>
 
-            <div className="space-y-1 text-left">
-              <label className="block text-[11px] font-semibold text-slate-500 pl-2">
-                Correo Electrónico *
-              </label>
-              <input
-                type="email"
-                value={regEmail}
-                onChange={(e) => setRegEmail(e.target.value)}
-                placeholder="proyectos@empresa.com"
-                className="w-full bg-[#f1f3f5] text-slate-800 text-xs font-medium px-4 py-3 rounded-2xl border-0 focus:ring-2 focus:ring-[#20b8dc] outline-none"
-                required
-              />
+            <div className="grid grid-cols-2 gap-2 text-left">
+              <div className="space-y-1">
+                <label className="block text-[11px] font-semibold text-slate-500 pl-2">
+                  Correo Electrónico *
+                </label>
+                <input
+                  type="email"
+                  value={regEmail}
+                  onChange={(e) => setRegEmail(e.target.value)}
+                  placeholder="proyectos@empresa.com"
+                  className="w-full bg-[#f1f3f5] text-slate-800 text-xs font-medium px-4 py-3 rounded-2xl border-0 focus:ring-2 focus:ring-[#20b8dc] outline-none"
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-[11px] font-semibold text-slate-500 pl-2">
+                  Teléfono / Celular
+                </label>
+                <input
+                  type="tel"
+                  value={regTelefono}
+                  onChange={(e) => setRegTelefono(e.target.value)}
+                  placeholder="+57 300 123 4567"
+                  className="w-full bg-[#f1f3f5] text-slate-800 text-xs font-medium px-4 py-3 rounded-2xl border-0 focus:ring-2 focus:ring-[#20b8dc] outline-none"
+                />
+              </div>
             </div>
 
             <div className="space-y-1 text-left">

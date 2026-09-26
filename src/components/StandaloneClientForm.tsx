@@ -62,43 +62,105 @@ import {
   LogOut
 } from 'lucide-react';
 import { ClientEmailPreviewModal } from './ClientEmailPreviewModal';
-import { CustomerSupabasePortal } from './CustomerSupabasePortal';
-import { registerInSupabase, saveOrderToSupabase, getActiveSession, logoutFromSupabase, UserProfile } from '../lib/supabaseService';
+import { UserProfile } from '../types/form';
 import { sendRealOrderEmail } from '../lib/emailService';
-import { isSupabaseConfigured } from '../lib/supabase';
 
 interface StandaloneClientFormProps {
+  isSimulation?: boolean;
+  onToggleSimulation?: (val: boolean) => void;
+  activeUser?: UserProfile | null;
   onSuccessSubmit?: (data: ProjectFormData) => void;
   onNavigateToSpecs?: () => void;
   onLogout?: () => void;
 }
 
-export function StandaloneClientForm({ onSuccessSubmit, onNavigateToSpecs, onLogout }: StandaloneClientFormProps) {
-  const [formData, setFormData] = useState<ProjectFormData>({
-    cliente: 'Constructora Horizonte S.A.S.',
-    nitDocumento: '900854219',
-    passwordCliente: 'Horizonte2026*',
-    responsable: 'Arq. Valentina Gómez',
-    emailResponsable: 'proyectos@constructorahorizonte.com',
-    telefonoResponsable: '+57 312 456 7890',
-    canalEntrada: 'Portal Clientes',
-    ciudad: 'Medellín',
-    tipoObra: 'Fachada Edificio',
-    areaM2: 85,
-    fechaRequerida: '2026-09-15',
-    superficie: 'Concreto / Revoque',
-    ambiente: 'Exterior Intemperie',
-    condicion: 'Fisuras leves y humedad',
-    tipoPintura: 'Tipo 1',
-    colorAcabado: 'Gris (Mate)',
-    descripcionLibre: 'Mantenimiento preventivo y correctivo en fachada de edificio de 5 pisos. Presenta fisuras superficiales no estructurales y rastros de humedad por lluvia directa.',
-    fotos: [
-      { name: 'fachada_norte_fisuras.jpg', size: '2.8 MB' },
-      { name: 'detalle_humedad_concreto.png', size: '1.9 MB' }
-    ],
-    observaciones: 'Acceso por andamios colgantes certificados de obra.',
-    consentimiento: true
+const SIMULATION_CASE_STUDY: ProjectFormData = {
+  cliente: 'Constructora Horizonte S.A.S.',
+  nitDocumento: '900854219',
+  passwordCliente: 'Horizonte2026*',
+  responsable: 'Arq. Valentina Gómez',
+  emailResponsable: 'proyectos@constructorahorizonte.com',
+  telefonoResponsable: '+57 312 456 7890',
+  canalEntrada: 'Portal Clientes',
+  ciudad: 'Medellín',
+  tipoObra: 'Fachada Edificio',
+  areaM2: 85,
+  fechaRequerida: '2026-09-15',
+  superficie: 'Concreto / Revoque',
+  ambiente: 'Exterior Intemperie',
+  condicion: 'Fisuras leves y humedad',
+  tipoPintura: 'Exterior Tipo 1',
+  colorAcabado: 'Gris (Mate)',
+  descripcionLibre: 'Mantenimiento preventivo y correctivo en fachada de edificio de 5 pisos. Presenta fisuras superficiales no estructurales y rastros de humedad por lluvia directa.',
+  fotos: [
+    { name: 'fachada_norte_fisuras.jpg', size: '2.8 MB' },
+    { name: 'detalle_humedad_concreto.png', size: '1.9 MB' }
+  ],
+  observaciones: 'Acceso por andamios colgantes certificados de obra.',
+  consentimiento: true
+};
+
+const createCleanFormData = (user?: UserProfile | null): ProjectFormData => ({
+  cliente: user?.empresa || '',
+  nitDocumento: user?.nit || '',
+  passwordCliente: '',
+  responsable: user?.responsable || '',
+  emailResponsable: user?.email || '',
+  telefonoResponsable: user?.telefono || '',
+  canalEntrada: 'Portal Clientes',
+  ciudad: '',
+  tipoObra: '' as any,
+  areaM2: 0,
+  fechaRequerida: '',
+  superficie: '' as any,
+  ambiente: '' as any,
+  condicion: '' as any,
+  tipoPintura: '' as any,
+  colorAcabado: '',
+  descripcionLibre: '',
+  fotos: [],
+  observaciones: '',
+  consentimiento: false
+});
+
+export function StandaloneClientForm({
+  isSimulation = false,
+  onToggleSimulation,
+  activeUser,
+  onSuccessSubmit,
+  onNavigateToSpecs,
+  onLogout
+}: StandaloneClientFormProps) {
+  const [internalIsSim, setInternalIsSim] = useState<boolean>(isSimulation);
+
+  const [formData, setFormData] = useState<ProjectFormData>(() => {
+    if (isSimulation) return { ...SIMULATION_CASE_STUDY };
+    return createCleanFormData(activeUser);
   });
+
+  // Pestaña activa del selector de tipo de pintura (Exterior vs Interior)
+  const [activePaintLine, setActivePaintLine] = useState<'Exterior' | 'Interior'>('Exterior');
+
+  useEffect(() => {
+    if (isSimulation) {
+      setInternalIsSim(true);
+      setFormData({ ...SIMULATION_CASE_STUDY });
+    }
+  }, [isSimulation]);
+
+  // Si el usuario cambia el ambiente a exterior o interior, sugerir la pestaña correspondiente
+  useEffect(() => {
+    if (formData.ambiente === 'Exterior Intemperie' || formData.tipoObra === 'Fachada Edificio') {
+      setActivePaintLine('Exterior');
+    } else if (
+      formData.ambiente === 'Interior Seco' ||
+      formData.ambiente === 'Interior Húmedo (Baños/Cocinas)' ||
+      formData.tipoObra === 'Muros Interiores' ||
+      formData.tipoObra === 'Cielorrasos'
+    ) {
+      setActivePaintLine('Interior');
+    }
+  }, [formData.ambiente, formData.tipoObra]);
 
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
@@ -120,9 +182,8 @@ export function StandaloneClientForm({ onSuccessSubmit, onNavigateToSpecs, onLog
   const [rejectionNotes, setRejectionNotes] = useState<string>('');
   const [showImageDiagnosisModal, setShowImageDiagnosisModal] = useState<boolean>(false);
 
-  // Estados para persistencia en Supabase y Correo Real
-  const [showSupabasePortal, setShowSupabasePortal] = useState<boolean>(false);
-  const [activeSession, setActiveSession] = useState<UserProfile | null>(() => getActiveSession());
+  // Estados para persistencia y Correo Real
+  const [activeSession, setActiveSession] = useState<UserProfile | null>(activeUser ?? null);
   const [isSendingRealEmail, setIsSendingRealEmail] = useState<boolean>(false);
   const [realEmailStatusNotice, setRealEmailStatusNotice] = useState<string | null>(null);
   const [supabaseSavedNotice, setSupabaseSavedNotice] = useState<boolean>(false);
@@ -166,30 +227,10 @@ export function StandaloneClientForm({ onSuccessSubmit, onNavigateToSpecs, onLog
       })
     );
 
-    // 1. Guardar usuario y contraseña en Supabase
-    if (formData.emailResponsable && formData.passwordCliente) {
-      try {
-        await registerInSupabase(formData.emailResponsable, formData.passwordCliente, {
-          empresa: formData.cliente,
-          nit: formData.nitDocumento,
-          responsable: formData.responsable,
-          telefono: formData.telefonoResponsable,
-          ciudad: formData.ciudad
-        });
+    // Confirmación de aceptación y notificación
+    setSupabaseSavedNotice(true);
 
-        // 2. Guardar pedido en Supabase para que el cliente vea lo comprado / pendiente
-        await saveOrderToSupabase(formData, {
-          subtotalCOP: technicalCalc.presupuesto.subtotalMateriales,
-          fleteCOP: technicalCalc.presupuesto.fleteEnvio,
-          totalCOP: technicalCalc.presupuesto.totalPresupuesto
-        });
-        setSupabaseSavedNotice(true);
-      } catch (err) {
-        console.warn('Registro en Supabase local:', err);
-      }
-    }
-
-    // 3. Enviar correo electrónico real al cliente
+    // Enviar correo electrónico real al cliente
     setIsSendingRealEmail(true);
     setRealEmailStatusNotice(`Enviando correo real a ${formData.emailResponsable}...`);
     try {
@@ -247,7 +288,7 @@ export function StandaloneClientForm({ onSuccessSubmit, onNavigateToSpecs, onLog
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleSwitchPaintType = (newType: 'Tipo 1' | 'Tipo 2' | 'Tipo 3') => {
+  const handleSwitchPaintType = (newType: any) => {
     setFormData(prev => ({
       ...prev,
       tipoPintura: newType
@@ -309,35 +350,16 @@ export function StandaloneClientForm({ onSuccessSubmit, onNavigateToSpecs, onLog
   };
 
   const handleLoadCaseStudy = () => {
-    setFormData({
-      cliente: CASE_STUDY_PRESET.cliente || '',
-      nitDocumento: CASE_STUDY_PRESET.nitDocumento || '900854219',
-      passwordCliente: CASE_STUDY_PRESET.passwordCliente || 'Horizonte2026*',
-      responsable: CASE_STUDY_PRESET.responsable || '',
-      emailResponsable: CASE_STUDY_PRESET.emailResponsable || '',
-      telefonoResponsable: CASE_STUDY_PRESET.telefonoResponsable || '',
-      canalEntrada: 'Portal Clientes',
-      ciudad: CASE_STUDY_PRESET.ciudad || 'Medellín',
-      tipoObra: (CASE_STUDY_PRESET.tipoObra as any) || 'Fachada Edificio',
-      areaM2: CASE_STUDY_PRESET.areaM2 || 85,
-      fechaRequerida: CASE_STUDY_PRESET.fechaRequerida || '2026-09-15',
-      superficie: (CASE_STUDY_PRESET.superficie as any) || 'Concreto / Revoque',
-      ambiente: (CASE_STUDY_PRESET.ambiente as any) || 'Exterior Intemperie',
-      condicion: (CASE_STUDY_PRESET.condicion as any) || 'Fisuras leves y humedad',
-      tipoPintura: 'Tipo 1',
-      colorAcabado: 'Gris (Mate)',
-      descripcionLibre: CASE_STUDY_PRESET.descripcionLibre || 'Mantenimiento en fachada de 5 pisos con fisuras superficiales y humedad.',
-      fotos: CASE_STUDY_PRESET.fotos || [{ name: 'fachada_norte_fisuras.jpg', size: '2.4 MB' }],
-      observaciones: CASE_STUDY_PRESET.observaciones || 'Acceso por andamios colgantes certificados de obra.',
-      consentimiento: true
-    });
+    setInternalIsSim(true);
+    if (onToggleSimulation) onToggleSimulation(true);
+    setFormData({ ...SIMULATION_CASE_STUDY });
     setErrors({});
     setIsSubmitted(false);
     setCurrentStep(1);
   };
 
   useEffect(() => {
-    if (activeSession) {
+    if (activeSession && !internalIsSim) {
       setFormData(prev => ({
         ...prev,
         cliente: activeSession.empresa || prev.cliente,
@@ -348,24 +370,29 @@ export function StandaloneClientForm({ onSuccessSubmit, onNavigateToSpecs, onLog
         ciudad: activeSession.ciudad || prev.ciudad,
       }));
     }
-  }, [activeSession]);
+  }, [activeSession, internalIsSim]);
 
   const validateStep = (stepNumber: number) => {
     const err: Record<string, string> = {};
     if (stepNumber === 1) {
       // Paso 1: Ubicación, Área y Fechas
-      if (!formData.ciudad.trim()) err.ciudad = 'Seleccione la ciudad de entrega';
+      if (!formData.ciudad?.trim()) err.ciudad = 'Seleccione la ciudad de entrega';
+      if (!formData.tipoObra?.trim()) err.tipoObra = 'Seleccione el tipo de obra';
       if (!formData.areaM2 || formData.areaM2 <= 0) err.areaM2 = 'El área debe ser mayor a 0 m²';
       if (!formData.fechaRequerida) err.fechaRequerida = 'Indique la fecha estimada de inicio';
     } else if (stepNumber === 2) {
       // Paso 2: Parámetros Técnicos
-      if (!formData.colorAcabado.trim()) err.colorAcabado = 'Seleccione el color y acabado';
+      if (!formData.superficie?.trim()) err.superficie = 'Seleccione la superficie o sustrato';
+      if (!formData.ambiente?.trim()) err.ambiente = 'Seleccione el ambiente de la superficie';
+      if (!formData.condicion?.trim()) err.condicion = 'Seleccione la condición de la superficie';
+      if (!formData.tipoPintura?.trim()) err.tipoPintura = 'Seleccione el tipo de pintura (Tipo 1, 2 o 3 para interior o exterior)';
+      if (!formData.colorAcabado?.trim()) err.colorAcabado = 'Seleccione el color y acabado';
     } else if (stepNumber === 3) {
       // Paso 3: Diagnóstico, Evidencias y Envío
-      if (!formData.descripcionLibre.trim() || formData.descripcionLibre.length < 10) {
+      if (!formData.descripcionLibre?.trim() || formData.descripcionLibre.length < 10) {
         err.descripcionLibre = 'Describa el proyecto con al menos 10 caracteres';
       }
-      if (formData.fotos.length === 0) {
+      if (!formData.fotos || formData.fotos.length === 0) {
         err.fotos = 'Debe adjuntar al menos una foto de evidencia';
       }
       if (!formData.consentimiento) {
@@ -373,7 +400,11 @@ export function StandaloneClientForm({ onSuccessSubmit, onNavigateToSpecs, onLog
       }
     }
     setErrors(err);
-    return Object.keys(err).length === 0;
+    const isValid = Object.keys(err).length === 0;
+    if (!isValid) {
+      console.warn(`[Formulario] Campos obligatorios incompletos en el Paso ${stepNumber}:`, err);
+    }
+    return isValid;
   };
 
   const handleNextStep = () => {
@@ -388,6 +419,7 @@ export function StandaloneClientForm({ onSuccessSubmit, onNavigateToSpecs, onLog
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('[Formulario] Clic en botón "Emitir Cotización Oficial". Validando pasos 1, 2 y 3...');
     let allValid = true;
     for (let s = 1; s <= 3; s++) {
       if (!validateStep(s)) {
@@ -398,12 +430,15 @@ export function StandaloneClientForm({ onSuccessSubmit, onNavigateToSpecs, onLog
     }
 
     if (allValid) {
+      console.log('[Formulario] ✓ Validación exitosa (todos los pasos completos). Llamando a onSuccessSubmit(formData)...', formData);
       setIsSubmitted(true);
       if (onSuccessSubmit) {
         onSuccessSubmit(formData);
       }
       // Scroll to top of presentation
       window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      console.warn('[Formulario] No se pudo enviar porque hay campos pendientes de validación.');
     }
   };
 
@@ -435,26 +470,9 @@ export function StandaloneClientForm({ onSuccessSubmit, onNavigateToSpecs, onLog
   };
 
   const resetForm = () => {
-    setFormData({
-      cliente: '',
-      nitDocumento: '',
-      responsable: '',
-      emailResponsable: '',
-      telefonoResponsable: '',
-      canalEntrada: 'Portal Clientes',
-      ciudad: 'Medellín',
-      tipoObra: 'Fachada Edificio',
-      areaM2: 50,
-      fechaRequerida: '',
-      superficie: 'Concreto / Revoque',
-      ambiente: 'Exterior Intemperie',
-      condicion: 'Nueva sin pintar',
-      colorAcabado: 'Gris (Mate)',
-      descripcionLibre: '',
-      fotos: [],
-      observaciones: '',
-      consentimiento: false
-    });
+    setInternalIsSim(false);
+    if (onToggleSimulation) onToggleSimulation(false);
+    setFormData(createCleanFormData(activeUser || activeSession));
     setErrors({});
     setIsSubmitted(false);
     setCurrentStep(1);
@@ -607,12 +625,12 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                   </div>
                 </div>
 
-                {/* SELECTOR INTERACTIVO EN VIVO DE TIPO DE PINTURA (TIPO 1, 2 O 3) */}
-                <div className="bg-slate-50/80 p-4 sm:p-5 rounded-2xl border border-slate-200/80 space-y-2.5">
+                {/* SELECTOR INTERACTIVO EN VIVO DE TIPO DE PINTURA (TIPO 1, 2 O 3 PARA EXTERIOR E INTERIOR) */}
+                <div className="bg-slate-50/80 p-4 sm:p-5 rounded-2xl border border-slate-200/80 space-y-3">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                     <div>
                       <span className="text-xs font-black text-slate-800 block">
-                        Cambiar Tipo de Pintura (Norma NTC 1335) para Comparar Presupuesto:
+                        Comparar Presupuesto con Otros Tipos de Pintura (Norma NTC 1335 / NTC 5828):
                       </span>
                       <p className="text-[11px] text-slate-500">
                         El precio de los cuñetes y galones se recalcula inmediatamente al cambiar de opción.
@@ -623,103 +641,177 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
-                    {/* Botón Tipo 1 */}
+                  {/* Selector de Línea: Exterior vs Interior */}
+                  <div className="flex items-center gap-2 p-1 bg-slate-200/70 rounded-xl border border-slate-200 w-fit">
                     <button
                       type="button"
-                      onClick={() => handleSwitchPaintType('Tipo 1')}
-                      className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer ${
-                        (formData.tipoPintura || 'Tipo 1') === 'Tipo 1'
-                          ? 'border-violet-600 bg-violet-50/90 shadow-xs ring-2 ring-violet-500/20'
-                          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                      onClick={() => setActivePaintLine('Exterior')}
+                      className={`py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        activePaintLine === 'Exterior' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
                       }`}
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="font-black text-xs text-violet-950">Pintura Tipo 1</span>
-                        {(formData.tipoPintura || 'Tipo 1') === 'Tipo 1' ? (
-                          <span className="w-5 h-5 rounded-full bg-violet-600 text-white flex items-center justify-center text-xs font-bold">
-                            ✓
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-bold text-slate-400">Seleccionar</span>
-                        )}
-                      </div>
-                      <span className="text-[11px] font-bold text-blue-700 block mt-0.5">
-                        Exterior Alta Resistencia (NTC 1335)
-                      </span>
-                      <p className="text-[10px] text-slate-600 mt-1 leading-snug">
-                        Máxima lavabilidad (&gt;800 ciclos), intemperie, lluvia y sol directo. Durabilidad 5 a 7 años.
-                      </p>
-                      <div className="mt-2 pt-2 border-t border-slate-200/80 flex items-center justify-between text-[11px]">
-                        <span className="text-slate-500 font-medium">Tarifa Cuñete:</span>
-                        <strong className="text-slate-900 font-mono font-bold">$398.000 COP</strong>
-                      </div>
+                      🌤️ Línea Exterior (Fachadas)
                     </button>
-
-                    {/* Botón Tipo 2 */}
                     <button
                       type="button"
-                      onClick={() => handleSwitchPaintType('Tipo 2')}
-                      className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer ${
-                        formData.tipoPintura === 'Tipo 2'
-                          ? 'border-emerald-600 bg-emerald-50/90 shadow-xs ring-2 ring-emerald-500/20'
-                          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                      onClick={() => setActivePaintLine('Interior')}
+                      className={`py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        activePaintLine === 'Interior' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
                       }`}
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="font-black text-xs text-emerald-950">Pintura Tipo 2</span>
-                        {formData.tipoPintura === 'Tipo 2' ? (
-                          <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-bold">
-                            ✓
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-bold text-slate-400">Seleccionar</span>
-                        )}
-                      </div>
-                      <span className="text-[11px] font-bold text-emerald-700 block mt-0.5">
-                        Interior Lavable Estándar
-                      </span>
-                      <p className="text-[10px] text-slate-600 mt-1 leading-snug">
-                        Lavabilidad media (&gt;400 ciclos). Ideal para oficinas, pasillos interiores y habitaciones. 3-4 años.
-                      </p>
-                      <div className="mt-2 pt-2 border-t border-slate-200/80 flex items-center justify-between text-[11px]">
-                        <span className="text-slate-500 font-medium">Tarifa Cuñete:</span>
-                        <strong className="text-slate-900 font-mono font-bold">$285.000 COP</strong>
-                      </div>
-                    </button>
-
-                    {/* Botón Tipo 3 */}
-                    <button
-                      type="button"
-                      onClick={() => handleSwitchPaintType('Tipo 3')}
-                      className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer ${
-                        formData.tipoPintura === 'Tipo 3'
-                          ? 'border-amber-600 bg-amber-50/90 shadow-xs ring-2 ring-amber-500/20'
-                          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-black text-xs text-amber-950">Pintura Tipo 3</span>
-                        {formData.tipoPintura === 'Tipo 3' ? (
-                          <span className="w-5 h-5 rounded-full bg-amber-600 text-white flex items-center justify-center text-xs font-bold">
-                            ✓
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-bold text-slate-400">Seleccionar</span>
-                        )}
-                      </div>
-                      <span className="text-[11px] font-bold text-amber-700 block mt-0.5">
-                        Económica Cielorrasos & Fondeo
-                      </span>
-                      <p className="text-[10px] text-slate-600 mt-1 leading-snug">
-                        Bajo frote (&gt;100 ciclos). Diseñada para techos, placas de cielo o primeras manos económicas.
-                      </p>
-                      <div className="mt-2 pt-2 border-t border-slate-200/80 flex items-center justify-between text-[11px]">
-                        <span className="text-slate-500 font-medium">Tarifa Cuñete:</span>
-                        <strong className="text-slate-900 font-mono font-bold">$185.000 COP</strong>
-                      </div>
+                      🏠 Línea Interior (Muros y Cielos)
                     </button>
                   </div>
+
+                  {activePaintLine === 'Exterior' ? (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+                      {/* Exterior Tipo 1 */}
+                      <button
+                        type="button"
+                        onClick={() => handleSwitchPaintType('Exterior Tipo 1')}
+                        className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer ${
+                          formData.tipoPintura === 'Exterior Tipo 1' || formData.tipoPintura === 'Tipo 1'
+                            ? 'border-[#009FE3] bg-sky-50 shadow-xs ring-2 ring-[#009FE3]/25'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-black text-xs text-slate-900">Exterior Tipo 1</span>
+                          {(formData.tipoPintura === 'Exterior Tipo 1' || formData.tipoPintura === 'Tipo 1') && (
+                            <span className="w-5 h-5 rounded-full bg-[#009FE3] text-white flex items-center justify-center text-xs font-bold">✓</span>
+                          )}
+                        </div>
+                        <span className="text-[11px] font-bold text-[#009FE3] block mt-0.5">100% Acrílica Fachadas (NTC 1335 / 5828)</span>
+                        <p className="text-[10px] text-slate-600 mt-1 leading-snug">Máxima resistencia UV, lluvia e intemperie (&gt;1.200 ciclos). 5 a 7 años.</p>
+                        <div className="mt-2 pt-2 border-t border-slate-200 flex items-center justify-between text-[11px]">
+                          <span className="text-slate-500 font-medium">Cuñete:</span>
+                          <strong className="text-slate-900 font-mono font-bold">$398.000 COP</strong>
+                        </div>
+                      </button>
+
+                      {/* Exterior Tipo 2 */}
+                      <button
+                        type="button"
+                        onClick={() => handleSwitchPaintType('Exterior Tipo 2')}
+                        className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer ${
+                          formData.tipoPintura === 'Exterior Tipo 2'
+                            ? 'border-sky-600 bg-sky-50 shadow-xs ring-2 ring-sky-500/25'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-black text-xs text-slate-900">Exterior Tipo 2</span>
+                          {formData.tipoPintura === 'Exterior Tipo 2' && (
+                            <span className="w-5 h-5 rounded-full bg-sky-600 text-white flex items-center justify-center text-xs font-bold">✓</span>
+                          )}
+                        </div>
+                        <span className="text-[11px] font-bold text-sky-700 block mt-0.5">Fachada Estándar Vinil-Acrílica</span>
+                        <p className="text-[10px] text-slate-600 mt-1 leading-snug">Intemperie moderada, aleros, patios y terrazas (&gt;600 ciclos). 3-4 años.</p>
+                        <div className="mt-2 pt-2 border-t border-slate-200 flex items-center justify-between text-[11px]">
+                          <span className="text-slate-500 font-medium">Cuñete:</span>
+                          <strong className="text-slate-900 font-mono font-bold">$315.000 COP</strong>
+                        </div>
+                      </button>
+
+                      {/* Exterior Tipo 3 */}
+                      <button
+                        type="button"
+                        onClick={() => handleSwitchPaintType('Exterior Tipo 3')}
+                        className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer ${
+                          formData.tipoPintura === 'Exterior Tipo 3'
+                            ? 'border-indigo-600 bg-indigo-50 shadow-xs ring-2 ring-indigo-500/25'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-black text-xs text-slate-900">Exterior Tipo 3</span>
+                          {formData.tipoPintura === 'Exterior Tipo 3' && (
+                            <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-bold">✓</span>
+                          )}
+                        </div>
+                        <span className="text-[11px] font-bold text-indigo-700 block mt-0.5">Base Imprimante & Cerramientos</span>
+                        <p className="text-[10px] text-slate-600 mt-1 leading-snug">Capa base para regularizar mampostería nueva o cerramientos provisionales. 1 año.</p>
+                        <div className="mt-2 pt-2 border-t border-slate-200 flex items-center justify-between text-[11px]">
+                          <span className="text-slate-500 font-medium">Cuñete:</span>
+                          <strong className="text-slate-900 font-mono font-bold">$215.000 COP</strong>
+                        </div>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+                      {/* Interior Tipo 1 */}
+                      <button
+                        type="button"
+                        onClick={() => handleSwitchPaintType('Interior Tipo 1')}
+                        className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer ${
+                          formData.tipoPintura === 'Interior Tipo 1'
+                            ? 'border-emerald-600 bg-emerald-50 shadow-xs ring-2 ring-emerald-500/25'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-black text-xs text-emerald-950">Interior Tipo 1</span>
+                          {formData.tipoPintura === 'Interior Tipo 1' && (
+                            <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-bold">✓</span>
+                          )}
+                        </div>
+                        <span className="text-[11px] font-bold text-emerald-700 block mt-0.5">Vinilo Superlavable Alto Tráfico</span>
+                        <p className="text-[10px] text-slate-600 mt-1 leading-snug">Superlavable (&gt;800 ciclos). Muros de salas, pasillos, cocinas y clínicas. 4-5 años.</p>
+                        <div className="mt-2 pt-2 border-t border-slate-200 flex items-center justify-between text-[11px]">
+                          <span className="text-slate-500 font-medium">Cuñete:</span>
+                          <strong className="text-slate-900 font-mono font-bold">$320.000 COP</strong>
+                        </div>
+                      </button>
+
+                      {/* Interior Tipo 2 */}
+                      <button
+                        type="button"
+                        onClick={() => handleSwitchPaintType('Interior Tipo 2')}
+                        className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer ${
+                          formData.tipoPintura === 'Interior Tipo 2' || formData.tipoPintura === 'Tipo 2'
+                            ? 'border-teal-600 bg-teal-50 shadow-xs ring-2 ring-teal-500/25'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-black text-xs text-teal-950">Interior Tipo 2</span>
+                          {(formData.tipoPintura === 'Interior Tipo 2' || formData.tipoPintura === 'Tipo 2') && (
+                            <span className="w-5 h-5 rounded-full bg-teal-600 text-white flex items-center justify-center text-xs font-bold">✓</span>
+                          )}
+                        </div>
+                        <span className="text-[11px] font-bold text-teal-700 block mt-0.5">Interior Lavable Estándar</span>
+                        <p className="text-[10px] text-slate-600 mt-1 leading-snug">Lavabilidad media (&gt;400 ciclos). Habitaciones, alcobas y zonas secas. 3-4 años.</p>
+                        <div className="mt-2 pt-2 border-t border-slate-200 flex items-center justify-between text-[11px]">
+                          <span className="text-slate-500 font-medium">Cuñete:</span>
+                          <strong className="text-slate-900 font-mono font-bold">$260.000 COP</strong>
+                        </div>
+                      </button>
+
+                      {/* Interior Tipo 3 */}
+                      <button
+                        type="button"
+                        onClick={() => handleSwitchPaintType('Interior Tipo 3')}
+                        className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer ${
+                          formData.tipoPintura === 'Interior Tipo 3' || formData.tipoPintura === 'Tipo 3'
+                            ? 'border-amber-600 bg-amber-50 shadow-xs ring-2 ring-amber-500/25'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-black text-xs text-amber-950">Interior Tipo 3</span>
+                          {(formData.tipoPintura === 'Interior Tipo 3' || formData.tipoPintura === 'Tipo 3') && (
+                            <span className="w-5 h-5 rounded-full bg-amber-600 text-white flex items-center justify-center text-xs font-bold">✓</span>
+                          )}
+                        </div>
+                        <span className="text-[11px] font-bold text-amber-700 block mt-0.5">Económica Cielorrasos & Techos</span>
+                        <p className="text-[10px] text-slate-600 mt-1 leading-snug">Cero abrasión / No lavable (&lt;100 ciclos). Techos y placas de drywall. 1-2 años.</p>
+                        <div className="mt-2 pt-2 border-t border-slate-200 flex items-center justify-between text-[11px]">
+                          <span className="text-slate-500 font-medium">Cuñete:</span>
+                          <strong className="text-slate-900 font-mono font-bold">$185.000 COP</strong>
+                        </div>
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* PARÁMETROS TÉCNICOS CLAVE: MANOS Y DESPERDICIO / MERMA */}
@@ -866,19 +958,11 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                     <div className="flex items-center gap-2 flex-wrap">
                       <button
                         type="button"
-                        onClick={() => setShowSupabasePortal(true)}
-                        className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <Package className="w-3.5 h-3.5 text-blue-100" />
-                        <span>Ver Mis Pedidos (Comprados & Pendientes)</span>
-                      </button>
-                      <button
-                        type="button"
                         onClick={() => setShowEmailModal(true)}
                         className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer border border-slate-200"
                       >
                         <Send className="w-3.5 h-3.5 text-blue-600" />
-                        <span>Vista Previa</span>
+                        <span>Vista Previa del Correo</span>
                       </button>
                     </div>
                   </div>
@@ -902,20 +986,20 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                   )}
 
                   {supabaseSavedNotice && (
-                    <div className="p-3 bg-blue-50/80 rounded-2xl border border-blue-200 text-xs text-blue-900 flex items-center gap-2">
-                      <Database className="w-4 h-4 text-blue-600 shrink-0" />
+                    <div className="p-3 bg-emerald-50/80 rounded-2xl border border-emerald-200 text-xs text-emerald-900 flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                       <span>
-                        ✓ <strong>Cuenta y pedido guardados en Supabase:</strong> Tu usuario (<code>{formData.emailResponsable}</code>) y contraseña han sido almacenados para que puedas consultar tu historial en cualquier momento.
+                        ✓ <strong>Cotización Aprobada:</strong> Pedido <code>#{orderNumber}</code> confirmado y registrado para <code>{formData.cliente}</code>.
                       </span>
                     </div>
                   )}
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
                     <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 space-y-1">
-                      <span className="text-[10px] font-bold uppercase text-slate-400 block">Cuenta de Cliente (Supabase)</span>
-                      <strong className="text-xs font-bold text-slate-900 block truncate">{formData.emailResponsable}</strong>
-                      <span className="text-[11px] text-blue-600 font-semibold flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3 text-blue-600" /> Contraseña encriptada
+                      <span className="text-[10px] font-bold uppercase text-slate-400 block">Contacto Responsable</span>
+                      <strong className="text-xs font-bold text-slate-900 block truncate">{formData.responsable || formData.emailResponsable}</strong>
+                      <span className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" /> {formData.emailResponsable}
                       </span>
                     </div>
 
@@ -1374,20 +1458,42 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
             <ColorlinkConfettiDots className="absolute inset-0 z-0" />
 
             <div className="relative z-10">
-              {/* Puntito azul discreto en la esquina superior derecha para cargar el caso docente si el profesor lo solicita */}
-              <div className="absolute -top-2 -right-2 flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={handleLoadCaseStudy}
-                  className="w-3.5 h-3.5 rounded-full bg-blue-500 hover:bg-blue-600 hover:scale-150 transition-all shadow-xs cursor-pointer border border-white"
-                  title="Puntito de evaluación: Cargar Caso Constructora Horizonte"
-                />
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="w-3.5 h-3.5 rounded-full bg-slate-300 hover:bg-slate-400 hover:scale-150 transition-all shadow-xs cursor-pointer border border-white"
-                  title="Reiniciar formulario"
-                />
+              {/* Barra de estado: Modo Simulación vs Modo Real */}
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
+                    internalIsSim
+                      ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                      : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                  }`}>
+                    <span className={`w-2 h-2 rounded-full ${internalIsSim ? 'bg-amber-500' : 'bg-emerald-600'}`}></span>
+                    {internalIsSim ? 'Modo Simulación Activo (Caso Constructora Horizonte)' : 'Modo Real (Opciones por seleccionar)'}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {internalIsSim ? (
+                    <button
+                      type="button"
+                      onClick={resetForm}
+                      className="px-3 py-1.5 text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 rounded-xl border border-slate-200 shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer"
+                      title="Limpiar todas las opciones para que salgan en 'Seleccionar...'"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Limpiar a Modo Real (Sin Simulación)</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleLoadCaseStudy}
+                      className="px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-xl border border-blue-200 shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer"
+                      title="Cargar datos simulados de Constructora Horizonte"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Cargar Simulación Horizonte</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -1411,18 +1517,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
 
                     <button
                       type="button"
-                      onClick={() => setShowSupabasePortal(true)}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-bold rounded-full sm:rounded-2xl shadow-xs transition-all flex items-center gap-2 cursor-pointer active:scale-95 shrink-0"
-                      title="Consultar compras y pedidos pendientes"
-                    >
-                      <Package className="w-4 h-4 text-blue-100" />
-                      <span>Mis Pedidos</span>
-                    </button>
-
-                    <button
-                      type="button"
                       onClick={() => {
-                        logoutFromSupabase();
                         setActiveSession(null);
                         onLogout?.();
                       }}
@@ -1554,26 +1649,86 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       <span className="text-xs font-bold text-amber-700 bg-amber-50 px-3 py-1 rounded-full border border-amber-200/80">Paso 1 de 3</span>
                     </div>
 
-                    {/* Resumen del cliente registrado */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-amber-50/40 border border-amber-100 rounded-2xl text-xs">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center font-bold shadow-2xs shrink-0">
-                          <Building2 className="w-4 h-4" />
+                    {/* Resumen o ingreso del cliente */}
+                    {formData.cliente ? (
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-amber-50/40 border border-amber-100 rounded-2xl text-xs">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center font-bold shadow-2xs shrink-0">
+                            <Building2 className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <span className="font-bold text-slate-900 block">
+                              {formData.cliente} {formData.nitDocumento ? `• NIT ${formData.nitDocumento}` : ''}
+                            </span>
+                            <span className="text-slate-500 text-[11px] block">
+                              Contacto: {formData.responsable || 'Cliente'} {formData.emailResponsable ? `(${formData.emailResponsable})` : ''}
+                            </span>
+                          </div>
                         </div>
-                        <div>
-                          <span className="font-bold text-slate-900 block">
-                            {formData.cliente || 'Constructora Horizonte S.A.S.'} • NIT {formData.nitDocumento || '900854219'}
-                          </span>
-                          <span className="text-slate-500 text-[11px] block">
-                            Contacto: {formData.responsable || 'Arq. Valentina Gómez'} ({formData.emailResponsable || 'proyectos@constructorahorizonte.com'})
-                          </span>
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100/80 px-2.5 py-1 rounded-full w-fit">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          {internalIsSim ? 'Caso Simulado' : 'Cuenta Registrada'}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                        <span className="text-xs font-bold text-slate-800 block">Datos de Identificación del Cliente / Empresa:</span>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div>
+                            <label className="text-[11px] font-semibold text-slate-600 block mb-1">Empresa / Razón Social *</label>
+                            <input
+                              type="text"
+                              placeholder="Ej: Inversiones Los Álamos"
+                              value={formData.cliente}
+                              onChange={(e) => handleInputChange('cliente', e.target.value)}
+                              className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[11px] font-semibold text-slate-600 block mb-1">NIT / C.C. *</label>
+                            <input
+                              type="text"
+                              placeholder="900123456"
+                              value={formData.nitDocumento}
+                              onChange={(e) => handleInputChange('nitDocumento', e.target.value)}
+                              className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[11px] font-semibold text-slate-600 block mb-1">Nombre de Contacto *</label>
+                            <input
+                              type="text"
+                              placeholder="Ing. Carlos Pérez"
+                              value={formData.responsable}
+                              onChange={(e) => handleInputChange('responsable', e.target.value)}
+                              className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                          <div>
+                            <label className="text-[11px] font-semibold text-slate-600 block mb-1">Correo Electrónico (para recibir la cotización) *</label>
+                            <input
+                              type="email"
+                              placeholder="contacto@empresa.com"
+                              value={formData.emailResponsable}
+                              onChange={(e) => handleInputChange('emailResponsable', e.target.value)}
+                              className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[11px] font-semibold text-slate-600 block mb-1">Teléfono / Celular de Contacto</label>
+                            <input
+                              type="tel"
+                              placeholder="+57 300 123 4567"
+                              value={formData.telefonoResponsable}
+                              onChange={(e) => handleInputChange('telefonoResponsable', e.target.value)}
+                              className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl"
+                            />
+                          </div>
                         </div>
                       </div>
-                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100/80 px-2.5 py-1 rounded-full w-fit">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        Cuenta Registrada
-                      </span>
-                    </div>
+                    )}
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                       <div>
@@ -1584,8 +1739,11 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                           id="standalone-select-ciudad"
                           value={formData.ciudad}
                           onChange={(e) => handleInputChange('ciudad', e.target.value)}
-                          className="w-full px-4 py-3 text-sm bg-slate-50/80 border border-slate-200 rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all font-semibold text-slate-800"
+                          className={`w-full px-4 py-3 text-sm bg-slate-50/80 border ${
+                            errors.ciudad ? 'border-rose-400 bg-rose-50/20' : 'border-slate-200'
+                          } rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all font-semibold text-slate-800`}
                         >
+                          <option value="">-- Seleccionar Ciudad de Entrega --</option>
                           <option value="Medellín">Medellín</option>
                           <option value="Bogotá D.C.">Bogotá D.C.</option>
                           <option value="Cali">Cali</option>
@@ -1595,7 +1753,11 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                           <option value="Pereira">Pereira</option>
                           <option value="Otra Ciudad">Otra ciudad o municipio nacional</option>
                         </select>
-                        <span className="text-[11px] text-slate-500 block mt-1">Tiempo de despacho: {presupuesto.tiempoEntregaDias}</span>
+                        {errors.ciudad ? (
+                          <p className="text-xs text-rose-600 mt-1.5">{errors.ciudad}</p>
+                        ) : (
+                          <span className="text-[11px] text-slate-500 block mt-1">Tiempo de despacho: {presupuesto.tiempoEntregaDias}</span>
+                        )}
                       </div>
 
                       <div>
@@ -1606,15 +1768,19 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                           id="standalone-select-tipo-obra"
                           value={formData.tipoObra}
                           onChange={(e) => handleInputChange('tipoObra', e.target.value)}
-                          className="w-full px-4 py-3 text-sm bg-slate-50/80 border border-slate-200 rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all font-medium"
+                          className={`w-full px-4 py-3 text-sm bg-slate-50/80 border ${
+                            errors.tipoObra ? 'border-rose-400 bg-rose-50/20' : 'border-slate-200'
+                          } rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all font-medium`}
                         >
-                          <option value="Fachada Edificio">Fachada de edificio</option>
+                          <option value="">-- Seleccionar Tipo de Obra --</option>
+                          <option value="Fachada Edificio">Fachada de edificio / Muros exteriores</option>
                           <option value="Muros Interiores">Muros interiores y áreas comunes</option>
                           <option value="Pisos Industriales">Pisos industriales y parqueaderos</option>
                           <option value="Estructura Metálica">Estructura metálica y cubiertas</option>
-                          <option value="Cielorrasos">Cielorrasos y plafones</option>
-                          <option value="Institucional">Institucional (clínicas, colegios)</option>
+                          <option value="Cielorrasos">Cielorrasos y plafones (techos)</option>
+                          <option value="Institucional / Hospitalario">Institucional (clínicas, colegios, hospitales)</option>
                         </select>
+                        {errors.tipoObra && <p className="text-xs text-rose-600 mt-1.5">{errors.tipoObra}</p>}
                       </div>
 
                       <div>
@@ -1662,16 +1828,22 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                     {/* Resumen de Envases Requeridos */}
                     <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/90 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-[#FF6A00] to-[#E5007D] text-white flex flex-col items-center justify-center font-bold shadow-2xs">
-                          <span className="text-xs leading-none">{formData.areaM2}</span>
+                        <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-[#FF6A00] to-[#E5007D] text-white flex flex-col items-center justify-center font-bold shadow-2xs shrink-0">
+                          <span className="text-xs leading-none">{formData.areaM2 || 0}</span>
                           <span className="text-[9px] uppercase font-mono">m²</span>
                         </div>
                         <div>
                           <span className="text-xs font-bold text-slate-900 block">Cuantificación Técnica de Envases:</span>
                           <span className="text-xs text-slate-600">
-                            <strong>{technicalCalc.cuñetesRequeridos} Cuñetes</strong> (5 Gal)
-                            {technicalCalc.galonesSueltosRequeridos > 0 && ` + ${technicalCalc.galonesSueltosRequeridos} Galones`}
-                            {' '}(Total requerido: {technicalCalc.galonesRequeridos} gal)
+                            {formData.areaM2 > 0 ? (
+                              <>
+                                <strong>{technicalCalc.cuñetesRequeridos} Cuñetes</strong> (5 Gal)
+                                {technicalCalc.galonesSueltosRequeridos > 0 && ` + ${technicalCalc.galonesSueltosRequeridos} Galones`}
+                                {' '}(Total requerido: {technicalCalc.galonesRequeridos} gal)
+                              </>
+                            ) : (
+                              <span className="text-slate-400 italic">Ingresa el área en m² para cuantificar galones y cuñetes requeridos</span>
+                            )}
                           </span>
                         </div>
                       </div>
@@ -1712,8 +1884,11 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                           id="standalone-select-sustrato"
                           value={formData.superficie}
                           onChange={(e) => handleInputChange('superficie', e.target.value)}
-                          className="w-full px-3 py-2.5 text-xs bg-slate-50/80 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#009FE3] transition-all font-medium"
+                          className={`w-full px-3 py-2.5 text-xs bg-slate-50/80 border ${
+                            errors.superficie ? 'border-rose-400 bg-rose-50/20' : 'border-slate-200'
+                          } rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#009FE3] transition-all font-medium`}
                         >
+                          <option value="">-- Seleccionar Superficie / Sustrato --</option>
                           <option value="Concreto / Revoque">Concreto, revoque o pañete</option>
                           <option value="Drywall / Yeso">Drywall o panel de yeso</option>
                           <option value="Metal Ferroso">Metal ferroso (hierro, acero)</option>
@@ -1721,6 +1896,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                           <option value="Madera">Madera o tableros</option>
                           <option value="Pintura Existente">Pintura existente (repinte)</option>
                         </select>
+                        {errors.superficie && <p className="text-[11px] text-rose-600 mt-1">{errors.superficie}</p>}
                       </div>
 
                       <div>
@@ -1731,14 +1907,18 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                           id="standalone-select-ambiente"
                           value={formData.ambiente}
                           onChange={(e) => handleInputChange('ambiente', e.target.value)}
-                          className="w-full px-3 py-2.5 text-xs bg-slate-50/80 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#009FE3] transition-all font-medium"
+                          className={`w-full px-3 py-2.5 text-xs bg-slate-50/80 border ${
+                            errors.ambiente ? 'border-rose-400 bg-rose-50/20' : 'border-slate-200'
+                          } rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#009FE3] transition-all font-medium`}
                         >
-                          <option value="Exterior Intemperie">Exterior intemperie (sol y lluvia)</option>
-                          <option value="Interior Seco">Interior seco (habitaciones, oficinas)</option>
-                          <option value="Interior Húmedo">Interior húmedo (baños, cocinas)</option>
-                          <option value="Industrial Severo">Industrial o químico severo</option>
-                          <option value="Tráfico">Alto tráfico peatonal o vehicular</option>
+                          <option value="">-- Seleccionar Ambiente --</option>
+                          <option value="Exterior Intemperie">Exterior intemperie (sol y lluvia directa)</option>
+                          <option value="Interior Seco">Interior seco (habitaciones, oficinas, pasillos)</option>
+                          <option value="Interior Húmedo (Baños/Cocinas)">Interior húmedo (baños, cocinas, zonas de lavado)</option>
+                          <option value="Industrial Severo / Químico">Industrial o químico severo</option>
+                          <option value="Tráfico Peatonal / Vehicular">Alto tráfico peatonal o vehicular</option>
                         </select>
+                        {errors.ambiente && <p className="text-[11px] text-rose-600 mt-1">{errors.ambiente}</p>}
                       </div>
 
                       <div>
@@ -1749,110 +1929,297 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                           id="standalone-select-condicion"
                           value={formData.condicion}
                           onChange={(e) => handleInputChange('condicion', e.target.value)}
-                          className="w-full px-3 py-2.5 text-xs bg-slate-50/80 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#009FE3] transition-all font-medium"
+                          className={`w-full px-3 py-2.5 text-xs bg-slate-50/80 border ${
+                            errors.condicion ? 'border-rose-400 bg-rose-50/20' : 'border-slate-200'
+                          } rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#009FE3] transition-all font-medium`}
                         >
+                          <option value="">-- Seleccionar Condición Actual --</option>
                           <option value="Nueva sin pintar">Nueva sin pintar (limpia y seca)</option>
                           <option value="Pintada en buen estado">Pintada en buen estado (cambio de color)</option>
                           <option value="Fisuras leves y humedad">Fisuras leves o humedad</option>
                           <option value="Descascaramiento severo">Descascaramiento o tizado</option>
-                          <option value="Oxidación">Presencia de oxidación o corrosión</option>
-                          <option value="Contaminación">Grasas, hongos o manchas</option>
+                          <option value="Oxidación superficial">Presencia de oxidación o corrosión superficial</option>
+                          <option value="Contaminación / Grasa">Grasas, hongos o manchas</option>
                         </select>
+                        {errors.condicion && <p className="text-[11px] text-rose-600 mt-1">{errors.condicion}</p>}
                       </div>
                     </div>
 
-                    {/* Selector de Tipo de Pintura (Norma Técnica NTC 1335) */}
-                    <div className="pt-2">
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-2.5">
-                        <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                          <span>Tipo de Pintura Requerido (Norma Técnica Colombiana NTC 1335)</span>
-                          <span className="text-[10px] bg-sky-100 text-[#003882] px-2 py-0.5 rounded-full font-bold">
-                            Define Durabilidad & Tarifa
-                          </span>
-                        </label>
+                    {/* Selector de Tipo de Pintura: Tipo 1, 2 y 3 para Exterior e Interior (Norma NTC 1335 / NTC 5828) */}
+                    <div className="pt-2 space-y-3">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                        <div>
+                          <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                            <span>Tipo de Pintura Requerido (Norma Técnica Colombiana NTC 1335 / NTC 5828)</span>
+                            <span className="text-[10px] bg-sky-100 text-[#003882] px-2 py-0.5 rounded-full font-bold">
+                              Tipo 1, 2 y 3 (Exterior & Interior)
+                            </span>
+                          </label>
+                          <p className="text-[11px] text-slate-500">
+                            Selecciona la línea técnica requerida según resistencia al frote húmedo y durabilidad.
+                          </p>
+                        </div>
                         <button
                           type="button"
                           onClick={() => setShowImageDiagnosisModal(true)}
-                          className="text-xs text-fuchsia-700 hover:text-fuchsia-800 font-bold flex items-center gap-1.5 cursor-pointer bg-fuchsia-50 hover:bg-fuchsia-100 px-3 py-1 rounded-xl transition-all border border-fuchsia-200/60"
+                          className="text-xs text-fuchsia-700 hover:text-fuchsia-800 font-bold flex items-center gap-1.5 cursor-pointer bg-fuchsia-50 hover:bg-fuchsia-100 px-3 py-1.5 rounded-xl transition-all border border-fuchsia-200/60 shrink-0"
                         >
                           <Camera className="w-3.5 h-3.5 text-fuchsia-600" />
                           <span>¿Dudas? Diagnosticar foto con IA</span>
                         </button>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        {/* Tipo 1 */}
-                        <div
-                          onClick={() => handleInputChange('tipoPintura', 'Tipo 1')}
-                          className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
-                            (formData.tipoPintura || 'Tipo 1') === 'Tipo 1'
-                              ? 'border-[#009FE3] bg-sky-50/70 shadow-xs ring-2 ring-[#009FE3]/20'
-                              : 'border-slate-200 hover:border-slate-300 bg-white'
-                          }`}
+                      {/* Desplegable Directo de Tipo de Pintura (Sale 'Seleccionar...' en Modo Real) */}
+                      <div>
+                        <select
+                          id="standalone-select-tipo-pintura"
+                          value={formData.tipoPintura || ''}
+                          onChange={(e) => {
+                            const val = e.target.value as any;
+                            handleInputChange('tipoPintura', val);
+                            if (val && val.includes('Exterior')) setActivePaintLine('Exterior');
+                            if (val && val.includes('Interior')) setActivePaintLine('Interior');
+                          }}
+                          className={`w-full px-3.5 py-2.5 text-xs bg-slate-50/80 border ${
+                            errors.tipoPintura ? 'border-rose-400 bg-rose-50/20' : 'border-slate-200'
+                          } rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#009FE3] transition-all font-semibold text-slate-800`}
                         >
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="font-extrabold text-xs text-slate-900">Pintura Tipo 1</span>
-                            <span className="text-[10px] font-bold bg-[#009FE3] text-white px-2 py-0.5 rounded-md">
-                              Exterior de alta resistencia
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-slate-600 leading-snug">
-                            Máxima lavabilidad (&gt;800 ciclos), intemperie, lluvia y sol directo.
-                          </p>
-                          <div className="mt-2.5 pt-2 border-t border-slate-200/80 flex items-center justify-between text-[11px]">
-                            <span className="text-slate-500 font-medium">Durabilidad: 5-7 años</span>
-                            <strong className="text-slate-900 font-mono font-bold">$398.000 / Cuñete</strong>
-                          </div>
-                        </div>
-
-                        {/* Tipo 2 */}
-                        <div
-                          onClick={() => handleInputChange('tipoPintura', 'Tipo 2')}
-                          className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
-                            formData.tipoPintura === 'Tipo 2'
-                              ? 'border-emerald-600 bg-emerald-50/70 shadow-xs ring-2 ring-emerald-500/20'
-                              : 'border-slate-200 hover:border-slate-300 bg-white'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="font-extrabold text-xs text-emerald-950">Pintura Tipo 2</span>
-                            <span className="text-[10px] font-bold bg-emerald-600 text-white px-2 py-0.5 rounded-md">
-                              Interior Lavable
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-slate-600 leading-snug">
-                            Lavabilidad media (&gt;400 ciclos). Ideal para zonas comunes, pasillos y oficinas.
-                          </p>
-                          <div className="mt-2.5 pt-2 border-t border-slate-200/80 flex items-center justify-between text-[11px]">
-                            <span className="text-slate-500 font-medium">Durabilidad: 3-4 años</span>
-                            <strong className="text-slate-900 font-mono font-bold">$285.000 / Cuñete</strong>
-                          </div>
-                        </div>
-
-                        {/* Tipo 3 */}
-                        <div
-                          onClick={() => handleInputChange('tipoPintura', 'Tipo 3')}
-                          className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
-                            formData.tipoPintura === 'Tipo 3'
-                              ? 'border-amber-600 bg-amber-50/70 shadow-xs ring-2 ring-amber-500/20'
-                              : 'border-slate-200 hover:border-slate-300 bg-white'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="font-extrabold text-xs text-amber-950">Pintura Tipo 3</span>
-                            <span className="text-[10px] font-bold bg-amber-600 text-white px-2 py-0.5 rounded-md">
-                              Cielorrasos y fondeo
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-slate-600 leading-snug">
-                            Económica para techos, placas de cielo o primeras manos no expuestas a fricción.
-                          </p>
-                          <div className="mt-2.5 pt-2 border-t border-slate-200/80 flex items-center justify-between text-[11px]">
-                            <span className="text-slate-500 font-medium">Durabilidad: 1-2 años</span>
-                            <strong className="text-slate-900 font-mono font-bold">$185.000 / Cuñete</strong>
-                          </div>
-                        </div>
+                          <option value="">-- Seleccionar Tipo de Pintura (Norma NTC 1335) --</option>
+                          <optgroup label="🌤️ LÍNEA EXTERIOR (Fachadas e Intemperie - NTC 1335 / NTC 5828)">
+                            <option value="Exterior Tipo 1">Exterior Tipo 1: 100% Acrílica Fachadas (Súper Lavable &gt;1.200 ciclos / 5-7 años)</option>
+                            <option value="Exterior Tipo 2">Exterior Tipo 2: Vinil-Acrílica Fachada Estándar (&gt;600 ciclos / 3-4 años)</option>
+                            <option value="Exterior Tipo 3">Exterior Tipo 3: Base Imprimante &amp; Fondeo Fachada (1 año / Fondeo)</option>
+                          </optgroup>
+                          <optgroup label="🏠 LÍNEA INTERIOR (Muros Interiores &amp; Cielorrasos - NTC 1335)">
+                            <option value="Interior Tipo 1">Interior Tipo 1: Vinilo Superlavable Alto Tráfico (&gt;800 ciclos / 4-5 años)</option>
+                            <option value="Interior Tipo 2">Interior Tipo 2: Vinilo Lavable Estándar Habitaciones (&gt;400 ciclos / 3-4 años)</option>
+                            <option value="Interior Tipo 3">Interior Tipo 3: Pintura Vinílica Cielorrasos &amp; Techos (No lavable / 1-2 años)</option>
+                          </optgroup>
+                        </select>
                       </div>
+
+                      {/* Pestañas de Alternancia: Línea Exterior vs Línea Interior */}
+                      <div className="flex items-center gap-2 p-1 bg-slate-100/90 rounded-2xl border border-slate-200">
+                        <button
+                          type="button"
+                          onClick={() => setActivePaintLine('Exterior')}
+                          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                            activePaintLine === 'Exterior'
+                              ? 'bg-white text-slate-900 shadow-xs border border-slate-200'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          <span>🌤️ Línea Exterior (Tipo 1, 2 y 3 Fachadas)</span>
+                          {formData.tipoPintura?.includes('Exterior') && (
+                            <span className="w-2 h-2 rounded-full bg-[#009FE3]"></span>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setActivePaintLine('Interior')}
+                          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                            activePaintLine === 'Interior'
+                              ? 'bg-white text-slate-900 shadow-xs border border-slate-200'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          <span>🏠 Línea Interior (Tipo 1, 2 y 3 Muros & Cielos)</span>
+                          {formData.tipoPintura?.includes('Interior') && (
+                            <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Tarjetas según la Línea Seleccionada */}
+                      {activePaintLine === 'Exterior' ? (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          {/* Exterior Tipo 1 */}
+                          <div
+                            onClick={() => handleInputChange('tipoPintura', 'Exterior Tipo 1')}
+                            className={`p-4 rounded-2xl border-2 cursor-pointer transition-all ${
+                              formData.tipoPintura === 'Exterior Tipo 1' || formData.tipoPintura === 'Tipo 1'
+                                ? 'border-[#009FE3] bg-sky-50/80 shadow-xs ring-2 ring-[#009FE3]/25'
+                                : 'border-slate-200 hover:border-slate-300 bg-white'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="font-black text-xs text-slate-900">Exterior Tipo 1</span>
+                              <span className="text-[10px] font-bold bg-[#009FE3] text-white px-2 py-0.5 rounded-md">
+                                100% Acrílica Fachadas
+                              </span>
+                            </div>
+                            <span className="text-[11px] font-bold text-sky-800 block mb-1">
+                              Colorlink Koraza Pro Fachadas
+                            </span>
+                            <p className="text-[11px] text-slate-600 leading-snug">
+                              Máxima lavabilidad (&gt;1.200 ciclos), filtro UV solar, protección antimoho e impermeabilidad total a lluvias torrenciales.
+                            </p>
+                            <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex items-center justify-between text-[11px]">
+                              <span className="text-slate-500 font-medium">Garantía: 5-7 años</span>
+                              <strong className="text-slate-900 font-mono font-bold">$398.000 / Cuñete</strong>
+                            </div>
+                          </div>
+
+                          {/* Exterior Tipo 2 */}
+                          <div
+                            onClick={() => handleInputChange('tipoPintura', 'Exterior Tipo 2')}
+                            className={`p-4 rounded-2xl border-2 cursor-pointer transition-all ${
+                              formData.tipoPintura === 'Exterior Tipo 2'
+                                ? 'border-sky-600 bg-sky-50/80 shadow-xs ring-2 ring-sky-500/25'
+                                : 'border-slate-200 hover:border-slate-300 bg-white'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="font-black text-xs text-slate-900">Exterior Tipo 2</span>
+                              <span className="text-[10px] font-bold bg-sky-700 text-white px-2 py-0.5 rounded-md">
+                                Fachada Estándar
+                              </span>
+                            </div>
+                            <span className="text-[11px] font-bold text-sky-800 block mb-1">
+                              Colorlink Vinil-Acrílica Exterior
+                            </span>
+                            <p className="text-[11px] text-slate-600 leading-snug">
+                              Resistencia a intemperie moderada (&gt;600 ciclos). Ideal para muros exteriores protegidos, aleros, terrazas cubiertas y patios.
+                            </p>
+                            <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex items-center justify-between text-[11px]">
+                              <span className="text-slate-500 font-medium">Durabilidad: 3-4 años</span>
+                              <strong className="text-slate-900 font-mono font-bold">$315.000 / Cuñete</strong>
+                            </div>
+                          </div>
+
+                          {/* Exterior Tipo 3 */}
+                          <div
+                            onClick={() => handleInputChange('tipoPintura', 'Exterior Tipo 3')}
+                            className={`p-4 rounded-2xl border-2 cursor-pointer transition-all ${
+                              formData.tipoPintura === 'Exterior Tipo 3'
+                                ? 'border-indigo-600 bg-indigo-50/80 shadow-xs ring-2 ring-indigo-500/25'
+                                : 'border-slate-200 hover:border-slate-300 bg-white'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="font-black text-xs text-slate-900">Exterior Tipo 3</span>
+                              <span className="text-[10px] font-bold bg-indigo-600 text-white px-2 py-0.5 rounded-md">
+                                Fondeo / Cerramientos
+                              </span>
+                            </div>
+                            <span className="text-[11px] font-bold text-indigo-900 block mb-1">
+                              Colorlink Base Imprimante Fachada
+                            </span>
+                            <p className="text-[11px] text-slate-600 leading-snug">
+                              Capa base de impregnación para regularizar revoques nuevos en exteriores o pintura económica de cerramientos de obra.
+                            </p>
+                            <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex items-center justify-between text-[11px]">
+                              <span className="text-slate-500 font-medium">Fondeo / 1 año</span>
+                              <strong className="text-slate-900 font-mono font-bold">$215.000 / Cuñete</strong>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          {/* Interior Tipo 1 */}
+                          <div
+                            onClick={() => handleInputChange('tipoPintura', 'Interior Tipo 1')}
+                            className={`p-4 rounded-2xl border-2 cursor-pointer transition-all ${
+                              formData.tipoPintura === 'Interior Tipo 1'
+                                ? 'border-emerald-600 bg-emerald-50/80 shadow-xs ring-2 ring-emerald-500/25'
+                                : 'border-slate-200 hover:border-slate-300 bg-white'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="font-black text-xs text-emerald-950">Interior Tipo 1</span>
+                              <span className="text-[10px] font-bold bg-emerald-600 text-white px-2 py-0.5 rounded-md">
+                                Superlavable Pro
+                              </span>
+                            </div>
+                            <span className="text-[11px] font-bold text-emerald-800 block mb-1">
+                              Colorlink Vinilo Pro Interior Superlavable
+                            </span>
+                            <p className="text-[11px] text-slate-600 leading-snug">
+                              Superlavable (&gt;800 ciclos de lavado). Máxima remoción de manchas y grasa. Muros de alto tráfico, salas, pasillos, cocinas y consultorios.
+                            </p>
+                            <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex items-center justify-between text-[11px]">
+                              <span className="text-slate-500 font-medium">Durabilidad: 4-5 años</span>
+                              <strong className="text-slate-900 font-mono font-bold">$320.000 / Cuñete</strong>
+                            </div>
+                          </div>
+
+                          {/* Interior Tipo 2 */}
+                          <div
+                            onClick={() => handleInputChange('tipoPintura', 'Interior Tipo 2')}
+                            className={`p-4 rounded-2xl border-2 cursor-pointer transition-all ${
+                              formData.tipoPintura === 'Interior Tipo 2' || formData.tipoPintura === 'Tipo 2'
+                                ? 'border-teal-600 bg-teal-50/80 shadow-xs ring-2 ring-teal-500/25'
+                                : 'border-slate-200 hover:border-slate-300 bg-white'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="font-black text-xs text-teal-950">Interior Tipo 2</span>
+                              <span className="text-[10px] font-bold bg-teal-600 text-white px-2 py-0.5 rounded-md">
+                                Lavable Estándar
+                              </span>
+                            </div>
+                            <span className="text-[11px] font-bold text-teal-800 block mb-1">
+                              Colorlink Viniltex Muros Interiores
+                            </span>
+                            <p className="text-[11px] text-slate-600 leading-snug">
+                              Lavabilidad media (&gt;400 ciclos). Limpieza con esponja suave. Diseñada para habitaciones, dormitorios, estudios y áreas residenciales secas.
+                            </p>
+                            <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex items-center justify-between text-[11px]">
+                              <span className="text-slate-500 font-medium">Durabilidad: 3-4 años</span>
+                              <strong className="text-slate-900 font-mono font-bold">$260.000 / Cuñete</strong>
+                            </div>
+                          </div>
+
+                          {/* Interior Tipo 3 */}
+                          <div
+                            onClick={() => handleInputChange('tipoPintura', 'Interior Tipo 3')}
+                            className={`p-4 rounded-2xl border-2 cursor-pointer transition-all ${
+                              formData.tipoPintura === 'Interior Tipo 3' || formData.tipoPintura === 'Tipo 3'
+                                ? 'border-amber-600 bg-amber-50/80 shadow-xs ring-2 ring-amber-500/25'
+                                : 'border-slate-200 hover:border-slate-300 bg-white'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="font-black text-xs text-amber-950">Interior Tipo 3</span>
+                              <span className="text-[10px] font-bold bg-amber-600 text-white px-2 py-0.5 rounded-md">
+                                Techos & Cielorrasos
+                              </span>
+                            </div>
+                            <span className="text-[11px] font-bold text-amber-800 block mb-1">
+                              Colorlink Económica Cielorrasos
+                            </span>
+                            <p className="text-[11px] text-slate-600 leading-snug">
+                              Acabado mate de alto poder de relleno para cielos rasos, placas de drywall y primeras manos económicas no lavables (&gt;100 ciclos).
+                            </p>
+                            <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex items-center justify-between text-[11px]">
+                              <span className="text-slate-500 font-medium">Durabilidad: 1-2 años</span>
+                              <strong className="text-slate-900 font-mono font-bold">$185.000 / Cuñete</strong>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Notificación de selección de pintura */}
+                      <div className={`p-3 rounded-xl border text-xs flex items-center justify-between gap-2 ${
+                        formData.tipoPintura
+                          ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900 font-medium'
+                          : 'bg-amber-50/70 border-amber-200 text-amber-900'
+                      }`}>
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className={`w-4 h-4 ${formData.tipoPintura ? 'text-emerald-600' : 'text-amber-500'}`} />
+                          <span>
+                            {formData.tipoPintura
+                              ? `Pintura seleccionada: ${technicalCalc.productoRecomendado} (${formData.tipoPintura})`
+                              : 'No has seleccionado tipo de pintura aún. Por favor haz clic en una de las tarjetas arriba.'}
+                          </span>
+                        </div>
+                        {formData.tipoPintura && (
+                          <span className="text-[11px] font-mono font-bold text-emerald-800">
+                            {technicalCalc.tipoPinturaDetalle.durabilidadAnos}
+                          </span>
+                        )}
+                      </div>
+                      {errors.tipoPintura && <p className="text-xs text-rose-600 mt-1">{errors.tipoPintura}</p>}
                     </div>
 
                     {/* Selector Visual de Color & Tintometría */}
@@ -2047,6 +2414,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       <button
                         id="standalone-submit-btn"
                         type="submit"
+                        onClick={handleSubmit}
                         className="px-8 py-3.5 bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] hover:from-[#FF7A10] hover:via-[#F00084] hover:to-[#7B1FA2] text-white font-black text-sm rounded-2xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2.5 active:scale-95 cursor-pointer"
                       >
                         <Send className="w-4 h-4" />
@@ -2225,17 +2593,6 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
         orderNumber={orderNumber}
         decisionTimestamp={decisionTimestamp}
         onDownloadPDF={handleDownloadPDF}
-      />
-
-      {/* MODAL: PORTAL CLIENTE SUPABASE (HISTORIAL DE COMPRAS & PEDIDOS PENDIENTES) */}
-      <CustomerSupabasePortal
-        isOpen={showSupabasePortal}
-        onClose={() => {
-          setShowSupabasePortal(false);
-          setActiveSession(getActiveSession());
-        }}
-        initialEmail={formData.emailResponsable}
-        onSessionChange={(user) => setActiveSession(user)}
       />
     </div>
   );

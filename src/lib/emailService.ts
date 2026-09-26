@@ -1,6 +1,5 @@
 import { formatCOP } from '../utils/calculator';
 import { ProjectFormData } from '../types/form';
-import { SupabaseOrder } from './supabaseService';
 
 export interface SendEmailParams {
   to: string;

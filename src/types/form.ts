@@ -41,7 +41,7 @@ export interface ProjectFormData {
   ambiente: 'Exterior Intemperie' | 'Interior Seco' | 'Interior Húmedo (Baños/Cocinas)' | 'Industrial Severo / Químico' | 'Tráfico Peatonal / Vehicular';
   condicion: 'Nueva sin pintar' | 'Pintada en buen estado' | 'Fisuras leves y humedad' | 'Descascaramiento severo' | 'Oxidación superficial' | 'Contaminación / Grasa';
   colorAcabado: string;
-  tipoPintura?: 'Tipo 1' | 'Tipo 2' | 'Tipo 3';
+  tipoPintura?: PaintTypeCategory;
 
   // Evidencia
   descripcionLibre: string;
@@ -74,8 +74,21 @@ export interface BudgetBreakdown {
   tiempoEntregaDias: string;
 }
 
+export type PaintTypeCategory =
+  | 'Exterior Tipo 1'
+  | 'Exterior Tipo 2'
+  | 'Exterior Tipo 3'
+  | 'Interior Tipo 1'
+  | 'Interior Tipo 2'
+  | 'Interior Tipo 3'
+  | 'Tipo 1'
+  | 'Tipo 2'
+  | 'Tipo 3';
+
 export interface PaintTypeProfile {
-  tipo: 'Tipo 1' | 'Tipo 2' | 'Tipo 3';
+  tipo: PaintTypeCategory;
+  linea: 'Exterior' | 'Interior';
+  nivel: 'Tipo 1' | 'Tipo 2' | 'Tipo 3';
   nombreComercial: string;
   normaNTC: string;
   resistenciaLavabilidad: string;
@@ -88,7 +101,7 @@ export interface PaintTypeProfile {
 export interface TechnicalCalculationResult {
   productoRecomendado: string;
   tipoSolucion: string;
-  tipoPintura: 'Tipo 1' | 'Tipo 2' | 'Tipo 3';
+  tipoPintura: PaintTypeCategory;
   tipoPinturaDetalle: PaintTypeProfile;
   selladorImprimanteRequerido: string;
   manosSugeridas: number;
@@ -105,4 +118,15 @@ export interface TechnicalCalculationResult {
   requiereVisitaEspecialista: boolean;
   alertaPatologia: string | null;
   presupuesto: BudgetBreakdown;
+}
+
+export interface UserProfile {
+  id: string;
+  empresa: string;
+  nit: string;
+  responsable: string;
+  email: string;
+  telefono: string;
+  ciudad: string;
+  createdAt: string;
 }

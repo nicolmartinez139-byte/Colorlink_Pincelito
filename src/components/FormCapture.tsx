@@ -37,18 +37,19 @@ export function FormCapture({ onSuccessSubmit }: FormCaptureProps) {
     emailResponsable: '',
     telefonoResponsable: '',
     canalEntrada: 'App Web',
-    ciudad: 'Medellín',
-    tipoObra: 'Fachada Edificio',
-    areaM2: 85,
-    fechaRequerida: '2026-09-15',
-    superficie: 'Concreto / Revoque',
-    ambiente: 'Exterior Intemperie',
-    condicion: 'Fisuras leves y humedad',
-    colorAcabado: 'Gris Cemento Mate',
-    descripcionLibre: 'Mantenimiento en fachada de 5 pisos, presenta fisuras superficiales y filtraciones leves.',
-    fotos: [{ name: 'fachada_principal.jpg', size: '2.3 MB' }],
-    observaciones: 'Acceso por andamios colgantes certificados.',
-    consentimiento: true
+    ciudad: '',
+    tipoObra: '' as any,
+    areaM2: 0,
+    fechaRequerida: '',
+    superficie: '' as any,
+    ambiente: '' as any,
+    condicion: '' as any,
+    tipoPintura: '' as any,
+    colorAcabado: '',
+    descripcionLibre: '',
+    fotos: [],
+    observaciones: '',
+    consentimiento: false
   });
 
   const [activeStep, setActiveStep] = useState<number>(1);
@@ -310,6 +311,7 @@ export function FormCapture({ onSuccessSubmit }: FormCaptureProps) {
                   onChange={(e) => handleInputChange('ciudad', e.target.value)}
                   className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium"
                 >
+                  <option value="">-- Seleccionar Ciudad --</option>
                   <option value="Medellín">Medellín</option>
                   <option value="Bogotá D.C.">Bogotá D.C.</option>
                   <option value="Cali">Cali</option>
@@ -331,6 +333,7 @@ export function FormCapture({ onSuccessSubmit }: FormCaptureProps) {
                   onChange={(e) => handleInputChange('tipoObra', e.target.value)}
                   className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                 >
+                  <option value="">-- Seleccionar Tipo de Obra --</option>
                   <option value="Fachada Edificio">Fachada Edificio Residencial/Comercial</option>
                   <option value="Muros Interiores">Muros Interiores y Vivienda</option>
                   <option value="Pisos Industriales">Pisos Industriales y Parqueaderos</option>
@@ -408,6 +411,7 @@ export function FormCapture({ onSuccessSubmit }: FormCaptureProps) {
                   onChange={(e) => handleInputChange('superficie', e.target.value)}
                   className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                 >
+                  <option value="">-- Seleccionar Superficie --</option>
                   <option value="Concreto / Revoque">Concreto / Revoque / Mampostería</option>
                   <option value="Drywall / Yeso">Drywall / Yeso / Paneles</option>
                   <option value="Metal Ferroso">Metal Ferroso (Hierro, Acero)</option>
@@ -427,6 +431,7 @@ export function FormCapture({ onSuccessSubmit }: FormCaptureProps) {
                   onChange={(e) => handleInputChange('ambiente', e.target.value)}
                   className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                 >
+                  <option value="">-- Seleccionar Ambiente --</option>
                   <option value="Exterior Intemperie">Exterior Intemperie (Sol directo, Lluvia)</option>
                   <option value="Interior Seco">Interior Seco (Habitaciones, Oficinas)</option>
                   <option value="Interior Húmedo (Baños/Cocinas)">Interior Húmedo (Baños, Cocinas)</option>
@@ -445,6 +450,7 @@ export function FormCapture({ onSuccessSubmit }: FormCaptureProps) {
                   onChange={(e) => handleInputChange('condicion', e.target.value)}
                   className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                 >
+                  <option value="">-- Seleccionar Condición Actual --</option>
                   <option value="Nueva sin pintar">Nueva sin pintar (Obra blanca)</option>
                   <option value="Pintada en buen estado">Pintada en buen estado (Repinte simple)</option>
                   <option value="Fisuras leves y humedad">Fisuras leves y humedad / filtración</option>

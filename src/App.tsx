@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { StandaloneClientForm } from './components/StandaloneClientForm';
 import { AdminBackoffice } from './components/AdminBackoffice';
-import { CustomerSupabasePortal } from './components/CustomerSupabasePortal';
 import { ColorlinkRainbowBar } from './components/ColorlinkSplashes';
 import { PenguinLogo } from './components/PenguinLogo';
 import { ColorlinkLoginLanding } from './components/ColorlinkLoginLanding';
 import { ProjectFormData } from './types/form';
 import { CASE_STUDY_PRESET } from './data/dictionaryData';
 import { calculateTechnicalRequirements } from './utils/calculator';
+import { submitProjectToSupabase, fetchSubmittedProjects, SubmittedProject } from './utils/supabaseApi';
+import { sendConfirmationEmail } from './utils/emailService';
+import { isSupabaseConfigured } from './lib/supabase';
 import {
   ShieldCheck,
   Lock,
@@ -29,14 +31,14 @@ import {
   User,
   Package
 } from 'lucide-react';
-import { getActiveSession, logoutFromSupabase, UserProfile } from './lib/supabaseService';
+import { UserProfile } from './types/form';
 
 export default function App() {
   // Role switcher: 'client' (default) | 'admin'
   const [userRole, setUserRole] = useState<'client' | 'admin'>('client');
   const [showAdminLoginModal, setShowAdminLoginModal] = useState<boolean>(false);
-  const [showCustomerSupabasePortal, setShowCustomerSupabasePortal] = useState<boolean>(false);
   const [activeClient, setActiveClient] = useState<UserProfile | null>(null);
+  const [isSimulationMode, setIsSimulationMode] = useState<boolean>(false);
   const [adminUsername, setAdminUsername] = useState<string>('');
   const [adminPassword, setAdminPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
@@ -95,11 +97,37 @@ export default function App() {
     }
   ]);
 
-  // When a client submits a quote, record it in the admin inbox
-  const handleClientSubmit = (submittedData: ProjectFormData) => {
+  // Sincronizar proyectos existentes desde Supabase si las credenciales están configuradas
+  useEffect(() => {
+    if (isSupabaseConfigured()) {
+      fetchSubmittedProjects()
+        .then((remoteProjects) => {
+          if (remoteProjects && remoteProjects.length > 0) {
+            setSubmittedProjects((prev) => {
+              // Mantener proyectos remotos y agregar locales que no estén en remotos
+              const remoteIds = new Set(remoteProjects.map((p) => p.id));
+              const nonDuplicated = prev.filter((p) => !remoteIds.has(p.id));
+              return [...remoteProjects, ...nonDuplicated];
+            });
+          }
+        })
+        .catch((err) => {
+          console.warn('[Supabase] Consulta de proyectos iniciales:', {
+            message: err?.message || err,
+            code: err?.code,
+            details: err?.details,
+            hint: err?.hint
+          });
+        });
+    }
+  }, []);
+
+  // When a client submits a quote, record it in the admin inbox and save to Supabase
+  const handleClientSubmit = async (submittedData: ProjectFormData) => {
     const calc = calculateTechnicalRequirements(submittedData);
+    const tempId = `PROJ-${Date.now().toString().slice(-4)}`;
     const newProject = {
-      id: `PROJ-${Date.now().toString().slice(-4)}`,
+      id: tempId,
       submittedAt: 'Recién ingresado',
       formData: submittedData,
       status: 'Validado' as const,
@@ -107,7 +135,44 @@ export default function App() {
       currentPipelineStep: 8
     };
 
+    // Actualizar UI inmediatamente para experiencia fluida
     setSubmittedProjects((prev) => [newProject, ...prev]);
+
+    // Guardar en Supabase
+    try {
+      console.log('[Supabase] Enviando cotización y proyecto a Supabase...', {
+        cliente: submittedData.cliente,
+        nit: submittedData.nitDocumento,
+        ciudad: submittedData.ciudad,
+        totalCOP: calc.presupuesto.totalPresupuesto
+      });
+
+      const { proyectoId, orderNumber } = await submitProjectToSupabase(submittedData, calc);
+      console.log(`[Supabase] Proyecto guardado exitosamente en base de datos. ID: ${proyectoId}, Pedido: ${orderNumber}`);
+
+      // Actualizar el ID en la lista con el número de orden oficial retornado
+      if (orderNumber) {
+        setSubmittedProjects((prev) =>
+          prev.map((p) => (p.id === tempId ? { ...p, id: orderNumber } : p))
+        );
+      }
+
+      // Enviar correo de confirmación mediante EmailJS si está configurado
+      try {
+        await sendConfirmationEmail(submittedData, calc, orderNumber || tempId);
+      } catch (emailErr) {
+        console.warn('[EmailJS] Advertencia al enviar correo de confirmación:', emailErr);
+      }
+    } catch (error: any) {
+      // Log detallado exacto de Supabase para depuración precisa
+      console.error('[Supabase Error] Error exacto al guardar en Supabase:', {
+        message: error?.message || (typeof error === 'string' ? error : JSON.stringify(error)),
+        code: error?.code,
+        details: error?.details,
+        hint: error?.hint,
+        errorObject: error
+      });
+    }
   };
 
   // Si el usuario está en rol cliente y no ha iniciado sesión,
@@ -117,8 +182,9 @@ export default function App() {
       <div className="min-h-screen bg-slate-50 flex flex-col font-sans selection:bg-[#E5007D] selection:text-white">
         <ColorlinkRainbowBar className="h-1.5 w-full" />
         <ColorlinkLoginLanding
-          onLoginSuccess={(user) => {
+          onLoginSuccess={(user, isSim) => {
             setActiveClient(user);
+            setIsSimulationMode(!!isSim);
           }}
           onOpenAdminModal={() => setShowAdminLoginModal(true)}
         />
@@ -282,7 +348,6 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => {
-                          logoutFromSupabase();
                           setActiveClient(null);
                         }}
                         className="px-3 py-1.5 text-xs font-bold text-rose-600 hover:text-white bg-white hover:bg-rose-500 border border-rose-200/90 hover:border-rose-500 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
@@ -329,10 +394,13 @@ export default function App() {
         {userRole === 'client' ? (
           /* VISTA EXCLUSIVA DEL CLIENTE: Solo el formulario con su propia IA integrada */
           <StandaloneClientForm
+            isSimulation={isSimulationMode}
+            onToggleSimulation={(val) => setIsSimulationMode(val)}
+            activeUser={activeClient}
             onSuccessSubmit={handleClientSubmit}
             onLogout={() => {
-              logoutFromSupabase();
               setActiveClient(null);
+              setIsSimulationMode(false);
             }}
           />
         ) : (
@@ -494,16 +562,6 @@ export default function App() {
           </div>
         </div>
       )}
-
-      {/* MODAL PORTAL DE CLIENTES SUPABASE */}
-      <CustomerSupabasePortal
-        isOpen={showCustomerSupabasePortal}
-        onClose={() => {
-          setShowCustomerSupabasePortal(false);
-          setActiveClient(getActiveSession());
-        }}
-        onSessionChange={(user) => setActiveClient(user)}
-      />
 
       {/* FOOTER CORPORATIVO */}
       <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500">

@@ -1,9 +1,84 @@
-import { ProjectFormData, TechnicalCalculationResult, BudgetBreakdown, BudgetItem, PaintTypeProfile } from '../types/form';
+import { ProjectFormData, TechnicalCalculationResult, BudgetBreakdown, BudgetItem, PaintTypeProfile, PaintTypeCategory } from '../types/form';
 
-// Clasificación Oficial según Norma Técnica Colombiana (NTC 1335) para Pinturas Arquitectónicas al Agua
-export const PAINT_TYPE_PROFILES: Record<'Tipo 1' | 'Tipo 2' | 'Tipo 3', PaintTypeProfile> = {
+// Clasificación Oficial según Norma Técnica Colombiana (NTC 1335 / NTC 5828) para Pinturas Arquitectónicas al Agua
+export const PAINT_TYPE_PROFILES: Record<PaintTypeCategory, PaintTypeProfile> = {
+  'Exterior Tipo 1': {
+    tipo: 'Exterior Tipo 1',
+    linea: 'Exterior',
+    nivel: 'Tipo 1',
+    nombreComercial: 'Colorlink Koraza Pro Fachadas 100% Acrílica (Exterior Tipo 1)',
+    normaNTC: 'NTC 1335 / NTC 5828 (Lavabilidad Superior >1.200 ciclos / Filtro UV)',
+    resistenciaLavabilidad: 'Máxima resistencia a intemperie severa, rayos UV, sol directo y lluvia torrencial',
+    durabilidadAnos: '5 a 7 Años Certificados',
+    usoRecomendado: 'Fachadas exteriores de edificios, casas y muros perimetrales expuestos',
+    precioGalon: 89500,
+    precioCunete: 398000
+  },
+  'Exterior Tipo 2': {
+    tipo: 'Exterior Tipo 2',
+    linea: 'Exterior',
+    nivel: 'Tipo 2',
+    nombreComercial: 'Colorlink Fachada Estándar Vinil-Acrílica (Exterior Tipo 2)',
+    normaNTC: 'NTC 1335 Tipo 2 Exterior (Lavabilidad Media >600 ciclos / Antihongos)',
+    resistenciaLavabilidad: 'Resistencia a intemperie moderada, muros semicubiertos y aleros',
+    durabilidadAnos: '3 a 4 Años',
+    usoRecomendado: 'Muros exteriores protegidos, aleros, terrazas techadas y cerramientos',
+    precioGalon: 74000,
+    precioCunete: 315000
+  },
+  'Exterior Tipo 3': {
+    tipo: 'Exterior Tipo 3',
+    linea: 'Exterior',
+    nivel: 'Tipo 3',
+    nombreComercial: 'Colorlink Base Imprimante & Fondeo Fachada (Exterior Tipo 3)',
+    normaNTC: 'NTC 1335 Tipo 3 Exterior (Fondeo y regularización de absorción)',
+    resistenciaLavabilidad: 'Capa base de impregnación para regularizar sustratos o cerramientos provisionales',
+    durabilidadAnos: '1 Año acabado / Fondeo permanente',
+    usoRecomendado: 'Primera mano en revoque exterior nuevo o cerramientos de obra',
+    precioGalon: 52000,
+    precioCunete: 215000
+  },
+  'Interior Tipo 1': {
+    tipo: 'Interior Tipo 1',
+    linea: 'Interior',
+    nivel: 'Tipo 1',
+    nombreComercial: 'Colorlink Vinilo Pro Interior Superlavable (Interior Tipo 1)',
+    normaNTC: 'NTC 1335 Tipo 1 Interior (Alta Lavabilidad >800 ciclos de lavado)',
+    resistenciaLavabilidad: 'Superlavable con agua y jabón, resistente a grasa, manchas y alto tráfico',
+    durabilidadAnos: '4 a 5 Años',
+    usoRecomendado: 'Muros interiores de alto tráfico: salas, comedores, pasillos, cocinas, consultorios',
+    precioGalon: 78000,
+    precioCunete: 320000
+  },
+  'Interior Tipo 2': {
+    tipo: 'Interior Tipo 2',
+    linea: 'Interior',
+    nivel: 'Tipo 2',
+    nombreComercial: 'Colorlink Vinilo Estándar Interior Lavable (Interior Tipo 2)',
+    normaNTC: 'NTC 1335 Tipo 2 Interior (Lavabilidad Media >400 ciclos)',
+    resistenciaLavabilidad: 'Lavable moderado, remoción de polvo y manchas leves con esponja húmeda',
+    durabilidadAnos: '3 a 4 Años',
+    usoRecomendado: 'Muros interiores de tráfico medio/bajo: habitaciones, alcobas, estudios',
+    precioGalon: 62000,
+    precioCunete: 260000
+  },
+  'Interior Tipo 3': {
+    tipo: 'Interior Tipo 3',
+    linea: 'Interior',
+    nivel: 'Tipo 3',
+    nombreComercial: 'Colorlink Económica Cielorrasos & Fondeo (Interior Tipo 3)',
+    normaNTC: 'NTC 1335 Tipo 3 Interior (Bajo frote / Cero abrasión >100 ciclos)',
+    resistenciaLavabilidad: 'Acabado mate de alto poder de relleno no lavable al frote húmedo continuo',
+    durabilidadAnos: '1 a 2 Años',
+    usoRecomendado: 'Cielorrasos, techos, placas de yeso/drywall o primera mano económica',
+    precioGalon: 45000,
+    precioCunete: 185000
+  },
+  // Mapeos de compatibilidad
   'Tipo 1': {
     tipo: 'Tipo 1',
+    linea: 'Exterior',
+    nivel: 'Tipo 1',
     nombreComercial: 'Colorlink Koraza Pro Fachadas 100% Acrílica (Tipo 1)',
     normaNTC: 'NTC 1335 Tipo 1 (Lavabilidad Superior >80% / >800 ciclos de frote)',
     resistenciaLavabilidad: 'Máxima resistencia a intemperie, rayos UV, lluvia torrencial y lavado severo',
@@ -14,16 +89,20 @@ export const PAINT_TYPE_PROFILES: Record<'Tipo 1' | 'Tipo 2' | 'Tipo 3', PaintTy
   },
   'Tipo 2': {
     tipo: 'Tipo 2',
+    linea: 'Interior',
+    nivel: 'Tipo 2',
     nombreComercial: 'Colorlink Viniltex Muros Interiores Lavable (Tipo 2)',
     normaNTC: 'NTC 1335 Tipo 2 (Lavabilidad Intermedia >400 ciclos de lavado)',
     resistenciaLavabilidad: 'Resistente a limpieza con esponja, desmanchado doméstico y tráfico medio',
     durabilidadAnos: '3 a 4 Años',
     usoRecomendado: 'Muros interiores residenciales, oficinas, pasillos secos, alcobas',
-    precioGalon: 68000,
-    precioCunete: 285000
+    precioGalon: 62000,
+    precioCunete: 260000
   },
   'Tipo 3': {
     tipo: 'Tipo 3',
+    linea: 'Interior',
+    nivel: 'Tipo 3',
     nombreComercial: 'Colorlink Económica Cielorrasos & Fondeo (Tipo 3)',
     normaNTC: 'NTC 1335 Tipo 3 (Bajo frote / Cero abrasión >100 ciclos)',
     resistenciaLavabilidad: 'Acabado mate básico no lavable al frote húmedo continuo',
@@ -125,29 +204,81 @@ export function calculateTechnicalRequirements(formData: Partial<ProjectFormData
   const ciudad = formData.ciudad || 'Medellín';
   const clienteNombre = formData.cliente || '';
 
-  // Determinar Tipo de Pintura (Norma NTC 1335)
-  let tipoPintura: 'Tipo 1' | 'Tipo 2' | 'Tipo 3' = formData.tipoPintura || 'Tipo 1';
+  // Determinar Tipo de Pintura (Norma NTC 1335 / NTC 5828)
+  let tipoPintura: PaintTypeCategory = formData.tipoPintura || 'Exterior Tipo 1';
   if (!formData.tipoPintura) {
     if (ambiente === 'Exterior Intemperie' || formData.tipoObra === 'Fachada Edificio') {
-      tipoPintura = 'Tipo 1';
+      tipoPintura = 'Exterior Tipo 1';
     } else if (formData.tipoObra === 'Cielorrasos') {
-      tipoPintura = 'Tipo 3';
+      tipoPintura = 'Interior Tipo 3';
     } else {
-      tipoPintura = 'Tipo 2';
+      tipoPintura = 'Interior Tipo 2';
     }
+  } else if (formData.tipoPintura === 'Tipo 1') {
+    tipoPintura = (ambiente === 'Exterior Intemperie' || formData.tipoObra === 'Fachada Edificio') ? 'Exterior Tipo 1' : 'Interior Tipo 1';
+  } else if (formData.tipoPintura === 'Tipo 2') {
+    tipoPintura = (ambiente === 'Exterior Intemperie') ? 'Exterior Tipo 2' : 'Interior Tipo 2';
+  } else if (formData.tipoPintura === 'Tipo 3') {
+    tipoPintura = (ambiente === 'Exterior Intemperie') ? 'Exterior Tipo 3' : 'Interior Tipo 3';
   }
-  const tipoPinturaDetalle = PAINT_TYPE_PROFILES[tipoPintura];
+
+  const tipoPinturaDetalle = PAINT_TYPE_PROFILES[tipoPintura] || PAINT_TYPE_PROFILES['Exterior Tipo 1'];
 
   let productoRecomendado = tipoPinturaDetalle.nombreComercial;
-  let tipoSolucion = tipoPintura === 'Tipo 1'
-    ? 'Sistema Impermeable y Elastomérico para Fachadas (Tipo 1)'
-    : tipoPintura === 'Tipo 2'
-    ? 'Recubrimiento Vinil Acrílico Lavable Interior (Tipo 2)'
-    : 'Pintura Económica para Cielorrasos & Fondeo (Tipo 3)';
+  let tipoSolucion = tipoPintura.includes('Exterior')
+    ? 'Sistema Impermeable y Acrílico para Fachadas & Exteriores'
+    : tipoPintura.includes('Tipo 3')
+    ? 'Pintura Económica para Cielorrasos, Techos & Fondeo'
+    : 'Recubrimiento Vinil Acrílico Lavable para Muros Interiores';
 
   let selladorImprimanteRequerido = 'Sellador Antialcalino Base Solvente / Acrílico';
-  let manosSugeridas = tipoPintura === 'Tipo 1' ? 2 : tipoPintura === 'Tipo 2' ? 2 : 2;
-  let rendimientoTeoricoM2Galon = tipoPintura === 'Tipo 1' ? 22 : tipoPintura === 'Tipo 2' ? 28 : 32; // m² por galón a 2 manos
+  let manosSugeridas = 2;
+  let rendimientoTeoricoM2Galon = 25;
+  if (tipoPintura.includes('Tipo 1')) {
+    rendimientoTeoricoM2Galon = 22;
+  } else if (tipoPintura.includes('Tipo 2')) {
+    rendimientoTeoricoM2Galon = 28;
+  } else if (tipoPintura.includes('Tipo 3')) {
+    rendimientoTeoricoM2Galon = 32;
+  }
+
+  // Guard para proyectos con área no especificada aún
+  if (area <= 0) {
+    const fleteInfo = REAL_PRICES_COP.fletesPorCiudad[ciudad as keyof typeof REAL_PRICES_COP.fletesPorCiudad] || REAL_PRICES_COP.fletesPorCiudad['Medellín'];
+    return {
+      productoRecomendado,
+      tipoSolucion,
+      tipoPintura,
+      tipoPinturaDetalle,
+      selladorImprimanteRequerido,
+      manosSugeridas: 2,
+      explicacionManos: '2 manos recomendadas bajo norma NTC 1335.',
+      factorDesperdicioPorcentaje: 10,
+      galonesNetosSinDesperdicio: 0,
+      galonesDesperdicio: 0,
+      explicacionDesperdicio: 'Ingrese los m² del proyecto para calcular el desperdicio exacto.',
+      rendimientoTeoricoM2Galon,
+      galonesRequeridos: 0,
+      cuñetesRequeridos: 0,
+      galonesSueltosRequeridos: 0,
+      tiempoEstimadoSecado: '2 a 4 horas entre manos',
+      requiereVisitaEspecialista: false,
+      alertaPatologia: null,
+      presupuesto: {
+        items: [],
+        subtotalMateriales: 0,
+        descuentoPorcentaje: 0,
+        descuentoValor: 0,
+        subtotalConDescuento: 0,
+        fleteEnvio: fleteInfo.costo,
+        ivaPorcentaje: 19,
+        ivaValor: 0,
+        totalPresupuesto: fleteInfo.costo,
+        ciudadDestino: ciudad,
+        tiempoEntregaDias: fleteInfo.tiempo
+      }
+    };
+  }
   let requiereVisitaEspecialista = false;
   let alertaPatologia: string | null = null;
 
