@@ -1,13 +1,24 @@
 import emailjs from '@emailjs/browser';
 import { ProjectFormData, TechnicalCalculationResult } from '../types/form';
 
-// Configura estos 3 valores como Secrets en AI Studio (Settings > Secrets):
-//   VITE_EMAILJS_SERVICE_ID   = service_qf0c7fg
-//   VITE_EMAILJS_TEMPLATE_ID  = template_fq5wnko
-//   VITE_EMAILJS_PUBLIC_KEY   = 3RRGbuXHPRyKyJLZ0
-const SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID as string;
-const TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID as string;
-const PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY as string;
+// Credenciales oficiales de EmailJS para Colorlink®
+const SERVICE_ID = (
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_EMAILJS_SERVICE_ID) ||
+  (typeof process !== 'undefined' && process.env?.VITE_EMAILJS_SERVICE_ID) ||
+  'service_qf0c7fg'
+) as string;
+
+const TEMPLATE_ID = (
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_EMAILJS_TEMPLATE_ID) ||
+  (typeof process !== 'undefined' && process.env?.VITE_EMAILJS_TEMPLATE_ID) ||
+  'template_fq5wnko'
+) as string;
+
+const PUBLIC_KEY = (
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_EMAILJS_PUBLIC_KEY) ||
+  (typeof process !== 'undefined' && process.env?.VITE_EMAILJS_PUBLIC_KEY) ||
+  '3RRGbuXHPRyKyJLZ0'
+) as string;
 
 export function isEmailConfigured(): boolean {
   return Boolean(SERVICE_ID && TEMPLATE_ID && PUBLIC_KEY);
@@ -29,30 +40,225 @@ export async function sendConfirmationEmail(
   formData: ProjectFormData,
   calc: TechnicalCalculationResult,
   orderNumber: string
-): Promise<void> {
+): Promise<{ success: boolean; message?: string }> {
   if (!isEmailConfigured()) {
     console.warn('[EmailJS] Faltan las variables VITE_EMAILJS_* en Secrets. No se envió el correo.');
-    return;
+    return { success: false, message: 'Faltan credenciales EmailJS' };
+  }
+
+  const recipientEmail = formData.emailResponsable?.trim();
+  if (!recipientEmail || !recipientEmail.includes('@')) {
+    console.warn('[EmailJS] Correo de destino inválido o no suministrado:', recipientEmail);
+    return { success: false, message: 'Correo de destino inválido' };
   }
 
   const templateParams = {
-    to_email: formData.emailResponsable,
-    name: formData.responsable,
+    // Destinatario y contacto
+    to_email: recipientEmail,
+    user_email: recipientEmail,
+    email: recipientEmail,
+    reply_to: recipientEmail,
+    to_name: formData.responsable || formData.cliente,
+    name: formData.responsable || formData.cliente,
     cliente: formData.cliente,
+    responsable: formData.responsable,
+    telefono: formData.telefonoResponsable || '',
+
+    // Información del proyecto
     order_number: orderNumber,
+    order_id: orderNumber,
+    orderId: orderNumber,
     ciudad: formData.ciudad,
     tipo_obra: formData.tipoObra,
+    superficie: formData.superficie,
+    ambiente: formData.ambiente,
+    color_acabado: formData.colorAcabado,
     producto_recomendado: calc.productoRecomendado,
     manos_sugeridas: calc.manosSugeridas,
     galones_requeridos: calc.galonesRequeridos,
+    cunetes_requeridos: calc.cuñetesRequeridos,
     tiempo_entrega: calc.presupuesto.tiempoEntregaDias,
-    total: formatCOP(calc.presupuesto.totalPresupuesto)
+    total: formatCOP(calc.presupuesto.totalPresupuesto),
+    total_cop: formatCOP(calc.presupuesto.totalPresupuesto),
+    subtotal: formatCOP(calc.presupuesto.subtotalMateriales),
+    flete: calc.presupuesto.fleteEnvio === 0 ? 'GRATIS' : formatCOP(calc.presupuesto.fleteEnvio),
+    iva: formatCOP(calc.presupuesto.ivaValor),
+
+    // Mensaje descriptivo
+    message: `Confirmación de Cotización Oficial #${orderNumber} para ${formData.cliente} en ${formData.ciudad}. Total: ${formatCOP(calc.presupuesto.totalPresupuesto)} COP.`
   };
 
   try {
-    await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams, { publicKey: PUBLIC_KEY });
-  } catch (err) {
-    // No detenemos el flujo del usuario si el correo falla: el proyecto ya quedó guardado en Supabase
+    console.log('[EmailJS] Enviando correo de confirmación a:', recipientEmail);
+    const res = await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams, { publicKey: PUBLIC_KEY });
+    console.log('[EmailJS] ✓ Correo de confirmación enviado exitosamente:', res);
+    return { success: true, message: `Correo enviado a ${recipientEmail}` };
+  } catch (err: any) {
     console.error('[EmailJS] Error enviando el correo de confirmación:', err);
+    return { success: false, message: err?.text || err?.message || 'Error al enviar correo con EmailJS' };
   }
 }
+
+/**
+ * Envía el correo de bienvenida oficial de Colorlink® al registrarse un nuevo cliente.
+ * Notifica al cliente confirmando el registro con su nombre, empresa, NIT y datos de contacto.
+ */
+export async function sendRegistrationWelcomeEmail(params: {
+  email: string;
+  nombre: string;
+  empresa: string;
+  nit: string;
+  telefono?: string;
+}): Promise<{ success: boolean; message?: string }> {
+  if (!isEmailConfigured()) {
+    return { success: false, message: 'Faltan credenciales EmailJS' };
+  }
+
+  const recipientEmail = params.email?.trim();
+  if (!recipientEmail || !recipientEmail.includes('@')) {
+    return { success: false, message: 'Correo de destino inválido' };
+  }
+
+  const nombreCliente = params.nombre?.trim() || 'Cliente';
+  const nombreEmpresa = params.empresa?.trim() || 'Empresa Registrada';
+  const nitDocumento = params.nit?.trim() || 'No especificado';
+  const telefonoContacto = params.telefono?.trim() || 'No registrado';
+
+  // Mensaje estructurado con el nombre del cliente y de la empresa
+  const mensajeRegistro = `¡Te has registrado exitosamente en Colorlink® Pinturas!
+
+Hola ${nombreCliente}, te confirmamos que tu cuenta ha sido creada y registrada exitosamente con los siguientes datos:
+
+• Nombre del Cliente: ${nombreCliente}
+• Nombre de la Empresa: ${nombreEmpresa}
+• NIT / Documento: ${nitDocumento}
+• Teléfono: ${telefonoContacto}
+• Correo Electrónico: ${recipientEmail}
+
+Tu cuenta ya está activa en nuestra plataforma para realizar cotizaciones técnicas, pedidos y dosificación de pinturas en línea.`;
+
+  const templateParams = {
+    // Destinatarios y respuesta
+    to_email: recipientEmail,
+    user_email: recipientEmail,
+    email: recipientEmail,
+    reply_to: recipientEmail,
+
+    // Nombres del cliente y empresa en múltiples variantes para compatibilidad total con plantillas EmailJS
+    to_name: nombreCliente,
+    name: nombreCliente,
+    nombre: nombreCliente,
+    nombre_cliente: nombreCliente,
+    responsable: nombreCliente,
+    cliente_nombre: nombreCliente,
+
+    // Empresa / Razón social
+    empresa: nombreEmpresa,
+    nombre_empresa: nombreEmpresa,
+    razon_social: nombreEmpresa,
+    cliente: nombreEmpresa,
+    company: nombreEmpresa,
+
+    // Datos de contacto e identificación
+    nit: nitDocumento,
+    nit_documento: nitDocumento,
+    documento: nitDocumento,
+    telefono: telefonoContacto,
+    phone: telefonoContacto,
+
+    // Asunto y títulos
+    subject: `¡Te has registrado exitosamente! • Colorlink® Pinturas`,
+    asunto: `¡Te has registrado exitosamente! • Colorlink® Pinturas`,
+    title: `Confirmación de Registro de Cuenta`,
+    titulo: `Confirmación de Registro de Cuenta`,
+
+    // Mensajes completos
+    message: mensajeRegistro,
+    mensaje: mensajeRegistro,
+    detalles: `Cliente: ${nombreCliente} | Empresa: ${nombreEmpresa} | NIT: ${nitDocumento} | Tel: ${telefonoContacto}`,
+    content: mensajeRegistro,
+
+    // Variables de estado y compatibilidad si la plantilla tiene campos de cotización
+    order_number: `REG-${Date.now().toString().slice(-5)}`,
+    order_id: `REG-${Date.now().toString().slice(-5)}`,
+    orderId: `REG-${Date.now().toString().slice(-5)}`,
+    status_message: 'Cuenta Registrada Exitosamente',
+    ciudad: 'Medellín / Colombia',
+    tipo_obra: 'Cuenta Corporativa Registrada',
+    total: 'Registro Gratuito (Cuenta Activa)',
+    total_cop: '$0 COP'
+  };
+
+  try {
+    console.log('[EmailJS] Enviando correo de bienvenida a:', recipientEmail, {
+      cliente: nombreCliente,
+      empresa: nombreEmpresa
+    });
+    const res = await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams, { publicKey: PUBLIC_KEY });
+    console.log('[EmailJS] ✓ Correo de bienvenida enviado exitosamente:', res);
+    return { success: true, message: `Bienvenida enviada a ${recipientEmail}` };
+  } catch (err: any) {
+    console.warn('[EmailJS] Advertencia al enviar bienvenida:', err);
+    return { success: false, message: err?.text || err?.message || 'Error al enviar correo con EmailJS' };
+  }
+}
+
+/**
+ * Envía actualización de estado del pedido por correo electrónico
+ */
+export async function sendOrderStatusUpdateEmail(params: {
+  orderId: string;
+  cliente: string;
+  responsable: string;
+  email: string;
+  status: 'preparando' | 'en_ruta' | 'entregado';
+  statusLabel: string;
+  mensaje: string;
+  vehiculo?: string;
+  conductor?: string;
+  placa?: string;
+  ciudad?: string;
+  totalCOP?: number;
+}): Promise<{ success: boolean; message?: string }> {
+  if (!isEmailConfigured()) {
+    return { success: false, message: 'Faltan credenciales EmailJS' };
+  }
+
+  const recipientEmail = params.email?.trim();
+  if (!recipientEmail || !recipientEmail.includes('@')) {
+    return { success: false, message: 'Correo de destino inválido' };
+  }
+
+  const templateParams = {
+    to_email: recipientEmail,
+    user_email: recipientEmail,
+    email: recipientEmail,
+    reply_to: recipientEmail,
+    to_name: params.responsable || params.cliente,
+    name: params.responsable || params.cliente,
+    cliente: params.cliente,
+    responsable: params.responsable,
+    order_number: params.orderId,
+    order_id: params.orderId,
+    status_message: params.statusLabel,
+    ciudad: params.ciudad || 'Medellín',
+    total: params.totalCOP ? formatCOP(params.totalCOP) : '$0 COP',
+    total_cop: params.totalCOP ? formatCOP(params.totalCOP) : '$0 COP',
+    message: params.mensaje,
+    mensaje: params.mensaje,
+    subject: `🎨 COLORLINK® • Actualización de tu Pedido #${params.orderId}: ${params.statusLabel}`,
+    asunto: `🎨 COLORLINK® • Actualización de tu Pedido #${params.orderId}: ${params.statusLabel}`
+  };
+
+  try {
+    console.log('[EmailJS] Enviando actualización de pedido a:', recipientEmail);
+    const res = await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams, { publicKey: PUBLIC_KEY });
+    console.log('[EmailJS] ✓ Correo de actualización enviado:', res);
+    return { success: true, message: `Actualización enviada a ${recipientEmail}` };
+  } catch (err: any) {
+    console.warn('[EmailJS] Advertencia al enviar actualización:', err);
+    return { success: false, message: err?.text || err?.message || 'Error al enviar actualización con EmailJS' };
+  }
+}
+
+

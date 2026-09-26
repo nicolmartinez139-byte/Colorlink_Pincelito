@@ -1,3 +1,4 @@
+import emailjs from '@emailjs/browser';
 import { formatCOP } from '../utils/calculator';
 import { ProjectFormData } from '../types/form';
 
@@ -145,29 +146,92 @@ export async function sendRealOrderEmail(params: SendEmailParams): Promise<Email
   `.trim();
 
   try {
-    const response = await fetch('/api/send-email', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        to,
-        subject: resolvedSubject,
-        html: htmlContent,
-        text: `COLORLINK PINTURAS - Pedido #${orderId || 'CLK'}. Total: ${formatCOP(calculation.totalCOP)} COP. Cliente: ${formData.cliente}.`,
-        pdfBase64,
-        pdfFileName: `Cotizacion_Colorlink_${orderId || 'CLK'}.pdf`
-      })
-    });
+    const serviceId = (
+      (typeof import.meta !== 'undefined' && import.meta.env?.VITE_EMAILJS_SERVICE_ID) ||
+      (typeof process !== 'undefined' && process.env?.VITE_EMAILJS_SERVICE_ID) ||
+      'service_qf0c7fg'
+    ) as string;
 
-    const data = await response.json();
-    return data;
-  } catch (error: any) {
-    console.error('[EMAIL CLIENT ERROR]', error);
-    return {
-      success: false,
-      message: 'No se pudo conectar con el servidor de correos',
-      error: error.message
+    const templateId = (
+      (typeof import.meta !== 'undefined' && import.meta.env?.VITE_EMAILJS_TEMPLATE_ID) ||
+      (typeof process !== 'undefined' && process.env?.VITE_EMAILJS_TEMPLATE_ID) ||
+      'template_fq5wnko'
+    ) as string;
+
+    const publicKey = (
+      (typeof import.meta !== 'undefined' && import.meta.env?.VITE_EMAILJS_PUBLIC_KEY) ||
+      (typeof process !== 'undefined' && process.env?.VITE_EMAILJS_PUBLIC_KEY) ||
+      '3RRGbuXHPRyKyJLZ0'
+    ) as string;
+
+    const recipientEmail = to || formData.emailResponsable;
+
+    const templateParams = {
+      to_email: recipientEmail,
+      user_email: recipientEmail,
+      email: recipientEmail,
+      reply_to: recipientEmail,
+      to_name: formData.responsable || formData.cliente,
+      name: formData.responsable || formData.cliente,
+      cliente: formData.cliente,
+      responsable: formData.responsable,
+      telefono: formData.telefonoResponsable || '',
+      order_number: orderId || 'CLK-2026',
+      order_id: orderId || 'CLK-2026',
+      orderId: orderId || 'CLK-2026',
+      ciudad: formData.ciudad,
+      tipo_obra: formData.tipoObra,
+      superficie: formData.superficie,
+      ambiente: formData.ambiente,
+      color_acabado: formData.colorAcabado,
+      cunetes: calculation.cuñetes,
+      galones: calculation.galones,
+      total: formatCOP(calculation.totalCOP),
+      total_cop: formatCOP(calculation.totalCOP),
+      subtotal: formatCOP(calculation.subtotalCOP),
+      flete: calculation.fleteCOP === 0 ? 'GRATIS' : formatCOP(calculation.fleteCOP),
+      iva: formatCOP(calculation.ivaCOP),
+      status_message: statusMessage || 'Cotización Aprobada',
+      message: `Cotización Oficial Aprobada #${orderId || 'CLK-2026'} para ${formData.cliente} en ${formData.ciudad}. Total: ${formatCOP(calculation.totalCOP)} COP.`
     };
+
+    console.log('[EmailJS] Enviando correo con EmailJS a:', recipientEmail);
+    await emailjs.send(serviceId, templateId, templateParams, { publicKey });
+    console.log('[EmailJS] ✓ Correo enviado exitosamente con EmailJS a:', recipientEmail);
+    return {
+      success: true,
+      provider: 'EmailJS',
+      message: `Correo enviado exitosamente a ${recipientEmail}`
+    };
+  } catch (error: any) {
+    console.warn('[EmailJS Error]', error);
+    // Intento secundario con fetch si hay proxy configurado
+    try {
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          to,
+          subject: resolvedSubject,
+          html: htmlContent,
+          text: `COLORLINK PINTURAS - Pedido #${orderId || 'CLK'}. Total: ${formatCOP(calculation.totalCOP)} COP. Cliente: ${formData.cliente}.`,
+          pdfBase64,
+          pdfFileName: `Cotizacion_Colorlink_${orderId || 'CLK'}.pdf`
+        })
+      });
+
+      const data = await response.json();
+      return data;
+    } catch {
+      return {
+        success: false,
+        message: 'No se pudo enviar el correo mediante EmailJS',
+        error: error?.text || error?.message || 'Error en envío de correo'
+      };
+    }
   }
 }
+
+export { sendRegistrationWelcomeEmail, sendOrderStatusUpdateEmail } from '../utils/emailService';

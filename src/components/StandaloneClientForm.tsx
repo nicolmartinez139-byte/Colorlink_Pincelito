@@ -59,11 +59,13 @@ import {
   Key,
   Database,
   User,
-  LogOut
+  LogOut,
+  MessageCircle
 } from 'lucide-react';
 import { ClientEmailPreviewModal } from './ClientEmailPreviewModal';
 import { UserProfile } from '../types/form';
 import { sendRealOrderEmail } from '../lib/emailService';
+import { getWhatsAppReceiptUrl } from '../utils/whatsappService';
 
 interface StandaloneClientFormProps {
   isSimulation?: boolean;
@@ -336,9 +338,15 @@ export function StandaloneClientForm({
   };
 
   const handleInputChange = (field: keyof ProjectFormData, value: any) => {
+    // Para NIT y Teléfono/Celular solo se reciben números, no letras
+    const sanitizedValue =
+      (field === 'nitDocumento' || field === 'telefonoResponsable') && typeof value === 'string'
+        ? value.replace(/\D/g, '')
+        : value;
+
     setFormData(prev => ({
       ...prev,
-      [field]: value
+      [field]: sanitizedValue
     }));
     if (errors[field]) {
       setErrors(prev => {
@@ -918,7 +926,32 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       </div>
                     </div>
 
-                    <div className="shrink-0 flex items-center gap-2.5">
+                    <div className="shrink-0 flex items-center gap-2.5 flex-wrap">
+                      <a
+                        href={getWhatsAppReceiptUrl({
+                          orderId: orderNumber || 'CLK-2026',
+                          cliente: formData.cliente,
+                          nit: formData.nitDocumento,
+                          responsable: formData.responsable,
+                          telefono: formData.telefonoResponsable,
+                          email: formData.emailResponsable,
+                          ciudad: formData.ciudad,
+                          producto: formData.tipoPintura || 'Pintura Tipo 1',
+                          color: formData.colorAcabado || 'Gris Mate',
+                          cunetes: technicalCalc.cuñetesRequeridos,
+                          galones: technicalCalc.galonesRequeridos,
+                          totalCOP: presupuesto.totalPresupuesto,
+                          subtotalCOP: presupuesto.subtotalMateriales,
+                          flete: presupuesto.fleteEnvio === 0 ? 'GRATIS' : formatCOP(presupuesto.fleteEnvio),
+                          fechaLlegada: getEstimatedArrivalDate(presupuesto.tiempoEntregaDias)
+                        })}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-4 py-3 bg-[#25D366] hover:bg-[#20bd5a] text-white text-xs font-black rounded-2xl shadow-md transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                      >
+                        <MessageCircle className="w-4 h-4 fill-current" />
+                        <span>Enviar Recibo a WhatsApp</span>
+                      </a>
                       <button
                         type="button"
                         onClick={handleDownloadPDF}
@@ -948,14 +981,39 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       </div>
                       <div>
                         <h4 className="font-black text-sm text-slate-900">
-                          Confirmación de Despacho & Notificación Enviada al Correo Real
+                          Confirmación de Despacho & Recibo Oficial (Correo y WhatsApp)
                         </h4>
                         <p className="text-xs text-blue-700 font-medium">
-                          Bandeja de entrada: <strong>{formData.emailResponsable}</strong>
+                          Correo: <strong>{formData.emailResponsable}</strong> {formData.telefonoResponsable ? `• Celular: ${formData.telefonoResponsable}` : ''}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
+                      <a
+                        href={getWhatsAppReceiptUrl({
+                          orderId: orderNumber || 'CLK-2026',
+                          cliente: formData.cliente,
+                          nit: formData.nitDocumento,
+                          responsable: formData.responsable,
+                          telefono: formData.telefonoResponsable,
+                          email: formData.emailResponsable,
+                          ciudad: formData.ciudad,
+                          producto: formData.tipoPintura || 'Pintura Tipo 1',
+                          color: formData.colorAcabado || 'Gris Mate',
+                          cunetes: technicalCalc.cuñetesRequeridos,
+                          galones: technicalCalc.galonesRequeridos,
+                          totalCOP: presupuesto.totalPresupuesto,
+                          subtotalCOP: presupuesto.subtotalMateriales,
+                          flete: presupuesto.fleteEnvio === 0 ? 'GRATIS' : formatCOP(presupuesto.fleteEnvio),
+                          fechaLlegada: getEstimatedArrivalDate(presupuesto.tiempoEntregaDias)
+                        })}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3.5 py-2 bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5 fill-current" />
+                        <span>Abrir Recibo en WhatsApp</span>
+                      </a>
                       <button
                         type="button"
                         onClick={() => setShowEmailModal(true)}
@@ -1685,13 +1743,15 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                             />
                           </div>
                           <div>
-                            <label className="text-[11px] font-semibold text-slate-600 block mb-1">NIT / C.C. *</label>
+                            <label className="text-[11px] font-semibold text-slate-600 block mb-1">NIT / C.C. (Solo números) *</label>
                             <input
                               type="text"
-                              placeholder="900123456"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              placeholder="Ej: 900123456"
                               value={formData.nitDocumento}
-                              onChange={(e) => handleInputChange('nitDocumento', e.target.value)}
-                              className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl"
+                              onChange={(e) => handleInputChange('nitDocumento', e.target.value.replace(/\D/g, ''))}
+                              className="w-full px-3 py-2 text-xs font-mono bg-white border border-slate-200 rounded-xl"
                             />
                           </div>
                           <div>
@@ -1717,13 +1777,15 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                             />
                           </div>
                           <div>
-                            <label className="text-[11px] font-semibold text-slate-600 block mb-1">Teléfono / Celular de Contacto</label>
+                            <label className="text-[11px] font-semibold text-slate-600 block mb-1">Teléfono / Celular (Solo números)</label>
                             <input
                               type="tel"
-                              placeholder="+57 300 123 4567"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              placeholder="Ej: 3001234567"
                               value={formData.telefonoResponsable}
-                              onChange={(e) => handleInputChange('telefonoResponsable', e.target.value)}
-                              className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl"
+                              onChange={(e) => handleInputChange('telefonoResponsable', e.target.value.replace(/\D/g, ''))}
+                              className="w-full px-3 py-2 text-xs font-mono bg-white border border-slate-200 rounded-xl"
                             />
                           </div>
                         </div>

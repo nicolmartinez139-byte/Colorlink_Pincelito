@@ -28,8 +28,17 @@ import {
   Building2,
   ThumbsUp,
   Share2,
-  RefreshCw
+  RefreshCw,
+  Users
 } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import {
+  getWhatsAppRegistrationUrl,
+  getWhatsAppOrderStatusUrl,
+  formatWhatsAppPhone,
+  generateOrderStatusWhatsAppMessage
+} from '../utils/whatsappService';
+import { sendOrderStatusUpdateEmail } from '../utils/emailService';
 import { ProjectFormData } from '../types/form';
 import { formatCOP } from '../utils/calculator';
 import { PenguinLogo } from './PenguinLogo';
@@ -64,7 +73,7 @@ interface OrderItem {
     horaEstimada: string;
   };
   notificaciones: Array<{
-    tipo: 'whatsapp' | 'email';
+    tipo: 'whatsapp' | 'email' | 'ambos';
     texto: string;
     fecha: string;
   }>;
@@ -86,8 +95,47 @@ export function AdminBackoffice({
   onBackToClientView,
   submittedProjects
 }: AdminBackofficeProps) {
-  // Tabs: 'pedidos' (Supervisión) | 'asesor' (Panel del Asesor) | 'stock' (Inventario) | 'evaluacion' (Docente/Requerimientos)
-  const [activeTab, setActiveTab] = useState<'pedidos' | 'asesor' | 'stock' | 'evaluacion'>('pedidos');
+  // Tabs: 'pedidos' (Supervisión) | 'clientes' (Directorio Supabase) | 'asesor' (Panel del Asesor) | 'stock' (Inventario) | 'evaluacion' (Docente/Requerimientos)
+  const [activeTab, setActiveTab] = useState<'pedidos' | 'clientes' | 'asesor' | 'stock' | 'evaluacion'>('pedidos');
+
+  interface SupabaseClientRow {
+    id: string;
+    auth_user_id: string | null;
+    nombre_razon_social: string;
+    nit_documento: string;
+    responsable: string;
+    email_responsable: string;
+    telefono_responsable: string | null;
+    canal_entrada: string;
+    created_at: string;
+  }
+
+  const [supabaseClients, setSupabaseClients] = useState<SupabaseClientRow[]>([]);
+  const [loadingClients, setLoadingClients] = useState(false);
+  const [clientSearch, setClientSearch] = useState('');
+
+  const fetchClientsFromSupabase = async () => {
+    setLoadingClients(true);
+    try {
+      const { data, error } = await supabase
+        .from('clientes')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) {
+        console.error('[Admin] Error al cargar clientes de Supabase:', error);
+      } else if (data) {
+        setSupabaseClients(data as SupabaseClientRow[]);
+      }
+    } catch (err) {
+      console.error('[Admin] Excepción cargando clientes:', err);
+    } finally {
+      setLoadingClients(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchClientsFromSupabase();
+  }, []);
 
   // Pedidos de prueba reales de la empresa
   const [orders, setOrders] = useState<OrderItem[]>([
@@ -204,7 +252,7 @@ export function AdminBackoffice({
   const [notificationToast, setNotificationToast] = useState<string | null>(null);
   const [showNotificationModal, setShowNotificationModal] = useState<boolean>(false);
   const [modalNotificationData, setModalNotificationData] = useState<{
-    tipo: 'whatsapp' | 'email';
+    tipo: 'whatsapp' | 'email' | 'ambos';
     order: OrderItem;
     mensaje: string;
   } | null>(null);
@@ -272,18 +320,32 @@ export function AdminBackoffice({
   };
 
   // Enviar mensaje WhatsApp o Correo simulado
-  const handleTriggerNotification = (order: OrderItem, tipo: 'whatsapp' | 'email') => {
-    const statusText =
+  const handleTriggerNotification = (order: OrderItem, tipo: 'whatsapp' | 'email' | 'ambos') => {
+    const statusLabel =
       order.status === 'preparando'
-        ? 'se está preparando en nuestro almacén y laboratorio de tintometría'
+        ? 'En Tintometría & Preparación'
         : order.status === 'en_ruta'
-        ? `fue despachado y va en camino en el ${order.vehiculoAsignado || 'Furgón Colorlink'} (Placa ${order.placa || 'WLL-482'})`
-        : 'ha sido aprobado para despacho prioritario';
+        ? 'En Ruta de Despacho a Obra'
+        : order.status === 'entregado'
+        ? 'Entregado a Satisfacción'
+        : 'Aprobado para Despacho';
 
-    const msg =
-      tipo === 'whatsapp'
-        ? `Hola ${order.responsable} de *${order.cliente}*. Le informamos que su pedido de pintura *${order.tipoPintura}* ${statusText}. Ruta óptima calculada: llegada estimada a las ${order.rutaOptima?.horaEstimada || '11:30 AM'}. Conductor asignado: ${order.conductor || 'Carlos Restrepo'}. ¡Gracias por confiar en Colorlink! 🐧🎨`
-        : `Estimado(a) ${order.responsable},\n\nLe confirmamos que su pedido #${order.id} para ${order.cliente} ${statusText}.\n\nDetalles del Despacho:\n• Ciudad: ${order.ciudad}\n• Producto: ${order.tipoPintura} (${order.color})\n• Vehículo: ${order.vehiculoAsignado || 'Furgón Colorlink #08'}\n• Conductor: ${order.conductor || 'Carlos Restrepo'}\n• Llegada estimada: ${order.rutaOptima?.horaEstimada || '11:30 AM'}\n\nAtentamente,\nEquipo de Logística & Supervisión Colorlink®`;
+    const msg = generateOrderStatusWhatsAppMessage({
+      orderId: order.id,
+      cliente: order.cliente,
+      responsable: order.responsable,
+      telefono: order.telefono,
+      email: order.email,
+      ciudad: order.ciudad,
+      status: order.status === 'preparando' ? 'preparando' : order.status === 'en_ruta' ? 'en_ruta' : order.status === 'entregado' ? 'entregado' : 'aprobado',
+      producto: order.tipoPintura,
+      color: order.color,
+      totalCOP: order.totalCOP,
+      vehiculo: order.vehiculoAsignado,
+      placa: order.placa,
+      conductor: order.conductor,
+      horaEstimada: order.rutaOptima?.horaEstimada
+    });
 
     setModalNotificationData({ tipo, order, mensaje: msg });
     setShowNotificationModal(true);
@@ -296,12 +358,16 @@ export function AdminBackoffice({
     setOrders((prev) =>
       prev.map((o) => {
         if (o.id === order.id) {
+          const newNotifs = [...o.notificaciones];
+          if (tipo === 'whatsapp' || tipo === 'ambos') {
+            newNotifs.unshift({ tipo: 'whatsapp', texto: mensaje, fecha: 'Ahora mismo' });
+          }
+          if (tipo === 'email' || tipo === 'ambos') {
+            newNotifs.unshift({ tipo: 'email', texto: mensaje, fecha: 'Ahora mismo' });
+          }
           return {
             ...o,
-            notificaciones: [
-              { tipo, texto: mensaje, fecha: 'Ahora mismo' },
-              ...o.notificaciones
-            ]
+            notificaciones: newNotifs
           };
         }
         return o;
@@ -310,53 +376,74 @@ export function AdminBackoffice({
 
     setShowNotificationModal(false);
 
-    if (tipo === 'email') {
-      showToast(`Enviando correo real a ${order.email}...`);
+    const statusLabel =
+      order.status === 'preparando'
+        ? 'En Tintometría y Preparación'
+        : order.status === 'en_ruta'
+        ? 'En Ruta de Despacho'
+        : order.status === 'entregado'
+        ? 'Entregado a Satisfacción'
+        : 'Aprobado y Confirmado';
+
+    // 1. Envío por Correo Electrónico
+    if (tipo === 'email' || tipo === 'ambos') {
+      showToast(`Enviando actualización por correo a ${order.email}...`);
       try {
-        const response = await fetch('/api/send-email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            to: order.email,
-            subject: `🎨 COLORLINK® • Notificación de Despacho Pedido #${order.id}`,
-            html: `
-              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden;">
-                <div style="background: #1d4ed8; padding: 24px; text-align: center; color: #ffffff;">
-                  <h2 style="margin: 0; font-size: 20px;">COLORLINK® PINTURAS</h2>
-                  <p style="margin: 4px 0 0; font-size: 13px; opacity: 0.9;">Supervisión Logística & Despacho Oficial</p>
-                </div>
-                <div style="padding: 24px; font-size: 14px; line-height: 1.6; color: #334155;">
-                  <p>Estimado(a) <strong>${order.responsable}</strong> (${order.cliente}),</p>
-                  <div style="background: #f8fafc; border-left: 4px solid #10b981; padding: 14px; border-radius: 8px; margin: 16px 0;">
-                    ${mensaje.replace(/\n/g, '<br/>')}
-                  </div>
-                  <p style="font-size: 12px; color: #64748b;">
-                    📍 Destino: ${order.ciudad} | 🚚 Vehículo: ${order.vehiculoAsignado || 'Furgón Colorlink'} | 👨‍✈️ Conductor: ${order.conductor || 'Carlos Restrepo'}
-                  </p>
-                </div>
-                <div style="background: #f1f5f9; padding: 14px; text-align: center; font-size: 11px; color: #94a3b8;">
-                  COLORLINK S.A.S. • Planta Medellín / Itagüí • Línea Constructoras: +57 (604) 448-0000
-                </div>
-              </div>
-            `,
-            text: mensaje
-          })
+        const emailRes = await sendOrderStatusUpdateEmail({
+          orderId: order.id,
+          cliente: order.cliente,
+          responsable: order.responsable,
+          email: order.email,
+          status: order.status === 'preparando' ? 'preparando' : order.status === 'en_ruta' ? 'en_ruta' : 'entregado',
+          statusLabel,
+          mensaje,
+          vehiculo: order.vehiculoAsignado,
+          conductor: order.conductor,
+          placa: order.placa,
+          ciudad: order.ciudad,
+          totalCOP: order.totalCOP
         });
-        const resData = await response.json();
-        if (resData.success) {
-          showToast(`✓ ¡Correo real enviado exitosamente a la bandeja de ${order.email}!`);
+
+        if (emailRes.success) {
+          showToast(`✓ Correo enviado exitosamente a ${order.email}`);
         } else {
-          showToast(`Aviso correo: ${resData.message || 'Verifica variables de correo en .env'}`);
+          // Intento por backend si EmailJS falló
+          await fetch('/api/send-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              to: order.email,
+              subject: `🎨 COLORLINK® • Notificación de Despacho Pedido #${order.id}: ${statusLabel}`,
+              text: mensaje
+            })
+          });
+          showToast(`✓ Correo procesado para ${order.email}`);
         }
       } catch (err) {
-        showToast(`✓ Notificación registrada para ${order.email}`);
+        showToast(`✓ Notificación de correo registrada para ${order.email}`);
       }
-    } else {
-      // WhatsApp
-      showToast(`✓ Notificación WhatsApp enviada con éxito al ${order.telefono}`);
-      const cleanPhone = order.telefono.replace(/[^0-9]/g, '');
-      const encodedMsg = encodeURIComponent(mensaje);
-      window.open(`https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodedMsg}`, '_blank');
+    }
+
+    // 2. Envío por WhatsApp
+    if (tipo === 'whatsapp' || tipo === 'ambos') {
+      const waUrl = getWhatsAppOrderStatusUrl({
+        orderId: order.id,
+        cliente: order.cliente,
+        responsable: order.responsable,
+        telefono: order.telefono,
+        email: order.email,
+        ciudad: order.ciudad,
+        status: order.status === 'preparando' ? 'preparando' : order.status === 'en_ruta' ? 'en_ruta' : order.status === 'entregado' ? 'entregado' : 'aprobado',
+        producto: order.tipoPintura,
+        color: order.color,
+        totalCOP: order.totalCOP,
+        vehiculo: order.vehiculoAsignado,
+        placa: order.placa,
+        conductor: order.conductor,
+        horaEstimada: order.rutaOptima?.horaEstimada
+      });
+      showToast(`✓ Abriendo WhatsApp para enviar actualización al ${order.telefono}`);
+      window.open(waUrl, '_blank');
     }
   };
 
@@ -435,6 +522,25 @@ export function AdminBackoffice({
             <span>Supervisión de Pedidos & Despachos</span>
             <span className="px-1.5 py-0.5 rounded-full bg-white/20 text-xs font-black">
               {orders.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('clientes');
+              fetchClientsFromSupabase();
+            }}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === 'clientes'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+            }`}
+          >
+            <Users className="w-4 h-4 text-emerald-500" />
+            <span>Clientes Registrados (Supabase)</span>
+            <span className="px-1.5 py-0.5 rounded-full bg-emerald-500 text-white text-xs font-black">
+              {supabaseClients.length}
             </span>
           </button>
 
@@ -623,21 +729,31 @@ export function AdminBackoffice({
                 <button
                   type="button"
                   onClick={() => handleTriggerNotification(activeOrder, 'whatsapp')}
-                  className="py-3 px-4 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer"
+                  className="py-3 px-3.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
                   title="Enviar actualización por WhatsApp al cliente"
                 >
                   <MessageCircle className="w-4 h-4 text-emerald-600" />
-                  <span>Enviar WhatsApp</span>
+                  <span>WhatsApp</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleTriggerNotification(activeOrder, 'email')}
-                  className="py-3 px-4 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-300 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer"
+                  className="py-3 px-3.5 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-300 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
                   title="Enviar correo formal al cliente"
                 >
                   <Mail className="w-4 h-4 text-blue-600" />
-                  <span>Enviar Correo</span>
+                  <span>Correo</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleTriggerNotification(activeOrder, 'ambos')}
+                  className="py-3 px-4 bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 hover:from-emerald-700 hover:to-blue-700 text-white text-xs font-black rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                  title="Enviar actualización al WhatsApp y Correo del cliente"
+                >
+                  <Send className="w-4 h-4 text-emerald-200" />
+                  <span>Enviar a Ambos (WhatsApp + Correo)</span>
                 </button>
               </div>
 
@@ -820,6 +936,201 @@ export function AdminBackoffice({
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CONTENIDO DE TAB CLIENTES: DIRECTORIO COMPLETO EN VIVO DESDE SUPABASE */}
+      {activeTab === 'clientes' && (
+        <div className="space-y-6 animate-fadeIn">
+          {/* Tarjeta de Encabezado y Métricas */}
+          <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
+                  <Users className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-black text-slate-900">
+                      Directorio de Clientes Registrados
+                    </h2>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      En Vivo Supabase
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Cada registro queda almacenado permanentemente en la tabla <code className="text-blue-600 font-mono">clientes</code> de PostgreSQL.
+                  </p>
+                </div>
+              </div>
+
+              {/* Botón de Refrescar y Estado */}
+              <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                <span className="text-xs text-slate-400 hidden sm:inline">
+                  {supabaseClients.length} cliente{supabaseClients.length === 1 ? '' : 's'} en base de datos
+                </span>
+                <button
+                  type="button"
+                  onClick={fetchClientsFromSupabase}
+                  disabled={loadingClients}
+                  className="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${loadingClients ? 'animate-spin text-blue-600' : ''}`} />
+                  <span>{loadingClients ? 'Consultando...' : 'Actualizar'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Buscador de Clientes */}
+            <div className="flex flex-col sm:flex-row items-center gap-3">
+              <div className="relative flex-1 w-full">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  value={clientSearch}
+                  onChange={(e) => setClientSearch(e.target.value)}
+                  placeholder="Buscar por nombre de cliente, empresa, NIT o correo..."
+                  className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                />
+              </div>
+              {clientSearch && (
+                <button
+                  type="button"
+                  onClick={() => setClientSearch('')}
+                  className="text-xs text-slate-500 hover:text-slate-700 px-2 py-1 font-semibold"
+                >
+                  Limpiar filtro
+                </button>
+              )}
+            </div>
+
+            {/* Tabla de Clientes en Vivo */}
+            <div className="overflow-x-auto rounded-2xl border border-slate-200">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+                    <th className="p-3.5 pl-4">Empresa / Razón Social</th>
+                    <th className="p-3.5">Nombre del Cliente</th>
+                    <th className="p-3.5">NIT / Documento</th>
+                    <th className="p-3.5">Correo Electrónico</th>
+                    <th className="p-3.5">Teléfono</th>
+                    <th className="p-3.5">Canal</th>
+                    <th className="p-3.5 text-center">Enviar WhatsApp</th>
+                    <th className="p-3.5 pr-4 text-right">Fecha Registro</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {loadingClients && supabaseClients.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="p-8 text-center text-slate-400">
+                        <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-blue-600" />
+                        <span>Cargando clientes registrados desde Supabase...</span>
+                      </td>
+                    </tr>
+                  ) : supabaseClients.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="p-8 text-center text-slate-400">
+                        <Users className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+                        <p className="font-semibold text-slate-600">No hay clientes registrados aún en la base de datos.</p>
+                        <p className="text-[11px] text-slate-400 mt-1">Los clientes que se registren en la pantalla inicial aparecerán aquí inmediatamente.</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    supabaseClients
+                      .filter((c) => {
+                        if (!clientSearch) return true;
+                        const q = clientSearch.toLowerCase();
+                        return (
+                          c.nombre_razon_social?.toLowerCase().includes(q) ||
+                          c.responsable?.toLowerCase().includes(q) ||
+                          c.nit_documento?.toLowerCase().includes(q) ||
+                          c.email_responsable?.toLowerCase().includes(q) ||
+                          c.telefono_responsable?.toLowerCase().includes(q)
+                        );
+                      })
+                      .map((client) => (
+                        <tr key={client.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="p-3.5 pl-4 font-bold text-slate-900 flex items-center gap-2">
+                            <Building2 className="w-4 h-4 text-blue-600 shrink-0" />
+                            <span>{client.nombre_razon_social || 'Cliente'}</span>
+                          </td>
+                          <td className="p-3.5 text-slate-700 font-medium">
+                            {client.responsable || '—'}
+                          </td>
+                          <td className="p-3.5 font-mono text-slate-600 font-semibold">
+                            {client.nit_documento}
+                          </td>
+                          <td className="p-3.5 text-slate-600">
+                            <a
+                              href={`mailto:${client.email_responsable}`}
+                              className="text-blue-600 hover:underline flex items-center gap-1"
+                            >
+                              <Mail className="w-3 h-3 text-slate-400" />
+                              <span>{client.email_responsable}</span>
+                            </a>
+                          </td>
+                          <td className="p-3.5 text-slate-600">
+                            {client.telefono_responsable ? (
+                              <span className="flex items-center gap-1 font-mono">
+                                <Phone className="w-3 h-3 text-emerald-500" />
+                                <span>{client.telefono_responsable}</span>
+                              </span>
+                            ) : (
+                              <span className="text-slate-300 italic">No registrado</span>
+                            )}
+                          </td>
+                          <td className="p-3.5">
+                            <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600">
+                              {client.canal_entrada || 'Web'}
+                            </span>
+                          </td>
+                          <td className="p-3.5 text-center">
+                            <a
+                              href={getWhatsAppRegistrationUrl({
+                                nombre: client.responsable,
+                                empresa: client.nombre_razon_social,
+                                nit: client.nit_documento,
+                                telefono: client.telefono_responsable || '',
+                                email: client.email_responsable
+                              })}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold text-[11px] shadow-2xs transition-all active:scale-95"
+                              title={`Enviar mensaje de registro a ${client.responsable} por WhatsApp`}
+                            >
+                              <MessageCircle className="w-3 h-3 fill-current" />
+                              <span>WhatsApp</span>
+                            </a>
+                          </td>
+                          <td className="p-3.5 pr-4 text-right text-slate-400 text-[11px] whitespace-nowrap">
+                            {client.created_at
+                              ? new Date(client.created_at).toLocaleDateString('es-CO', {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })
+                              : '—'}
+                          </td>
+                        </tr>
+                      ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pie de tabla con datos de persistencia */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-slate-500 pt-2">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>Base de Datos PostgreSQL activa: <strong className="text-slate-700">vhydyisbrimyrtwdisoa.supabase.co</strong></span>
+              </div>
+              <span className="text-slate-400">
+                Mostrando {supabaseClients.length} registro{supabaseClients.length === 1 ? '' : 's'} totales
+              </span>
             </div>
           </div>
         </div>
@@ -1054,16 +1365,22 @@ export function AdminBackoffice({
                   <div className="w-10 h-10 rounded-2xl bg-emerald-500 text-white flex items-center justify-center shadow-xs">
                     <MessageCircle className="w-5 h-5" />
                   </div>
-                ) : (
+                ) : modalNotificationData.tipo === 'email' ? (
                   <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-xs">
                     <Mail className="w-5 h-5" />
+                  </div>
+                ) : (
+                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-blue-600 text-white flex items-center justify-center shadow-xs">
+                    <Send className="w-5 h-5" />
                   </div>
                 )}
                 <div>
                   <h3 className="text-sm font-black text-slate-900">
                     {modalNotificationData.tipo === 'whatsapp'
                       ? 'Vista Previa de Notificación por WhatsApp'
-                      : 'Vista Previa de Correo Oficial'}
+                      : modalNotificationData.tipo === 'email'
+                      ? 'Vista Previa de Correo Oficial'
+                      : 'Envío Simultáneo por WhatsApp y Correo Oficial'}
                   </h3>
                   <p className="text-xs text-slate-500">
                     Destinatario: {modalNotificationData.order.cliente} ({modalNotificationData.order.responsable})
@@ -1085,12 +1402,12 @@ export function AdminBackoffice({
                 <div className="bg-[#DCF8C6] p-3.5 rounded-2xl shadow-xs text-slate-900 text-xs leading-relaxed max-w-[92%] ml-auto rounded-tr-xs whitespace-pre-line border border-emerald-200">
                   {modalNotificationData.mensaje}
                   <div className="text-right text-[10px] text-slate-500 mt-1 flex items-center justify-end gap-1">
-                    <span>Hoy, 10:45 AM</span>
+                    <span>Enviado al {modalNotificationData.order.telefono}</span>
                     <span className="text-blue-500 font-bold">✓✓</span>
                   </div>
                 </div>
               </div>
-            ) : (
+            ) : modalNotificationData.tipo === 'email' ? (
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-2 leading-relaxed whitespace-pre-line text-slate-800">
                 <div className="text-[11px] text-slate-500 border-b border-slate-200 pb-2">
                   <strong>Para:</strong> {modalNotificationData.order.email}
@@ -1098,6 +1415,27 @@ export function AdminBackoffice({
                   <strong>Asunto:</strong> Actualización de Despacho • Pedido #{modalNotificationData.order.id} Colorlink®
                 </div>
                 <div>{modalNotificationData.mensaje}</div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold text-emerald-800">
+                    <MessageCircle className="w-4 h-4 text-emerald-600" />
+                    <span>Canal WhatsApp ({modalNotificationData.order.telefono})</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 line-clamp-3 italic">
+                    {modalNotificationData.mensaje}
+                  </p>
+                </div>
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-2xl text-xs space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold text-blue-800">
+                    <Mail className="w-4 h-4 text-blue-600" />
+                    <span>Canal Correo Electrónico ({modalNotificationData.order.email})</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600">
+                    Se enviará el correo formal con el estado actual del pedido y la trazabilidad logística.
+                  </p>
+                </div>
               </div>
             )}
 

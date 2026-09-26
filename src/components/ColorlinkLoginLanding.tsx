@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, Lock, Mail, Building, User, Phone, Check, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail, Building, User, Phone, Check, ArrowRight, ShieldCheck, MessageCircle, Sparkles } from 'lucide-react';
 import { ColorlinkPenguin } from './ColorlinkPenguin';
 import { UserProfile } from '../types/form';
 import { supabase } from '../lib/supabase';
+import { sendRegistrationWelcomeEmail } from '../utils/emailService';
+import { sendWhatsAppNotification, getWhatsAppRegistrationUrl } from '../utils/whatsappService';
 import paintSplatterBg from '../assets/images/paint_splatter_bg_1788742862980.jpg';
 
 interface ColorlinkLoginLandingProps {
@@ -34,6 +36,13 @@ export function ColorlinkLoginLanding({
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [forgotPasswordMsg, setForgotPasswordMsg] = useState(false);
+  const [registeredSuccessData, setRegisteredSuccessData] = useState<{
+    userProfile: UserProfile;
+    whatsappUrl: string;
+    telefono: string;
+    nombre: string;
+    empresa: string;
+  } | null>(null);
 
   // Activación de la simulación con el punto chiquito multicolor
   const handleTriggerSimulation = () => {
@@ -155,66 +164,82 @@ export function ColorlinkLoginLanding({
         console.warn('[Supabase Auth] Registro Auth:', authErr);
       }
 
-      // 2. Guardar el nuevo cliente en la tabla 'clientes' de Supabase
-      let clienteId: string | null = null;
-      let existingClient: any = null;
+      // 2. Guardar SIEMPRE un nuevo registro en la tabla 'clientes' de Supabase
+      const { data: newClient, error: clientErr } = await supabase
+        .from('clientes')
+        .insert({
+          auth_user_id: authUserId,
+          nombre_razon_social: regEmpresa || 'Cliente Registrado',
+          nit_documento: nitLimpio || `NIT-${Date.now().toString().slice(-6)}`,
+          responsable: regResponsable || regEmail.split('@')[0],
+          email_responsable: regEmail,
+          telefono_responsable: regTelefono || null,
+          canal_entrada: 'Registro Portal Web'
+        })
+        .select('*')
+        .single();
 
-      if (nitLimpio) {
-        const { data } = await supabase
-          .from('clientes')
-          .select('*')
-          .eq('nit_documento', nitLimpio)
-          .maybeSingle();
-        existingClient = data;
+      if (clientErr) {
+        console.error('[Supabase Clientes] Error al insertar cliente:', clientErr);
+        throw clientErr;
       }
 
-      if (!existingClient && regEmail) {
-        const { data } = await supabase
-          .from('clientes')
-          .select('*')
-          .eq('email_responsable', regEmail)
-          .maybeSingle();
-        existingClient = data;
+      const clienteId = newClient.id;
+      console.log('[Supabase] Nuevo cliente guardado exitosamente en tabla clientes:', newClient);
+
+      // Enviar correo de bienvenida corporativo mediante EmailJS
+      try {
+        await sendRegistrationWelcomeEmail({
+          email: regEmail,
+          nombre: regResponsable || regEmail.split('@')[0],
+          empresa: regEmpresa || 'Cliente Registrado',
+          nit: nitLimpio || 'No especificado',
+          telefono: regTelefono
+        });
+      } catch (welcomeErr) {
+        console.warn('[EmailJS] Advertencia al enviar bienvenida:', welcomeErr);
       }
 
-      if (existingClient) {
-        clienteId = existingClient.id;
-        console.log('[Supabase] Cliente ya registrado previamente:', clienteId);
-      } else {
-        const { data: newClient, error: clientErr } = await supabase
-          .from('clientes')
-          .insert({
-            auth_user_id: authUserId,
-            nombre_razon_social: regEmpresa || 'Cliente Registrado',
-            nit_documento: nitLimpio || `NIT-${Date.now().toString().slice(-6)}`,
-            responsable: regResponsable || regEmail.split('@')[0],
-            email_responsable: regEmail,
-            telefono_responsable: regTelefono || null,
-            canal_entrada: 'Registro Portal Web'
-          })
-          .select('*')
-          .single();
-
-        if (clientErr) {
-          console.error('[Supabase Clientes] Error al insertar cliente:', clientErr);
-          throw clientErr;
-        }
-        clienteId = newClient.id;
-        console.log('[Supabase] Cliente guardado exitosamente en tabla clientes:', clienteId);
+      // Enviar / preparar enlace de WhatsApp
+      let whatsappLink = '';
+      try {
+        const waRes = await sendWhatsAppNotification({
+          email: regEmail,
+          nombre: regResponsable || regEmail.split('@')[0],
+          empresa: regEmpresa || 'Cliente Registrado',
+          nit: nitLimpio || 'No especificado',
+          telefono: regTelefono
+        });
+        whatsappLink = waRes.whatsappUrl;
+      } catch (waErr) {
+        console.warn('[WhatsApp] Advertencia:', waErr);
       }
 
       const userProfile: UserProfile = {
-        id: clienteId || `usr-${Date.now()}`,
-        empresa: regEmpresa || existingClient?.nombre_razon_social || '',
-        nit: nitLimpio || existingClient?.nit_documento || '',
-        responsable: regResponsable || existingClient?.responsable || regEmail.split('@')[0],
-        email: regEmail,
-        telefono: regTelefono || existingClient?.telefono_responsable || '',
+        id: clienteId,
+        empresa: newClient.nombre_razon_social || regEmpresa || '',
+        nit: newClient.nit_documento || nitLimpio || '',
+        responsable: newClient.responsable || regResponsable || regEmail.split('@')[0],
+        email: newClient.email_responsable || regEmail,
+        telefono: newClient.telefono_responsable || regTelefono || '',
         ciudad: 'Medellín',
-        createdAt: new Date().toISOString()
+        createdAt: newClient.created_at || new Date().toISOString()
       };
 
-      onLoginSuccess(userProfile, false);
+      // Si tiene teléfono o desea abrir WhatsApp, mostramos la confirmación interactiva
+      setRegisteredSuccessData({
+        userProfile,
+        whatsappUrl: whatsappLink || getWhatsAppRegistrationUrl({
+          email: regEmail,
+          nombre: userProfile.responsable,
+          empresa: userProfile.empresa,
+          nit: userProfile.nit,
+          telefono: regTelefono
+        }),
+        telefono: regTelefono,
+        nombre: userProfile.responsable,
+        empresa: userProfile.empresa
+      });
     } catch (err: any) {
       console.error('[Registro Error]', err);
       setErrorMessage(err?.message || 'Error al conectar con la base de datos de Supabase.');
@@ -501,14 +526,16 @@ export function ColorlinkLoginLanding({
             <div className="grid grid-cols-2 gap-2 text-left">
               <div className="space-y-1">
                 <label className="block text-[11px] font-semibold text-slate-500 pl-2">
-                  NIT *
+                  NIT (Solo números) *
                 </label>
                 <input
                   type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   value={regNit}
-                  onChange={(e) => setRegNit(e.target.value)}
-                  placeholder="900854219"
-                  className="w-full bg-[#f1f3f5] text-slate-800 text-xs font-medium px-4 py-3 rounded-2xl border-0 focus:ring-2 focus:ring-[#20b8dc] outline-none"
+                  onChange={(e) => setRegNit(e.target.value.replace(/\D/g, ''))}
+                  placeholder="Ej: 900854219"
+                  className="w-full bg-[#f1f3f5] text-slate-800 text-xs font-mono font-medium px-4 py-3 rounded-2xl border-0 focus:ring-2 focus:ring-[#20b8dc] outline-none"
                   required
                 />
               </div>
@@ -543,14 +570,16 @@ export function ColorlinkLoginLanding({
               </div>
               <div className="space-y-1">
                 <label className="block text-[11px] font-semibold text-slate-500 pl-2">
-                  Teléfono / Celular
+                  Teléfono / Celular (Solo números)
                 </label>
                 <input
                   type="tel"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   value={regTelefono}
-                  onChange={(e) => setRegTelefono(e.target.value)}
-                  placeholder="+57 300 123 4567"
-                  className="w-full bg-[#f1f3f5] text-slate-800 text-xs font-medium px-4 py-3 rounded-2xl border-0 focus:ring-2 focus:ring-[#20b8dc] outline-none"
+                  onChange={(e) => setRegTelefono(e.target.value.replace(/\D/g, ''))}
+                  placeholder="Ej: 3001234567"
+                  className="w-full bg-[#f1f3f5] text-slate-800 text-xs font-mono font-medium px-4 py-3 rounded-2xl border-0 focus:ring-2 focus:ring-[#20b8dc] outline-none"
                 />
               </div>
             </div>
@@ -615,6 +644,82 @@ export function ColorlinkLoginLanding({
           <span>Acceso Administrador</span>
         </button>
       </div>
+
+      {/* MODAL DE CONFIRMACIÓN DE REGISTRO CON ENVÍO DIRECTO A WHATSAPP */}
+      {registeredSuccessData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-100 text-center space-y-5 animate-scaleUp">
+            {/* Ícono animado de éxito */}
+            <div className="mx-auto w-16 h-16 rounded-3xl bg-gradient-to-tr from-emerald-500 to-green-400 text-white flex items-center justify-center shadow-lg shadow-emerald-500/30">
+              <Check className="w-8 h-8 stroke-[3]" />
+            </div>
+
+            <div>
+              <span className="inline-block px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 mb-2">
+                ✓ Guardado en Base de Datos Supabase
+              </span>
+              <h3 className="text-xl font-black text-slate-900">
+                ¡Te has registrado exitosamente!
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Tu cuenta corporativa ya está activa en Colorlink® Pinturas.
+              </p>
+            </div>
+
+            {/* Tarjeta con los datos registrados del cliente y empresa */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-left space-y-2 text-xs">
+              <div className="flex justify-between items-center pb-2 border-b border-slate-200/80">
+                <span className="text-slate-500">Cliente / Responsable:</span>
+                <span className="font-bold text-slate-900">{registeredSuccessData.nombre}</span>
+              </div>
+              <div className="flex justify-between items-center pb-2 border-b border-slate-200/80">
+                <span className="text-slate-500">Empresa:</span>
+                <span className="font-bold text-slate-900">{registeredSuccessData.empresa}</span>
+              </div>
+              <div className="flex justify-between items-center pb-2 border-b border-slate-200/80">
+                <span className="text-slate-500">NIT / Documento:</span>
+                <span className="font-mono font-bold text-slate-900">{registeredSuccessData.userProfile.nit}</span>
+              </div>
+              <div className="flex justify-between items-center pb-2 border-b border-slate-200/80">
+                <span className="text-slate-500">Teléfono WhatsApp:</span>
+                <span className="font-bold text-slate-900">{registeredSuccessData.telefono || 'No especificado'}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">Correo Electrónico:</span>
+                <span className="font-bold text-blue-600 truncate max-w-[180px]">{registeredSuccessData.userProfile.email}</span>
+              </div>
+            </div>
+
+            {/* Aviso de correo */}
+            <p className="text-[11px] text-emerald-700 bg-emerald-50/80 border border-emerald-200 rounded-xl py-2 px-3">
+              ✓ Correo corporativo de confirmación enviado exitosamente.
+            </p>
+
+            <div className="space-y-2.5 pt-1">
+              {/* Botón Principal WhatsApp */}
+              <a
+                href={registeredSuccessData.whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-extrabold text-sm py-3.5 px-4 rounded-2xl flex items-center justify-center gap-2.5 shadow-lg shadow-emerald-500/25 transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+              >
+                <MessageCircle className="w-5 h-5 fill-current" />
+                <span>Enviar / Abrir por WhatsApp</span>
+              </a>
+
+              {/* Botón Continuar */}
+              <button
+                type="button"
+                onClick={() => onLoginSuccess(registeredSuccessData.userProfile, false)}
+                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-3 px-4 rounded-2xl flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                <span>Continuar al Cotizador y Dosificación</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

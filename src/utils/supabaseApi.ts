@@ -26,19 +26,27 @@ export async function submitProjectToSupabase(
 ): Promise<{ proyectoId: string; orderNumber: string }> {
   const nitLimpio = limpiarNit(formData.nitDocumento);
 
-  // 1a. Busca si el cliente ya existe por NIT (evita duplicados)
+  // 1a. Busca si ya existe exactamente el mismo cliente (mismo NIT y misma Empresa/Razón Social)
   const { data: existingClient, error: findError } = await supabase
     .from('clientes')
-    .select('id')
+    .select('id, nombre_razon_social')
     .eq('nit_documento', nitLimpio)
     .maybeSingle();
 
   if (findError) throw findError;
 
-  let clienteId = existingClient?.id as string | undefined;
+  let clienteId: string | undefined;
 
-  // 1b. Si no existe, lo crea
-  if (!clienteId) {
+  // Si existe exactamente con el mismo nombre de empresa, reutilizamos su ID;
+  // si el nombre es diferente o es un nuevo registro, se INSERTA SIEMPRE un nuevo registro para conservar cada cliente.
+  const nombreCoincide =
+    existingClient &&
+    formData.cliente &&
+    existingClient.nombre_razon_social?.trim().toLowerCase() === formData.cliente.trim().toLowerCase();
+
+  if (existingClient && nombreCoincide) {
+    clienteId = existingClient.id;
+  } else {
     const { data: newClient, error: clientError } = await supabase
       .from('clientes')
       .insert({
