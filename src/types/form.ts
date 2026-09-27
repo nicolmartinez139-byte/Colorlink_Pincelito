@@ -41,7 +41,11 @@ export interface ProjectFormData {
   ambiente: 'Exterior Intemperie' | 'Interior Seco' | 'Interior Húmedo (Baños/Cocinas)' | 'Industrial Severo / Químico' | 'Tráfico Peatonal / Vehicular';
   condicion: 'Nueva sin pintar' | 'Pintada en buen estado' | 'Fisuras leves y humedad' | 'Descascaramiento severo' | 'Oxidación superficial' | 'Contaminación / Grasa';
   colorAcabado: string;
+  marcaPintura?: string;
   tipoPintura?: PaintTypeCategory;
+  metodoPago?: 'bancolombia' | 'pse' | 'nequi' | 'contraentrega' | 'credito' | 'tarjeta';
+  comprobantePagoUrl?: string;
+  bancoPSE?: string;
 
   // Evidencia
   descripcionLibre: string;

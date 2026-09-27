@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Inbox,
   UserCheck,
@@ -29,7 +29,13 @@ import {
   ThumbsUp,
   Share2,
   RefreshCw,
-  Users
+  Users,
+  TrendingUp,
+  BarChart3,
+  Boxes,
+  Award,
+  DollarSign,
+  Download
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import {
@@ -43,9 +49,6 @@ import { ProjectFormData } from '../types/form';
 import { formatCOP } from '../utils/calculator';
 import { PenguinLogo } from './PenguinLogo';
 import { AdminStockAndAIAdvisor } from './AdminStockAndAIAdvisor';
-import { EndToEndRequirementView } from './EndToEndRequirementView';
-import { DataDictionaryView } from './DataDictionaryView';
-import { RelationalModelView } from './RelationalModelView';
 
 interface OrderItem {
   id: string;
@@ -95,8 +98,10 @@ export function AdminBackoffice({
   onBackToClientView,
   submittedProjects
 }: AdminBackofficeProps) {
-  // Tabs: 'pedidos' (Supervisión) | 'clientes' (Directorio Supabase) | 'asesor' (Panel del Asesor) | 'stock' (Inventario) | 'evaluacion' (Docente/Requerimientos)
-  const [activeTab, setActiveTab] = useState<'pedidos' | 'clientes' | 'asesor' | 'stock' | 'evaluacion'>('pedidos');
+  // Tabs: 'pedidos' (Supervisión) | 'ciudades' (Ventas por Ciudad & Reabastecimiento) | 'clientes' (Directorio Supabase) | 'asesor' (Panel del Asesor) | 'stock' (Inventario)
+  const [activeTab, setActiveTab] = useState<'pedidos' | 'ciudades' | 'clientes' | 'asesor' | 'stock'>('pedidos');
+  const [selectedCityFilter, setSelectedCityFilter] = useState<string>('todas');
+  const [supplyNotice, setSupplyNotice] = useState<string | null>(null);
 
   interface SupabaseClientRow {
     id: string;
@@ -137,7 +142,7 @@ export function AdminBackoffice({
     fetchClientsFromSupabase();
   }, []);
 
-  // Pedidos de prueba reales de la empresa
+  // Pedidos de prueba reales de la empresa distribuidos por ciudades de Colombia
   const [orders, setOrders] = useState<OrderItem[]>([
     {
       id: 'PED-2026-081',
@@ -147,10 +152,12 @@ export function AdminBackoffice({
       telefono: '+57 312 845 6721',
       email: 'vgomez@constructorahorizonte.com.co',
       ciudad: 'Medellín',
-      areaM2: 85,
+      areaM2: 420,
       tipoPintura: 'Pintura Tipo 1 Exterior',
+      marca: 'Pintuco®',
+      metodoPago: 'Transferencia Bancolombia / QR',
       color: 'Gris Cemento (Mate)',
-      totalCOP: 1742000,
+      totalCOP: 18450000,
       status: 'preparando',
       vehiculoAsignado: 'Furgón Colorlink #08',
       placa: 'WLL-482',
@@ -173,6 +180,149 @@ export function AdminBackoffice({
       ]
     },
     {
+      id: 'PED-2026-085',
+      cliente: 'Consorcio Metropolitano Calle 100',
+      nit: '901452890',
+      responsable: 'Ing. Felipe Samper',
+      telefono: '+57 311 987 6543',
+      email: 'fsamper@consorciometropolitano.co',
+      ciudad: 'Bogotá D.C.',
+      areaM2: 320,
+      tipoPintura: 'Pintura Tipo 1 Exterior',
+      marca: 'Pintuco®',
+      metodoPago: 'PSE - Banco de Bogotá',
+      color: 'Blanco Puro (Satinado)',
+      totalCOP: 14850000,
+      status: 'en_ruta',
+      vehiculoAsignado: 'Camión Distribución Bogotá #03',
+      placa: 'DEX-712',
+      conductor: 'Hernán Morales',
+      rutaOptima: {
+        origen: 'CEDI Sabana Mosquera',
+        destino: 'Torre Empresarial Calle 100 # 19-61, Chicó, Bogotá',
+        recorrido: 'Calle 13 ➔ Av. Boyacá ➔ Calle 100',
+        distanciaKm: 24.6,
+        tiempoMin: 55,
+        ahorroMin: 20,
+        horaEstimada: '02:30 PM'
+      },
+      notificaciones: []
+    },
+    {
+      id: 'PED-2026-082',
+      cliente: 'Conjunto Residencial Laureles Parque',
+      nit: '890123567',
+      responsable: 'Dra. Andrea Londoño',
+      telefono: '+57 314 555 8822',
+      email: 'administracion@laurelesparque.com',
+      ciudad: 'Medellín',
+      areaM2: 210,
+      tipoPintura: 'Pintura Tipo 2 Interior Lavable',
+      marca: 'Colorlink® Pro',
+      metodoPago: 'Transferencia Bancolombia',
+      color: 'Marfil Arena (Mate)',
+      totalCOP: 8900000,
+      status: 'pendiente',
+      notificaciones: []
+    },
+    {
+      id: 'PED-2026-086',
+      cliente: 'Edificio Oficinas Chicó Norte',
+      nit: '900334889',
+      responsable: 'Arq. Camila Torres',
+      telefono: '+57 315 444 3321',
+      email: 'ctorres@chiconorte.com',
+      ciudad: 'Bogotá D.C.',
+      areaM2: 180,
+      tipoPintura: 'Pintura Tipo 2 Interior Lavable',
+      marca: 'Tito Pabón®',
+      metodoPago: 'Crédito Corporativo 30 Días',
+      color: 'Gris Grafito (Mate)',
+      totalCOP: 6420000,
+      status: 'preparando',
+      notificaciones: []
+    },
+    {
+      id: 'PED-2026-087',
+      cliente: 'Centro Médico Especializado Ciudad Jardín',
+      nit: '901009876',
+      responsable: 'Dr. Alejandro Osorio',
+      telefono: '+57 318 667 9900',
+      email: 'gerencia@clinicaciudadjardin.com.co',
+      ciudad: 'Cali',
+      areaM2: 195,
+      tipoPintura: 'Pintura Tipo 1 Exterior',
+      marca: 'Corona® Pinturas',
+      metodoPago: 'PSE - Bancolombia',
+      color: 'Blanco Antihongos',
+      totalCOP: 7350000,
+      status: 'en_ruta',
+      vehiculoAsignado: 'Furgón Cali CEDI Yumbo #01',
+      placa: 'VBL-903',
+      conductor: 'Javier Caicedo',
+      rutaOptima: {
+        origen: 'CEDI Valle Yumbo',
+        destino: 'Cra 105 # 14-80, Ciudad Jardín, Cali',
+        recorrido: 'Autopista Cali-Yumbo ➔ Calle 5ta ➔ Cra 100',
+        distanciaKm: 28.5,
+        tiempoMin: 42,
+        ahorroMin: 15,
+        horaEstimada: '01:15 PM'
+      },
+      notificaciones: []
+    },
+    {
+      id: 'PED-2026-088',
+      cliente: 'Bodega Logística del Caribe Vía 40',
+      nit: '800554123',
+      responsable: 'Ing. Rodrigo Char',
+      telefono: '+57 300 234 5678',
+      email: 'operaciones@logisticacaribe.com',
+      ciudad: 'Barranquilla',
+      areaM2: 260,
+      tipoPintura: 'Pintura Tipo 1 Exterior',
+      marca: 'Sapolín®',
+      metodoPago: 'Contra Entrega en Obra',
+      color: 'Gris Cemento Fachada',
+      totalCOP: 5120000,
+      status: 'pendiente',
+      notificaciones: []
+    },
+    {
+      id: 'PED-2026-089',
+      cliente: 'Centro Empresarial Cabecera',
+      nit: '900778811',
+      responsable: 'Arq. Mónica Prada',
+      telefono: '+57 317 889 0011',
+      email: 'mprada@cabeceraempresarial.com',
+      ciudad: 'Bucaramanga',
+      areaM2: 140,
+      tipoPintura: 'Pintura Tipo 2 Interior Lavable',
+      marca: 'Tito Pabón®',
+      metodoPago: 'Transferencia Bancolombia / QR',
+      color: 'Marfil Cálido',
+      totalCOP: 3840000,
+      status: 'preparando',
+      notificaciones: []
+    },
+    {
+      id: 'PED-2026-090',
+      cliente: 'Hotel & Suites Costa Azul Bocagrande',
+      nit: '900223114',
+      responsable: 'Sr. Daniel Martelo',
+      telefono: '+57 301 998 7766',
+      email: 'mantenimiento@hotelcostaazul.co',
+      ciudad: 'Cartagena',
+      areaM2: 150,
+      tipoPintura: 'Pintura Tipo 1 Exterior',
+      marca: 'Pintuco®',
+      metodoPago: 'Tarjeta de Crédito Visa',
+      color: 'Arena Caribe',
+      totalCOP: 4650000,
+      status: 'pendiente',
+      notificaciones: []
+    },
+    {
       id: 'PED-2026-079',
       cliente: 'Inversiones & Acabados del Valle',
       nit: '890901234',
@@ -182,6 +332,7 @@ export function AdminBackoffice({
       ciudad: 'Envigado',
       areaM2: 120,
       tipoPintura: 'Pintura Tipo 2 Interior Lavable',
+      marca: 'Colorlink® Pro',
       color: 'Blanco Puro (Satinado)',
       totalCOP: 2150000,
       status: 'pendiente',
@@ -197,6 +348,7 @@ export function AdminBackoffice({
       ciudad: 'Rionegro',
       areaM2: 240,
       tipoPintura: 'Pintura Tipo 1 Exterior',
+      marca: 'Pintuco®',
       color: 'Arena Cálido',
       totalCOP: 3890000,
       status: 'en_ruta',
@@ -223,6 +375,125 @@ export function AdminBackoffice({
   ]);
 
   const [selectedOrderId, setSelectedOrderId] = useState<string>('PED-2026-081');
+
+  // Cálculos dinámicos de análisis de ciudades ("cuál vendió más" y "qué se necesita pedir para cada lado")
+  const cityAnalytics = useMemo(() => {
+    const cityMap: Record<string, {
+      ciudad: string;
+      totalCOP: number;
+      pedidosCount: number;
+      areaM2: number;
+      tipo1Cunetes: number;
+      tipo2Cunetes: number;
+      tipo3Cunetes: number;
+      selladorGalones: number;
+      marcasDemandadas: Record<string, number>;
+      pedidos: OrderItem[];
+      cedi: string;
+      stockDisponibleCunetes: number;
+      cunetesRequeridosTotal: number;
+      urgencia: 'urgente' | 'transito' | 'abastecido';
+    }> = {};
+
+    const cediMap: Record<string, { cedi: string; stock: number }> = {
+      'Medellín': { cedi: 'Planta Central Itagüí / CEDI Guarne', stock: 120 },
+      'Bogotá D.C.': { cedi: 'CEDI Sabana Mosquera (Cra 13)', stock: 24 },
+      'Cali': { cedi: 'CEDI Valle Yumbo (Vía Cali-Yumbo)', stock: 16 },
+      'Barranquilla': { cedi: 'CEDI Costa Malambo (Calle 30)', stock: 12 },
+      'Bucaramanga': { cedi: 'CEDI Santanderes Girón (Km 7)', stock: 14 },
+      'Cartagena': { cedi: 'CEDI Bolívar Mamonal (Km 3)', stock: 10 },
+      'Envigado': { cedi: 'CEDI Sur Aburrá (Av. Las Vegas)', stock: 20 },
+      'Rionegro': { cedi: 'CEDI Oriente Llanogrande (Aeropuerto)', stock: 18 }
+    };
+
+    orders.forEach(order => {
+      let rawCity = order.ciudad?.trim() || 'Medellín';
+      let normCity = 'Medellín';
+
+      if (rawCity.toLowerCase().includes('bogot')) normCity = 'Bogotá D.C.';
+      else if (rawCity.toLowerCase().includes('cali')) normCity = 'Cali';
+      else if (rawCity.toLowerCase().includes('barran')) normCity = 'Barranquilla';
+      else if (rawCity.toLowerCase().includes('bucara')) normCity = 'Bucaramanga';
+      else if (rawCity.toLowerCase().includes('cartag')) normCity = 'Cartagena';
+      else if (rawCity.toLowerCase().includes('envig')) normCity = 'Envigado';
+      else if (rawCity.toLowerCase().includes('rioneg')) normCity = 'Rionegro';
+      else normCity = 'Medellín';
+
+      if (!cityMap[normCity]) {
+        const info = cediMap[normCity] || { cedi: `CEDI Regional ${normCity}`, stock: 15 };
+        cityMap[normCity] = {
+          ciudad: normCity,
+          totalCOP: 0,
+          pedidosCount: 0,
+          areaM2: 0,
+          tipo1Cunetes: 0,
+          tipo2Cunetes: 0,
+          tipo3Cunetes: 0,
+          selladorGalones: 0,
+          marcasDemandadas: {},
+          pedidos: [],
+          cedi: info.cedi,
+          stockDisponibleCunetes: info.stock,
+          cunetesRequeridosTotal: 0,
+          urgencia: 'abastecido'
+        };
+      }
+
+      const item = cityMap[normCity];
+      item.totalCOP += order.totalCOP || 0;
+      item.pedidosCount += 1;
+      item.areaM2 += order.areaM2 || 0;
+      item.pedidos.push(order);
+
+      const brand = order.marca || 'Pintuco®';
+      item.marcasDemandadas[brand] = (item.marcasDemandadas[brand] || 0) + 1;
+
+      // Cálculo de requerimientos de abastecimiento por tipo de pintura:
+      // ~28 m2 por cuñete con 2 manos
+      const estimatedCunetes = Math.max(1, Math.ceil((order.areaM2 || 50) / 28));
+      item.cunetesRequeridosTotal += estimatedCunetes;
+
+      if (order.tipoPintura?.includes('Tipo 1') || order.tipoPintura?.toLowerCase().includes('exterior')) {
+        item.tipo1Cunetes += estimatedCunetes;
+        item.selladorGalones += Math.ceil(estimatedCunetes * 2); // 2 galones de sellador por cada cuñete Tipo 1
+      } else if (order.tipoPintura?.includes('Tipo 3') || order.tipoPintura?.toLowerCase().includes('ciel')) {
+        item.tipo3Cunetes += estimatedCunetes;
+      } else {
+        item.tipo2Cunetes += estimatedCunetes;
+        item.selladorGalones += Math.ceil(estimatedCunetes * 1);
+      }
+    });
+
+    const sortedList = Object.values(cityMap);
+    // Ordenar de mayor a menor ventas COP para responder "¿Cuál vendió más?"
+    sortedList.sort((a, b) => b.totalCOP - a.totalCOP);
+
+    // Calcular estado de urgencia de reabastecimiento
+    sortedList.forEach(c => {
+      if (c.cunetesRequeridosTotal > c.stockDisponibleCunetes) {
+        c.urgencia = 'urgente';
+      } else if (c.cunetesRequeridosTotal >= c.stockDisponibleCunetes * 0.7) {
+        c.urgencia = 'transito';
+      } else {
+        c.urgencia = 'abastecido';
+      }
+    });
+
+    return sortedList;
+  }, [orders]);
+
+  const totalNacionalCOP = useMemo(() => {
+    return cityAnalytics.reduce((acc, c) => acc + c.totalCOP, 0);
+  }, [cityAnalytics]);
+
+  const totalCunetesNacional = useMemo(() => {
+    return cityAnalytics.reduce((acc, c) => acc + c.cunetesRequeridosTotal, 0);
+  }, [cityAnalytics]);
+
+  const handleRequestCitySupply = (ciudad: string) => {
+    setSupplyNotice(`✓ Orden de Reabastecimiento urgente enviada a Planta Central para CEDI ${ciudad}. Camión nodriza programado.`);
+    setTimeout(() => setSupplyNotice(null), 6000);
+  };
 
   useEffect(() => {
     if (submittedProjects && submittedProjects.length > 0) {
@@ -575,16 +846,18 @@ export function AdminBackoffice({
 
           <button
             type="button"
-            onClick={() => setActiveTab('evaluacion')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ml-auto ${
-              activeTab === 'evaluacion'
-                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-sm'
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200'
+            onClick={() => setActiveTab('ciudades')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === 'ciudades'
+                ? 'bg-gradient-to-r from-sky-600 via-blue-600 to-indigo-600 text-white shadow-md ring-2 ring-blue-500/25'
+                : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
             }`}
-            title="Vista de soporte para el docente o evaluador"
           >
-            <Database className="w-4 h-4 text-amber-500" />
-            <span>Evaluación & Diccionario de Datos</span>
+            <TrendingUp className="w-4 h-4 text-sky-400" />
+            <span>Ventas por Ciudad & Reabastecimiento</span>
+            <span className="px-1.5 py-0.5 rounded-full bg-sky-500 text-white text-[10px] font-bold">
+              {cityAnalytics.length} Sedes
+            </span>
           </button>
         </div>
       </div>
@@ -1330,27 +1603,516 @@ export function AdminBackoffice({
         </div>
       )}
 
-      {/* CONTENIDO DE TAB 4: EVALUACIÓN DOCENTE / REQUERIMIENTOS Y DICCIONARIO DE DATOS */}
-      {activeTab === 'evaluacion' && (
-        <div className="space-y-6">
-          <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <span className="text-xs font-bold uppercase tracking-wider text-amber-600 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 inline-block mb-1">
-                Soporte de Evaluación Técnica
-              </span>
-              <h2 className="text-xl font-bold text-slate-900">
-                Diccionario de Datos, Modelo SQL & Requerimientos del Sistema
-              </h2>
-              <p className="text-xs text-slate-500">
-                Estructuras formales para revisión docente, validación de reglas de negocio y diagrama relacional.
-              </p>
+      {/* CONTENIDO DE TAB 4: VENTAS POR CIUDADES & REABASTECIMIENTO NACIONAL */}
+      {activeTab === 'ciudades' && (
+        <div className="space-y-6 animate-fadeIn">
+          {/* Alerta de orden de reabastecimiento */}
+          {supplyNotice && (
+            <div className="p-4 rounded-2xl bg-emerald-500 text-white font-bold text-xs flex items-center justify-between shadow-lg animate-fadeIn">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-white" />
+                <span>{supplyNotice}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSupplyNotice(null)}
+                className="px-2 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-white text-xs cursor-pointer"
+              >
+                Cerrar
+              </button>
+            </div>
+          )}
+
+          {/* Encabezado General */}
+          <div className="bg-gradient-to-r from-slate-900 via-sky-950 to-blue-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-sky-800">
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-500/20 text-sky-300 text-xs font-bold border border-sky-400/30 mb-2">
+                  <MapPin className="w-3.5 h-3.5 text-sky-400" />
+                  <span>Distribución Logística Nacional Colorlink</span>
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+                  Ventas por Ciudad & Matriz de Reabastecimiento
+                </h2>
+                <p className="text-xs sm:text-sm text-sky-200/90 mt-1 max-w-2xl leading-relaxed">
+                  Supervisa qué ciudad vendió más en facturación y volumen de pedidos, y gestiona exactamente qué pinturas, marcas y cuñetes se necesitan pedir para cada sede regional.
+                </p>
+              </div>
+
+              {/* Botón de Exportar / Reabastecimiento Global */}
+              <div className="shrink-0 flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => handleRequestCitySupply('Nacional (Todas las Sedes)')}
+                  className="px-4 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-bold text-xs rounded-2xl shadow-md transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                >
+                  <Boxes className="w-4 h-4" />
+                  <span>Reabastecer Todas las Sedes</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 4 KPIs de Resumen Nacional */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6 pt-6 border-t border-sky-800/80">
+              <div className="bg-white/10 backdrop-blur-xs p-4 rounded-2xl border border-white/10">
+                <span className="text-[11px] font-bold text-sky-300 uppercase tracking-wider block">
+                  Facturación Total Nacional
+                </span>
+                <strong className="text-xl sm:text-2xl font-black text-white block mt-1">
+                  {formatCOP(totalNacionalCOP)}
+                </strong>
+                <span className="text-[11px] text-sky-200/80 mt-1 block">
+                  {orders.length} pedidos en {cityAnalytics.length} ciudades
+                </span>
+              </div>
+
+              <div className="bg-gradient-to-br from-amber-500/20 to-amber-600/30 backdrop-blur-xs p-4 rounded-2xl border border-amber-400/40">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-amber-200 uppercase tracking-wider block">
+                    🥇 Ciudad #1 Más Vendida
+                  </span>
+                  <Award className="w-4 h-4 text-amber-300" />
+                </div>
+                <strong className="text-xl sm:text-2xl font-black text-amber-100 block mt-1">
+                  {cityAnalytics[0]?.ciudad || 'Medellín'}
+                </strong>
+                <span className="text-[11px] text-amber-200/90 font-medium mt-1 block">
+                  {formatCOP(cityAnalytics[0]?.totalCOP || 0)} (
+                  {totalNacionalCOP > 0
+                    ? Math.round(((cityAnalytics[0]?.totalCOP || 0) / totalNacionalCOP) * 100)
+                    : 0}
+                  % de la venta nacional)
+                </span>
+              </div>
+
+              <div className="bg-gradient-to-br from-slate-400/20 to-slate-500/30 backdrop-blur-xs p-4 rounded-2xl border border-slate-300/40">
+                <span className="text-[11px] font-bold text-slate-200 uppercase tracking-wider block">
+                  🥈 Ciudad #2 en Ventas
+                </span>
+                <strong className="text-xl sm:text-2xl font-black text-white block mt-1">
+                  {cityAnalytics[1]?.ciudad || 'Bogotá D.C.'}
+                </strong>
+                <span className="text-[11px] text-slate-200/90 font-medium mt-1 block">
+                  {formatCOP(cityAnalytics[1]?.totalCOP || 0)} (
+                  {totalNacionalCOP > 0
+                    ? Math.round(((cityAnalytics[1]?.totalCOP || 0) / totalNacionalCOP) * 100)
+                    : 0}
+                  % de la venta nacional)
+                </span>
+              </div>
+
+              <div className="bg-white/10 backdrop-blur-xs p-4 rounded-2xl border border-white/10">
+                <span className="text-[11px] font-bold text-sky-300 uppercase tracking-wider block">
+                  Total Cuñetes Requeridos
+                </span>
+                <strong className="text-xl sm:text-2xl font-black text-white block mt-1">
+                  {totalCunetesNacional} Cuñetes
+                </strong>
+                <span className="text-[11px] text-sky-200/80 mt-1 block">
+                  Para surtir obras activas en obra
+                </span>
+              </div>
             </div>
           </div>
 
-          <div className="space-y-6">
-            <DataDictionaryView />
-            <RelationalModelView />
-            <EndToEndRequirementView onOpenClientForm={onBackToClientView} />
+          {/* MÓDULO 1: RANKING VISUAL: ¿CUÁL CIUDAD VENDIÓ MÁS? */}
+          <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
+                  <BarChart3 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900">
+                    Ranking de Ventas por Ciudad: ¿Cuál Vendió Más?
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Ordenado de mayor a menor según facturación acumulada (COP) y cuota de mercado regional.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-500">Filtrar tabla:</span>
+                <select
+                  value={selectedCityFilter}
+                  onChange={(e) => setSelectedCityFilter(e.target.value)}
+                  className="px-3 py-1.5 text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                >
+                  <option value="todas">Todas las Ciudades ({cityAnalytics.length})</option>
+                  {cityAnalytics.map((c) => (
+                    <option key={c.ciudad} value={c.ciudad}>
+                      {c.ciudad} ({formatCOP(c.totalCOP)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Barras y Tarjetas de Ranking */}
+            <div className="space-y-3 pt-2">
+              {cityAnalytics.map((item, idx) => {
+                const percentage =
+                  totalNacionalCOP > 0 ? Math.round((item.totalCOP / totalNacionalCOP) * 100) : 0;
+                const isSelected = selectedCityFilter === item.ciudad || selectedCityFilter === 'todas';
+
+                if (!isSelected) return null;
+
+                return (
+                  <div
+                    key={item.ciudad}
+                    className={`p-4 rounded-2xl border transition-all ${
+                      idx === 0
+                        ? 'border-amber-300 bg-amber-50/40 ring-1 ring-amber-400/30'
+                        : idx === 1
+                        ? 'border-slate-300 bg-slate-50/60'
+                        : idx === 2
+                        ? 'border-orange-200 bg-orange-50/30'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+                      {/* Posición & Nombre de la Ciudad */}
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm shrink-0 shadow-2xs ${
+                            idx === 0
+                              ? 'bg-amber-400 text-amber-950 font-black'
+                              : idx === 1
+                              ? 'bg-slate-300 text-slate-800 font-black'
+                              : idx === 2
+                              ? 'bg-orange-300 text-orange-950 font-bold'
+                              : 'bg-slate-100 text-slate-600 font-bold'
+                          }`}
+                        >
+                          {idx === 0 ? '1° 🥇' : idx === 1 ? '2° 🥈' : idx === 2 ? '3° 🥉' : `${idx + 1}°`}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-sm font-black text-slate-900">{item.ciudad}</h4>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                              {item.cedi}
+                            </span>
+                            {idx === 0 && (
+                              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-500 text-white uppercase tracking-wider">
+                                Más Vendida
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            {item.pedidosCount} pedido(s) activos • {item.areaM2} m² totales intervenidos
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Facturación & Participación */}
+                      <div className="w-full md:w-auto flex items-center justify-between md:justify-end gap-6">
+                        <div className="text-left md:text-right">
+                          <strong className="text-base font-black text-slate-900 block">
+                            {formatCOP(item.totalCOP)}
+                          </strong>
+                          <span className="text-[11px] font-bold text-sky-700">
+                            {percentage}% del volumen nacional
+                          </span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCityFilter(item.ciudad)}
+                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                        >
+                          Ver pedidos ({item.pedidosCount})
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Barra visual de progreso porcentual */}
+                    <div className="mt-3 w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                      <div
+                        className={`h-2.5 rounded-full transition-all duration-500 ${
+                          idx === 0
+                            ? 'bg-gradient-to-r from-amber-500 to-amber-400'
+                            : idx === 1
+                            ? 'bg-gradient-to-r from-blue-600 to-sky-400'
+                            : idx === 2
+                            ? 'bg-gradient-to-r from-teal-500 to-emerald-400'
+                            : 'bg-slate-400'
+                        }`}
+                        style={{ width: `${Math.max(5, percentage)}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* MÓDULO 2: MATRIZ DE REABASTECIMIENTO: ¿QUÉ SE NECESITA PEDIR PARA CADA LADO? */}
+          <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold">
+                  <Boxes className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900">
+                    Requerimientos de Inventario: ¿Qué se Necesita Pedir para Cada Lado?
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Desglose exacto de cuñetes, tipos de pintura y selladores requeridos para surtir los pedidos de cada ciudad.
+                  </p>
+                </div>
+              </div>
+
+              <span className="text-xs font-bold text-purple-700 bg-purple-50 px-3 py-1 rounded-full border border-purple-200">
+                Logística de Despacho desde Fábrica Medellín
+              </span>
+            </div>
+
+            {/* Grid de Reabastecimiento por Ciudad */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-2">
+              {cityAnalytics.map((c) => {
+                const deficit = c.cunetesRequeridosTotal - c.stockDisponibleCunetes;
+                return (
+                  <div
+                    key={c.ciudad}
+                    className="p-5 rounded-2xl border border-slate-200 bg-gradient-to-b from-slate-50/50 to-white space-y-4 hover:shadow-md transition-all"
+                  >
+                    {/* Encabezado de la Ciudad */}
+                    <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-100">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <MapPin className="w-4 h-4 text-blue-600" />
+                          <h4 className="font-black text-sm text-slate-900">{c.ciudad}</h4>
+                        </div>
+                        <span className="text-[11px] text-slate-500 block mt-0.5">
+                          Sede: <strong>{c.cedi}</strong>
+                        </span>
+                      </div>
+
+                      {/* Estado de Abastecimiento */}
+                      {c.urgencia === 'urgente' ? (
+                        <span className="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3 text-rose-600" />
+                          Pedir Urgente a Fábrica
+                        </span>
+                      ) : c.urgencia === 'transito' ? (
+                        <span className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
+                          <Truck className="w-3 h-3 text-amber-600" />
+                          En Tránsito / Despacho
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          Stock Sede Suficiente
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Desglose de Insumos Requeridos ("Qué se necesita pedir") */}
+                    <div>
+                      <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block mb-2">
+                        📦 Requerimientos a Pedir para Surtir la Ciudad:
+                      </span>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="p-2.5 rounded-xl bg-sky-50/80 border border-sky-100">
+                          <span className="text-[10px] font-bold text-sky-800 block">Pintura Tipo 1 Exterior</span>
+                          <strong className="text-sm font-black text-sky-950 block">
+                            {c.tipo1Cunetes} Cuñetes
+                          </strong>
+                          <span className="text-[10px] text-sky-700">Fachadas de alto tráfico</span>
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-teal-50/80 border border-teal-100">
+                          <span className="text-[10px] font-bold text-teal-800 block">Pintura Tipo 2 Interior</span>
+                          <strong className="text-sm font-black text-teal-950 block">
+                            {c.tipo2Cunetes} Cuñetes
+                          </strong>
+                          <span className="text-[10px] text-teal-700">Muros superlavables</span>
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-amber-50/80 border border-amber-100">
+                          <span className="text-[10px] font-bold text-amber-800 block">Pintura Tipo 3 Cielos</span>
+                          <strong className="text-sm font-black text-amber-950 block">
+                            {c.tipo3Cunetes} Cuñetes
+                          </strong>
+                          <span className="text-[10px] text-amber-700">Techos y fondeo mate</span>
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-purple-50/80 border border-purple-100">
+                          <span className="text-[10px] font-bold text-purple-800 block">Sellador Sellomax Base</span>
+                          <strong className="text-sm font-black text-purple-950 block">
+                            {c.selladorGalones} Galones
+                          </strong>
+                          <span className="text-[10px] text-purple-700">Antialcalino obra nueva</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Marcas más pedidas en esta ciudad */}
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                      <span className="text-slate-500 font-medium">Marcas demandadas:</span>
+                      <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                        {Object.entries(c.marcasDemandadas).map(([marca, count]) => (
+                          <span
+                            key={marca}
+                            className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-bold text-[10px]"
+                          >
+                            {marca} ({count})
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Stock Local vs Demanda */}
+                    <div className="p-3 rounded-xl bg-slate-100 text-xs flex items-center justify-between">
+                      <span className="text-slate-600">
+                        Stock en Sede: <strong>{c.stockDisponibleCunetes} cuñetes</strong>
+                      </span>
+                      <span className="font-bold text-slate-800">
+                        Demanda Requerida: <strong>{c.cunetesRequeridosTotal} cuñetes</strong>
+                      </span>
+                    </div>
+
+                    {/* Botones de Acción de Reabastecimiento */}
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => handleRequestCitySupply(c.ciudad)}
+                        className="flex-1 py-2 px-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                      >
+                        <Boxes className="w-3.5 h-3.5" />
+                        <span>Generar Orden de Reabastecimiento</span>
+                      </button>
+
+                      <a
+                        href={`https://api.whatsapp.com/send?phone=573212460658&text=${encodeURIComponent(
+                          `📦 SOLICITUD DE REABASTECIMIENTO • COLORLINK PINTURAS\n\nCiudad Sede: ${c.ciudad}\nCEDI: ${c.cedi}\nRequerimientos Urgentes a Despachar:\n• Tipo 1: ${c.tipo1Cunetes} Cuñetes\n• Tipo 2: ${c.tipo2Cunetes} Cuñetes\n• Tipo 3: ${c.tipo3Cunetes} Cuñetes\n• Sellador: ${c.selladorGalones} Galones\n\nTotal Pedidos Activos en la ciudad: ${c.pedidosCount} (${formatCOP(c.totalCOP)})\nPor favor confirmar cargue y camión asignado.`
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold text-xs rounded-xl transition-all flex items-center gap-1 cursor-pointer"
+                        title="Notificar al coordinador de bodega por WhatsApp"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>WhatsApp Sede</span>
+                      </a>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* MÓDULO 3: DETALLE DE PEDIDOS EN CADA CIUDAD */}
+          <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div>
+                <h3 className="text-base font-black text-slate-900">
+                  Directorio de Pedidos Registrados por Ciudad
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Visualiza cada uno de los clientes, direcciones, marcas y montos de los pedidos en curso.
+                </p>
+              </div>
+
+              {selectedCityFilter !== 'todas' && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedCityFilter('todas')}
+                  className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg cursor-pointer"
+                >
+                  ✕ Ver todas las ciudades
+                </button>
+              )}
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-bold">
+                    <th className="py-3 px-3">Pedido ID</th>
+                    <th className="py-3 px-3">Ciudad</th>
+                    <th className="py-3 px-3">Cliente / Empresa</th>
+                    <th className="py-3 px-3">Pintura & Marca</th>
+                    <th className="py-3 px-3">Área (m²)</th>
+                    <th className="py-3 px-3">Método de Pago</th>
+                    <th className="py-3 px-3 text-right">Monto (COP)</th>
+                    <th className="py-3 px-3 text-center">Estado</th>
+                    <th className="py-3 px-3 text-center">Contacto</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {orders
+                    .filter((o) => {
+                      if (selectedCityFilter === 'todas') return true;
+                      return (
+                        o.ciudad?.toLowerCase().includes(selectedCityFilter.toLowerCase()) ||
+                        selectedCityFilter.toLowerCase().includes(o.ciudad?.toLowerCase() || '')
+                      );
+                    })
+                    .map((order) => (
+                      <tr key={order.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-3 px-3 font-mono font-bold text-blue-700">{order.id}</td>
+                        <td className="py-3 px-3">
+                          <span className="font-bold text-slate-800">{order.ciudad}</span>
+                        </td>
+                        <td className="py-3 px-3">
+                          <div className="font-bold text-slate-900">{order.cliente}</div>
+                          <div className="text-[10px] text-slate-500">
+                            {order.responsable} • NIT: {order.nit}
+                          </div>
+                        </td>
+                        <td className="py-3 px-3">
+                          <span className="font-bold text-slate-800 block">{order.tipoPintura}</span>
+                          <span className="text-[10px] text-purple-700 font-semibold">
+                            {order.marca || 'Pintuco®'} • {order.color}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 font-mono font-semibold">{order.areaM2} m²</td>
+                        <td className="py-3 px-3">
+                          <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 text-[10px] font-bold border border-blue-200">
+                            {order.metodoPago || 'Transferencia Bancolombia'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-right font-mono font-bold text-slate-900">
+                          {formatCOP(order.totalCOP)}
+                        </td>
+                        <td className="py-3 px-3 text-center">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                              order.status === 'entregado'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : order.status === 'en_ruta'
+                                ? 'bg-sky-100 text-sky-800'
+                                : order.status === 'preparando'
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-slate-100 text-slate-700'
+                            }`}
+                          >
+                            {order.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-center">
+                          <a
+                            href={`https://api.whatsapp.com/send?phone=${formatWhatsAppPhone(
+                              order.telefono
+                            )}&text=${encodeURIComponent(
+                              `Hola ${order.responsable}, le escribimos de Colorlink Pinturas en relación a su pedido #${order.id} en ${order.ciudad}.`
+                            )}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1.5 inline-flex rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition-colors"
+                            title="Contactar al cliente por WhatsApp"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                          </a>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

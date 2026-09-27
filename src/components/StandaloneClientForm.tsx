@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { ProjectFormData } from '../types/form';
+import { ProjectFormData, UserProfile } from '../types/form';
 import { CASE_STUDY_PRESET } from '../data/dictionaryData';
-import { calculateTechnicalRequirements, formatCOP } from '../utils/calculator';
+import { calculateTechnicalRequirements, formatCOP, AVAILABLE_PAINT_BRANDS, getPaintTypePrice } from '../utils/calculator';
 import { generateColorlinkPDF, printColorlinkPDF } from '../utils/generateColorlinkPDF';
 import { ColorFinishSelector } from './ColorFinishSelector';
 import { ColorlinkPenguin } from './ColorlinkPenguin';
@@ -60,12 +60,22 @@ import {
   Database,
   User,
   LogOut,
-  MessageCircle
+  MessageCircle,
+  CreditCard,
+  Copy,
+  ZoomIn,
+  Video,
+  VideoOff
 } from 'lucide-react';
 import { ClientEmailPreviewModal } from './ClientEmailPreviewModal';
-import { UserProfile } from '../types/form';
 import { sendRealOrderEmail } from '../lib/emailService';
 import { getWhatsAppReceiptUrl } from '../utils/whatsappService';
+import facadeRefImg from '../assets/images/paint_facade_ref_1790519863937.jpg';
+import exteriorT2RefImg from '../assets/images/exterior_t2_ref_1790522631426.jpg';
+import exteriorT3RefImg from '../assets/images/exterior_t3_ref_1790522646174.jpg';
+import interiorRefImg from '../assets/images/paint_interior_ref_1790519875663.jpg';
+import interiorT2RefImg from '../assets/images/interior_t2_ref_1790522657855.jpg';
+import ceilingRefImg from '../assets/images/paint_ceiling_ref_1790519886503.jpg';
 
 interface StandaloneClientFormProps {
   isSimulation?: boolean;
@@ -91,12 +101,14 @@ const SIMULATION_CASE_STUDY: ProjectFormData = {
   superficie: 'Concreto / Revoque',
   ambiente: 'Exterior Intemperie',
   condicion: 'Fisuras leves y humedad',
+  marcaPintura: 'Pintuco®',
   tipoPintura: 'Exterior Tipo 1',
+  metodoPago: 'bancolombia',
   colorAcabado: 'Gris (Mate)',
   descripcionLibre: 'Mantenimiento preventivo y correctivo en fachada de edificio de 5 pisos. Presenta fisuras superficiales no estructurales y rastros de humedad por lluvia directa.',
   fotos: [
-    { name: 'fachada_norte_fisuras.jpg', size: '2.8 MB' },
-    { name: 'detalle_humedad_concreto.png', size: '1.9 MB' }
+    { name: 'fachada_norte_fisuras.jpg', size: '2.8 MB', previewUrl: facadeRefImg },
+    { name: 'detalle_humedad_concreto.png', size: '1.9 MB', previewUrl: interiorRefImg }
   ],
   observaciones: 'Acceso por andamios colgantes certificados de obra.',
   consentimiento: true
@@ -117,7 +129,9 @@ const createCleanFormData = (user?: UserProfile | null): ProjectFormData => ({
   superficie: '' as any,
   ambiente: '' as any,
   condicion: '' as any,
+  marcaPintura: 'Pintuco®',
   tipoPintura: '' as any,
+  metodoPago: 'bancolombia',
   colorAcabado: '',
   descripcionLibre: '',
   fotos: [],
@@ -183,6 +197,20 @@ export function StandaloneClientForm({
   const [rejectionReason, setRejectionReason] = useState<string>('Presupuesto por encima de lo proyectado');
   const [rejectionNotes, setRejectionNotes] = useState<string>('');
   const [showImageDiagnosisModal, setShowImageDiagnosisModal] = useState<boolean>(false);
+
+  // Estados para Carga de Fotos (Computador o Cámara)
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const cameraInputRef = React.useRef<HTMLInputElement | null>(null);
+  const videoRef = React.useRef<HTMLVideoElement | null>(null);
+  const [showLiveCameraModal, setShowLiveCameraModal] = useState<boolean>(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [previewEnlargedPhoto, setPreviewEnlargedPhoto] = useState<{ name: string; url?: string } | null>(null);
+
+  // Estados para Métodos de Pago
+  const [copiedBankInfo, setCopiedBankInfo] = useState<boolean>(false);
+  const [selectedBankPSE, setSelectedBankPSE] = useState<string>('Bancolombia');
+  const [paymentProofAttached, setPaymentProofAttached] = useState<boolean>(false);
 
   // Estados para persistencia y Correo Real
   const [activeSession, setActiveSession] = useState<UserProfile | null>(activeUser ?? null);
@@ -450,24 +478,87 @@ export function StandaloneClientForm({
     }
   };
 
-  const handleAddMockPhoto = () => {
-    const samples = [
-      'fachada_lateral_angulo2.jpg',
-      'patologia_concreto_zoom.jpg',
-      'inspeccion_obra_general.png'
-    ];
-    const chosen = samples[Math.floor(Math.random() * samples.length)];
-    setFormData(prev => ({
-      ...prev,
-      fotos: [...prev.fotos, { name: chosen, size: '2.5 MB' }]
-    }));
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    Array.from(files).forEach((file: File) => {
+      const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+      const sizeStr = `${sizeMB} MB`;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const previewUrl = event.target?.result as string;
+        setFormData((prev) => ({
+          ...prev,
+          fotos: [...prev.fotos, { name: file.name, size: sizeStr, previewUrl }]
+        }));
+      };
+      reader.readAsDataURL(file);
+    });
+
     if (errors.fotos) {
-      setErrors(prev => {
+      setErrors((prev) => {
         const next = { ...prev };
         delete next.fotos;
         return next;
       });
     }
+    e.target.value = '';
+  };
+
+  const handleStartLiveCamera = async () => {
+    setCameraError(null);
+    setShowLiveCameraModal(true);
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Navegador no soporta API de cámara directa');
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+      });
+      setCameraStream(stream);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err: any) {
+      console.warn('Cámara directa no disponible:', err);
+      setCameraError('No se pudo abrir la cámara en el navegador o se denegaron los permisos. Puedes usar el botón de abajo para tomar foto con la cámara nativa de tu dispositivo.');
+    }
+  };
+
+  const handleStopLiveCamera = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach((track) => track.stop());
+      setCameraStream(null);
+    }
+    setShowLiveCameraModal(false);
+  };
+
+  const handleCaptureLiveCameraPhoto = () => {
+    if (!videoRef.current) return;
+    const video = videoRef.current;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+    const photoName = `foto_camara_obra_${Date.now().toString().slice(-4)}.jpg`;
+
+    setFormData((prev) => ({
+      ...prev,
+      fotos: [...prev.fotos, { name: photoName, size: '1.4 MB', previewUrl: dataUrl }]
+    }));
+
+    if (errors.fotos) {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next.fotos;
+        return next;
+      });
+    }
+    handleStopLiveCamera();
   };
 
   const handleRemovePhoto = (idx: number) => {
@@ -693,7 +784,9 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         <p className="text-[10px] text-slate-600 mt-1 leading-snug">Máxima resistencia UV, lluvia e intemperie (&gt;1.200 ciclos). 5 a 7 años.</p>
                         <div className="mt-2 pt-2 border-t border-slate-200 flex items-center justify-between text-[11px]">
                           <span className="text-slate-500 font-medium">Cuñete:</span>
-                          <strong className="text-slate-900 font-mono font-bold">$398.000 COP</strong>
+                          <strong className="text-slate-900 font-mono font-bold">
+                            {formatCOP(getPaintTypePrice('Exterior Tipo 1', formData.marcaPintura).precioCunete)}
+                          </strong>
                         </div>
                       </button>
 
@@ -717,7 +810,9 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         <p className="text-[10px] text-slate-600 mt-1 leading-snug">Intemperie moderada, aleros, patios y terrazas (&gt;600 ciclos). 3-4 años.</p>
                         <div className="mt-2 pt-2 border-t border-slate-200 flex items-center justify-between text-[11px]">
                           <span className="text-slate-500 font-medium">Cuñete:</span>
-                          <strong className="text-slate-900 font-mono font-bold">$315.000 COP</strong>
+                          <strong className="text-slate-900 font-mono font-bold">
+                            {formatCOP(getPaintTypePrice('Exterior Tipo 2', formData.marcaPintura).precioCunete)}
+                          </strong>
                         </div>
                       </button>
 
@@ -741,7 +836,9 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         <p className="text-[10px] text-slate-600 mt-1 leading-snug">Capa base para regularizar mampostería nueva o cerramientos provisionales. 1 año.</p>
                         <div className="mt-2 pt-2 border-t border-slate-200 flex items-center justify-between text-[11px]">
                           <span className="text-slate-500 font-medium">Cuñete:</span>
-                          <strong className="text-slate-900 font-mono font-bold">$215.000 COP</strong>
+                          <strong className="text-slate-900 font-mono font-bold">
+                            {formatCOP(getPaintTypePrice('Exterior Tipo 3', formData.marcaPintura).precioCunete)}
+                          </strong>
                         </div>
                       </button>
                     </div>
@@ -767,7 +864,9 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         <p className="text-[10px] text-slate-600 mt-1 leading-snug">Superlavable (&gt;800 ciclos). Muros de salas, pasillos, cocinas y clínicas. 4-5 años.</p>
                         <div className="mt-2 pt-2 border-t border-slate-200 flex items-center justify-between text-[11px]">
                           <span className="text-slate-500 font-medium">Cuñete:</span>
-                          <strong className="text-slate-900 font-mono font-bold">$320.000 COP</strong>
+                          <strong className="text-slate-900 font-mono font-bold">
+                            {formatCOP(getPaintTypePrice('Interior Tipo 1', formData.marcaPintura).precioCunete)}
+                          </strong>
                         </div>
                       </button>
 
@@ -791,7 +890,9 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         <p className="text-[10px] text-slate-600 mt-1 leading-snug">Lavabilidad media (&gt;400 ciclos). Habitaciones, alcobas y zonas secas. 3-4 años.</p>
                         <div className="mt-2 pt-2 border-t border-slate-200 flex items-center justify-between text-[11px]">
                           <span className="text-slate-500 font-medium">Cuñete:</span>
-                          <strong className="text-slate-900 font-mono font-bold">$260.000 COP</strong>
+                          <strong className="text-slate-900 font-mono font-bold">
+                            {formatCOP(getPaintTypePrice('Interior Tipo 2', formData.marcaPintura).precioCunete)}
+                          </strong>
                         </div>
                       </button>
 
@@ -815,7 +916,9 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         <p className="text-[10px] text-slate-600 mt-1 leading-snug">Cero abrasión / No lavable (&lt;100 ciclos). Techos y placas de drywall. 1-2 años.</p>
                         <div className="mt-2 pt-2 border-t border-slate-200 flex items-center justify-between text-[11px]">
                           <span className="text-slate-500 font-medium">Cuñete:</span>
-                          <strong className="text-slate-900 font-mono font-bold">$185.000 COP</strong>
+                          <strong className="text-slate-900 font-mono font-bold">
+                            {formatCOP(getPaintTypePrice('Interior Tipo 3', formData.marcaPintura).precioCunete)}
+                          </strong>
                         </div>
                       </button>
                     </div>
@@ -859,11 +962,293 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                   </div>
                 </div>
 
+                {/* SELECTOR OFICIAL DE MÉTODO DE PAGO */}
+                <div className="bg-white rounded-3xl p-5 sm:p-6 border-2 border-indigo-100 shadow-xs space-y-4">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
+                        <CreditCard className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-black text-sm text-slate-900">
+                          ¿Cómo deseas realizar el pago de este pedido?
+                        </h4>
+                        <p className="text-xs text-slate-500">
+                          Selecciona tu método de pago oficial para facturación, despacho y emisión de recibo.
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-200">
+                      Transacción Segura Colorlink
+                    </span>
+                  </div>
+
+                  {/* Opciones de Métodos de Pago */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {/* 1. Bancolombia Transferencia / QR */}
+                    <div
+                      onClick={() => handleInputChange('metodoPago', 'bancolombia')}
+                      className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
+                        (formData.metodoPago || 'bancolombia') === 'bancolombia'
+                          ? 'border-yellow-500 bg-yellow-50/50 shadow-xs ring-2 ring-yellow-400/20'
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="font-black text-xs text-slate-900">Bancolombia / QR</span>
+                        <span className="text-[9px] font-bold bg-yellow-500 text-slate-900 px-2 py-0.5 rounded-md">
+                          Sin comisión
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 leading-snug">
+                        Transferencia electrónica a Cuenta de Ahorros o escaneo de código QR oficial.
+                      </p>
+                    </div>
+
+                    {/* 2. PSE Débito en Línea */}
+                    <div
+                      onClick={() => handleInputChange('metodoPago', 'pse')}
+                      className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
+                        formData.metodoPago === 'pse'
+                          ? 'border-blue-600 bg-blue-50/60 shadow-xs ring-2 ring-blue-500/20'
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="font-black text-xs text-slate-900">PSE Débito en Línea</span>
+                        <span className="text-[9px] font-bold bg-blue-600 text-white px-2 py-0.5 rounded-md">
+                          Todos los bancos
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 leading-snug">
+                        Débito seguro desde cuenta corriente o ahorros de cualquier banco colombiano.
+                      </p>
+                    </div>
+
+                    {/* 3. Nequi / Daviplata */}
+                    <div
+                      onClick={() => handleInputChange('metodoPago', 'nequi')}
+                      className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
+                        formData.metodoPago === 'nequi'
+                          ? 'border-fuchsia-600 bg-fuchsia-50/60 shadow-xs ring-2 ring-fuchsia-500/20'
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="font-black text-xs text-slate-900">Nequi / Daviplata</span>
+                        <span className="text-[9px] font-bold bg-fuchsia-600 text-white px-2 py-0.5 rounded-md">
+                          Al instante
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 leading-snug">
+                        Envío directo a la línea corporativa Colorlink desde tu celular con QR o número.
+                      </p>
+                    </div>
+
+                    {/* 4. Contra Entrega en Obra */}
+                    <div
+                      onClick={() => handleInputChange('metodoPago', 'contraentrega')}
+                      className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
+                        formData.metodoPago === 'contraentrega'
+                          ? 'border-emerald-600 bg-emerald-50/60 shadow-xs ring-2 ring-emerald-500/20'
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="font-black text-xs text-slate-900">Contra Entrega en Obra</span>
+                        <span className="text-[9px] font-bold bg-emerald-600 text-white px-2 py-0.5 rounded-md">
+                          En sitio
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 leading-snug">
+                        Paga en efectivo o datáfono móvil inalámbrico al recibir los cuñetes en obra.
+                      </p>
+                    </div>
+
+                    {/* 5. Crédito Corporativo 30 Días */}
+                    <div
+                      onClick={() => handleInputChange('metodoPago', 'credito')}
+                      className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
+                        formData.metodoPago === 'credito'
+                          ? 'border-purple-600 bg-purple-50/60 shadow-xs ring-2 ring-purple-500/20'
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="font-black text-xs text-slate-900">Crédito 30 Días (NIT)</span>
+                        <span className="text-[9px] font-bold bg-purple-600 text-white px-2 py-0.5 rounded-md">
+                          Empresas
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 leading-snug">
+                        Factura electrónica DIAN a 30 días para constructoras y contratistas registrados.
+                      </p>
+                    </div>
+
+                    {/* 6. Tarjeta de Crédito / Débito */}
+                    <div
+                      onClick={() => handleInputChange('metodoPago', 'tarjeta')}
+                      className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
+                        formData.metodoPago === 'tarjeta'
+                          ? 'border-indigo-600 bg-indigo-50/60 shadow-xs ring-2 ring-indigo-500/20'
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="font-black text-xs text-slate-900">Tarjeta Crédito / Débito</span>
+                        <span className="text-[9px] font-bold bg-indigo-600 text-white px-2 py-0.5 rounded-md">
+                          Hasta 12 cuotas
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 leading-snug">
+                        Procesamiento en línea para tarjetas Visa, Mastercard o American Express.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Detalles Dinámicos según Método de Pago Seleccionado */}
+                  {(formData.metodoPago || 'bancolombia') === 'bancolombia' && (
+                    <div className="p-4 rounded-2xl bg-yellow-50/80 border border-yellow-200 space-y-3">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                        <div>
+                          <span className="text-[11px] font-bold text-yellow-900 uppercase tracking-wider block">
+                            Datos Bancarios Oficiales Colorlink S.A.S.
+                          </span>
+                          <p className="text-xs text-yellow-800 mt-0.5">
+                            Realiza tu transferencia por App Bancolombia, Sucursal Virtual o Corresponsal Bancario.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText('24589104512');
+                            setCopiedBankInfo(true);
+                            setTimeout(() => setCopiedBankInfo(false), 3000);
+                          }}
+                          className="px-3 py-1.5 bg-yellow-400 hover:bg-yellow-500 text-slate-900 text-xs font-black rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>{copiedBankInfo ? '¡Copiado!' : 'Copiar Cuenta'}</span>
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                        <div className="bg-white p-2.5 rounded-xl border border-yellow-200">
+                          <span className="text-[10px] text-slate-500 block">Tipo & Número de Cuenta</span>
+                          <strong className="text-sm font-black text-slate-900 font-mono">Ahorros: 245-891045-12</strong>
+                        </div>
+                        <div className="bg-white p-2.5 rounded-xl border border-yellow-200">
+                          <span className="text-[10px] text-slate-500 block">Titular de la Cuenta</span>
+                          <strong className="text-xs font-black text-slate-900">COLORLINK PINTURAS S.A.S.</strong>
+                        </div>
+                        <div className="bg-white p-2.5 rounded-xl border border-yellow-200">
+                          <span className="text-[10px] text-slate-500 block">NIT de la Empresa</span>
+                          <strong className="text-xs font-black text-slate-900 font-mono">900.854.219-3</strong>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {formData.metodoPago === 'pse' && (
+                    <div className="p-4 rounded-2xl bg-blue-50/80 border border-blue-200 space-y-3">
+                      <span className="text-[11px] font-bold text-blue-900 uppercase tracking-wider block">
+                        Pasarela Segura PSE • Selecciona tu Banco
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                        <div>
+                          <label className="text-[11px] font-bold text-slate-700 block mb-1">Banco Emisor *</label>
+                          <select
+                            value={selectedBankPSE}
+                            onChange={(e) => {
+                              setSelectedBankPSE(e.target.value);
+                              handleInputChange('bancoPSE', e.target.value);
+                            }}
+                            className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+                          >
+                            <option value="Bancolombia">Bancolombia</option>
+                            <option value="Banco de Bogotá">Banco de Bogotá</option>
+                            <option value="Davivienda">Davivienda</option>
+                            <option value="BBVA Colombia">BBVA Colombia</option>
+                            <option value="Banco de Occidente">Banco de Occidente</option>
+                            <option value="Banco Popular">Banco Popular</option>
+                            <option value="Scotiabank Colpatria">Scotiabank Colpatria</option>
+                            <option value="Banco Caja Social">Banco Caja Social</option>
+                            <option value="Nequi">Nequi</option>
+                            <option value="Daviplata">Daviplata</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[11px] font-bold text-slate-700 block mb-1">Tipo de Cliente *</label>
+                          <select className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium">
+                            <option value="juridica">Persona Jurídica (Empresa / NIT)</option>
+                            <option value="natural">Persona Natural (C.C.)</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {formData.metodoPago === 'nequi' && (
+                    <div className="p-4 rounded-2xl bg-fuchsia-50/80 border border-fuchsia-200 space-y-3">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                        <div>
+                          <span className="text-[11px] font-bold text-fuchsia-950 uppercase tracking-wider block">
+                            Pago Inmediato Nequi / Daviplata
+                          </span>
+                          <p className="text-xs text-fuchsia-800 mt-0.5">
+                            Envía a la línea corporativa autorizada o escanea el QR desde tu aplicación móvil.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText('3212460658');
+                            setCopiedBankInfo(true);
+                            setTimeout(() => setCopiedBankInfo(false), 3000);
+                          }}
+                          className="px-3 py-1.5 bg-fuchsia-600 hover:bg-fuchsia-700 text-white text-xs font-black rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>{copiedBankInfo ? '¡Número Copiado!' : 'Copiar Celular'}</span>
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-fuchsia-200">
+                        <div className="w-10 h-10 rounded-xl bg-fuchsia-100 text-fuchsia-800 flex items-center justify-center font-bold shrink-0">
+                          <Phone className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <strong className="text-base font-black text-slate-900 font-mono">+57 321 246 0658</strong>
+                          <span className="text-[11px] text-slate-500 block">Titular: Colorlink Pinturas Oficial</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {formData.metodoPago === 'contraentrega' && (
+                    <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200 text-xs text-emerald-900 space-y-1">
+                      <strong className="block font-black text-sm">Pago Contra Entrega Habilitado para {formData.ciudad || 'tu ciudad'}</strong>
+                      <p className="leading-relaxed">
+                        El conductor del camión de reparto Colorlink llevará datáfono móvil inalámbrico para tarjetas débito/crédito, o podrás entregar el valor exacto en efectivo recibiendo tu factura fiscal física.
+                      </p>
+                    </div>
+                  )}
+
+                  {formData.metodoPago === 'credito' && (
+                    <div className="p-4 rounded-2xl bg-purple-50/80 border border-purple-200 text-xs text-purple-900 space-y-1">
+                      <strong className="block font-black text-sm">Crédito Corporativo 30 Días para NIT {formData.nitDocumento || 'Empresarial'}</strong>
+                      <p className="leading-relaxed">
+                        Se emitirá Factura Electrónica con plazo comercial a 30 días calendario respaldada por orden de compra corporativa.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
                 {/* NOTA INFORMATIVA DE EMISIÓN DE RECIBO OFICIAL */}
                 <div className="p-3.5 bg-sky-50/60 rounded-2xl border border-sky-100 text-xs text-slate-700 flex items-start gap-2.5">
                   <Lock className="w-4 h-4 text-[#009FE3] shrink-0 mt-0.5" />
                   <p className="leading-relaxed">
-                    <strong>Generación Oficial de Recibo:</strong> El recibo formal con firma fiscal, código QR de certificación y la orden de entrega en ruta se generarán y enviarán a su correo <strong>{formData.emailResponsable}</strong> inmediatamente después de presionar <strong>"Aceptar Cotización"</strong>.
+                    <strong>Generación Oficial de Recibo:</strong> El recibo formal con firma fiscal, código QR de certificación y la orden de entrega en ruta se generarán y enviarán a su correo <strong>{formData.emailResponsable}</strong> inmediatamente después de presionar <strong>"Aceptar Cotización"</strong> con el método de pago seleccionado.
                   </p>
                 </div>
 
@@ -1516,44 +1901,6 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
             <ColorlinkConfettiDots className="absolute inset-0 z-0" />
 
             <div className="relative z-10">
-              {/* Barra de estado: Modo Simulación vs Modo Real */}
-              <div className="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
-                <div className="flex items-center gap-2">
-                  <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
-                    internalIsSim
-                      ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                      : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
-                  }`}>
-                    <span className={`w-2 h-2 rounded-full ${internalIsSim ? 'bg-amber-500' : 'bg-emerald-600'}`}></span>
-                    {internalIsSim ? 'Modo Simulación Activo (Caso Constructora Horizonte)' : 'Modo Real (Opciones por seleccionar)'}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {internalIsSim ? (
-                    <button
-                      type="button"
-                      onClick={resetForm}
-                      className="px-3 py-1.5 text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 rounded-xl border border-slate-200 shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer"
-                      title="Limpiar todas las opciones para que salgan en 'Seleccionar...'"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
-                      <span>Limpiar a Modo Real (Sin Simulación)</span>
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={handleLoadCaseStudy}
-                      className="px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-xl border border-blue-200 shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer"
-                      title="Cargar datos simulados de Constructora Horizonte"
-                    >
-                      <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-                      <span>Cargar Simulación Horizonte</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="space-y-1.5">
                   <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
@@ -1725,7 +2072,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         </div>
                         <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100/80 px-2.5 py-1 rounded-full w-fit">
                           <CheckCircle2 className="w-3.5 h-3.5" />
-                          {internalIsSim ? 'Caso Simulado' : 'Cuenta Registrada'}
+                          <span>Cliente Verificado</span>
                         </span>
                       </div>
                     ) : (
@@ -2008,17 +2355,90 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                     </div>
 
                     {/* Selector de Tipo de Pintura: Tipo 1, 2 y 3 para Exterior e Interior (Norma NTC 1335 / NTC 5828) */}
-                    <div className="pt-2 space-y-3">
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                    <div className="pt-2 space-y-4">
+                      {/* 1. SELECCIÓN DE MARCAS DE PINTURAS */}
+                      <div className="bg-gradient-to-r from-purple-50/70 via-indigo-50/50 to-pink-50/60 p-4 sm:p-5 rounded-2xl border border-purple-200/80 space-y-3">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-lg bg-purple-600 text-white flex items-center justify-center font-bold text-xs shadow-2xs">
+                              🎨
+                            </div>
+                            <div>
+                              <span className="text-xs font-black text-slate-900 uppercase tracking-wider block">
+                                Marcas de Pintura Certificadas & Tarifas
+                              </span>
+                              <span className="text-[11px] text-slate-500">
+                                💡 Dependiendo de la marca seleccionada, los precios de cuñetes, galones y presupuesto total se actualizan en tiempo real:
+                              </span>
+                            </div>
+                          </div>
+                          <span className="text-xs font-black text-purple-700 bg-white px-3 py-1 rounded-full border border-purple-200 shadow-2xs">
+                            Marca Activa: {formData.marcaPintura || 'Pintuco®'}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+                          {AVAILABLE_PAINT_BRANDS.map((brand) => {
+                            const isSelected = (formData.marcaPintura || 'Pintuco®') === brand.name;
+                            return (
+                              <button
+                                key={brand.id}
+                                type="button"
+                                onClick={() => handleInputChange('marcaPintura', brand.name)}
+                                className={`p-3 rounded-2xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between ${
+                                  isSelected
+                                    ? 'border-purple-600 bg-white shadow-md ring-2 ring-purple-500/25 scale-[1.02]'
+                                    : 'border-slate-200 hover:border-purple-300 bg-white/90 hover:bg-white'
+                                }`}
+                              >
+                                <div>
+                                  <div className="flex items-center justify-between gap-1 mb-1">
+                                    <span className="font-black text-xs text-slate-900 leading-tight">
+                                      {brand.name}
+                                    </span>
+                                    {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-purple-600 shrink-0" />}
+                                  </div>
+                                  <span className="text-[10px] text-purple-700 font-semibold block leading-tight">
+                                    {brand.popularProduct}
+                                  </span>
+
+                                  {/* Badge de Tarifa */}
+                                  <div className="mt-2">
+                                    <span className={`inline-block text-[9px] font-black px-1.5 py-0.5 rounded-md ${
+                                      brand.ahorroPorcentaje < 0
+                                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                        : brand.ahorroPorcentaje > 0
+                                        ? 'bg-sky-100 text-sky-800 border border-sky-200'
+                                        : 'bg-slate-100 text-slate-700 border border-slate-200'
+                                    }`}>
+                                      {brand.etiquetaPrecio}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="mt-2 pt-2 border-t border-slate-100">
+                                  <span className="text-[9px] text-slate-400 block font-medium">Cuñete Tipo 1:</span>
+                                  <strong className="text-xs font-mono font-black text-slate-900 block">
+                                    {formatCOP(brand.precioRefCuneteT1)}
+                                  </strong>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Encabezado y Diagnóstico con IA */}
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pt-1">
                         <div>
                           <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                            <span>Tipo de Pintura Requerido (Norma Técnica Colombiana NTC 1335 / NTC 5828)</span>
+                            <span>Especificación Técnica (Norma Técnica Colombiana NTC 1335 / NTC 5828)</span>
                             <span className="text-[10px] bg-sky-100 text-[#003882] px-2 py-0.5 rounded-full font-bold">
-                              Tipo 1, 2 y 3 (Exterior & Interior)
+                              Tipo 1, 2 y 3
                             </span>
                           </label>
                           <p className="text-[11px] text-slate-500">
-                            Selecciona la línea técnica requerida según resistencia al frote húmedo y durabilidad.
+                            Fotos de referencia reales y características técnicas ordenadas para elegir la mejor especificación.
                           </p>
                         </div>
                         <button
@@ -2031,7 +2451,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         </button>
                       </div>
 
-                      {/* Desplegable Directo de Tipo de Pintura (Sale 'Seleccionar...' en Modo Real) */}
+                      {/* Desplegable Rápido de Tipo de Pintura */}
                       <div>
                         <select
                           id="standalone-select-tipo-pintura"
@@ -2061,201 +2481,441 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       </div>
 
                       {/* Pestañas de Alternancia: Línea Exterior vs Línea Interior */}
-                      <div className="flex items-center gap-2 p-1 bg-slate-100/90 rounded-2xl border border-slate-200">
+                      <div className="flex items-center gap-2 p-1.5 bg-slate-100/90 rounded-2xl border border-slate-200">
                         <button
                           type="button"
                           onClick={() => setActivePaintLine('Exterior')}
-                          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                          className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
                             activePaintLine === 'Exterior'
-                              ? 'bg-white text-slate-900 shadow-xs border border-slate-200'
+                              ? 'bg-white text-slate-900 shadow-sm border border-slate-200'
                               : 'text-slate-600 hover:text-slate-900'
                           }`}
                         >
                           <span>🌤️ Línea Exterior (Tipo 1, 2 y 3 Fachadas)</span>
                           {formData.tipoPintura?.includes('Exterior') && (
-                            <span className="w-2 h-2 rounded-full bg-[#009FE3]"></span>
+                            <span className="w-2.5 h-2.5 rounded-full bg-[#009FE3]"></span>
                           )}
                         </button>
                         <button
                           type="button"
                           onClick={() => setActivePaintLine('Interior')}
-                          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                          className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
                             activePaintLine === 'Interior'
-                              ? 'bg-white text-slate-900 shadow-xs border border-slate-200'
+                              ? 'bg-white text-slate-900 shadow-sm border border-slate-200'
                               : 'text-slate-600 hover:text-slate-900'
                           }`}
                         >
                           <span>🏠 Línea Interior (Tipo 1, 2 y 3 Muros & Cielos)</span>
                           {formData.tipoPintura?.includes('Interior') && (
-                            <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>
                           )}
                         </button>
                       </div>
 
-                      {/* Tarjetas según la Línea Seleccionada */}
+                      {/* Tarjetas según la Línea Seleccionada con Fotos de Referencia Reales y Diseño Espacioso */}
                       {activePaintLine === 'Exterior' ? (
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                           {/* Exterior Tipo 1 */}
                           <div
                             onClick={() => handleInputChange('tipoPintura', 'Exterior Tipo 1')}
-                            className={`p-4 rounded-2xl border-2 cursor-pointer transition-all ${
+                            className={`rounded-2xl border-2 cursor-pointer transition-all overflow-hidden flex flex-col justify-between ${
                               formData.tipoPintura === 'Exterior Tipo 1' || formData.tipoPintura === 'Tipo 1'
-                                ? 'border-[#009FE3] bg-sky-50/80 shadow-xs ring-2 ring-[#009FE3]/25'
-                                : 'border-slate-200 hover:border-slate-300 bg-white'
+                                ? 'border-[#009FE3] bg-sky-50/60 shadow-md ring-2 ring-[#009FE3]/30'
+                                : 'border-slate-200 hover:border-sky-300 bg-white hover:shadow-sm'
                             }`}
                           >
-                            <div className="flex items-center justify-between mb-1.5">
-                              <span className="font-black text-xs text-slate-900">Exterior Tipo 1</span>
-                              <span className="text-[10px] font-bold bg-[#009FE3] text-white px-2 py-0.5 rounded-md">
-                                100% Acrílica Fachadas
-                              </span>
+                            <div>
+                              {/* Foto de Referencia Real */}
+                              <div className="relative h-40 w-full overflow-hidden bg-slate-100">
+                                <img
+                                  src={facadeRefImg}
+                                  alt="Fachada Exterior Tipo 1"
+                                  className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                                />
+                                <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-[10px] font-black bg-[#009FE3] text-white px-2.5 py-1 rounded-md shadow-xs uppercase tracking-wider">
+                                    Exterior Tipo 1
+                                  </span>
+                                  <span className="text-[10px] font-bold bg-slate-900/80 backdrop-blur-xs text-white px-2 py-0.5 rounded-md">
+                                    {formData.marcaPintura || 'Pintuco®'}
+                                  </span>
+                                </div>
+                                <span className="absolute bottom-2 right-2 text-[10px] font-bold bg-white/95 text-slate-800 px-2 py-0.5 rounded-md shadow-2xs">
+                                  Foto Referencia Obra
+                                </span>
+                              </div>
+
+                              <div className="p-4 space-y-2.5">
+                                <div>
+                                  <h4 className="font-black text-sm text-slate-900">
+                                    {formData.marcaPintura || 'Pintuco®'} • 100% Acrílica Fachadas
+                                  </h4>
+                                  <span className="text-[11px] font-bold text-sky-700 block">
+                                    Máxima Resistencia Intemperie & Lavabilidad Superior
+                                  </span>
+                                </div>
+
+                                <ul className="text-[11px] text-slate-600 space-y-1.5 pt-1">
+                                  <li className="flex items-center gap-1.5">
+                                    <Check className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                                    <span>Superlavable (&gt;1.200 ciclos de lavado bajo NTC 1335)</span>
+                                  </li>
+                                  <li className="flex items-center gap-1.5">
+                                    <Check className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                                    <span>Filtro solar UV y alta resistencia a sol directo y lluvias</span>
+                                  </li>
+                                  <li className="flex items-center gap-1.5">
+                                    <Check className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                                    <span>Garantía y durabilidad: <strong>5 a 7 años certificados</strong></span>
+                                  </li>
+                                </ul>
+                              </div>
                             </div>
-                            <span className="text-[11px] font-bold text-sky-800 block mb-1">
-                              Colorlink Koraza Pro Fachadas
-                            </span>
-                            <p className="text-[11px] text-slate-600 leading-snug">
-                              Máxima lavabilidad (&gt;1.200 ciclos), filtro UV solar, protección antimoho e impermeabilidad total a lluvias torrenciales.
-                            </p>
-                            <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex items-center justify-between text-[11px]">
-                              <span className="text-slate-500 font-medium">Garantía: 5-7 años</span>
-                              <strong className="text-slate-900 font-mono font-bold">$398.000 / Cuñete</strong>
+
+                            <div className="p-4 pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                              <span className="text-slate-500 font-medium">
+                                Galón: {formatCOP(getPaintTypePrice('Exterior Tipo 1', formData.marcaPintura).precioGalon)}
+                              </span>
+                              <strong className="text-slate-900 font-mono font-black text-sm bg-sky-100/70 text-sky-950 px-2.5 py-1 rounded-lg">
+                                {formatCOP(getPaintTypePrice('Exterior Tipo 1', formData.marcaPintura).precioCunete)} / Cuñete
+                              </strong>
                             </div>
                           </div>
 
                           {/* Exterior Tipo 2 */}
                           <div
                             onClick={() => handleInputChange('tipoPintura', 'Exterior Tipo 2')}
-                            className={`p-4 rounded-2xl border-2 cursor-pointer transition-all ${
+                            className={`rounded-2xl border-2 cursor-pointer transition-all overflow-hidden flex flex-col justify-between ${
                               formData.tipoPintura === 'Exterior Tipo 2'
-                                ? 'border-sky-600 bg-sky-50/80 shadow-xs ring-2 ring-sky-500/25'
-                                : 'border-slate-200 hover:border-slate-300 bg-white'
+                                ? 'border-sky-600 bg-sky-50/60 shadow-md ring-2 ring-sky-500/30'
+                                : 'border-slate-200 hover:border-slate-300 bg-white hover:shadow-sm'
                             }`}
                           >
-                            <div className="flex items-center justify-between mb-1.5">
-                              <span className="font-black text-xs text-slate-900">Exterior Tipo 2</span>
-                              <span className="text-[10px] font-bold bg-sky-700 text-white px-2 py-0.5 rounded-md">
-                                Fachada Estándar
-                              </span>
+                            <div>
+                              {/* Foto de Referencia Real */}
+                              <div className="relative h-40 w-full overflow-hidden bg-slate-100">
+                                <img
+                                  src={exteriorT2RefImg}
+                                  alt="Fachada Exterior Tipo 2"
+                                  className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                                />
+                                <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-[10px] font-black bg-sky-700 text-white px-2.5 py-1 rounded-md shadow-xs uppercase tracking-wider">
+                                    Exterior Tipo 2
+                                  </span>
+                                  <span className="text-[10px] font-bold bg-slate-900/80 backdrop-blur-xs text-white px-2 py-0.5 rounded-md">
+                                    {formData.marcaPintura || 'Pintuco®'}
+                                  </span>
+                                </div>
+                                <span className="absolute bottom-2 right-2 text-[10px] font-bold bg-white/95 text-slate-800 px-2 py-0.5 rounded-md shadow-2xs">
+                                  Foto Referencia Obra
+                                </span>
+                              </div>
+
+                              <div className="p-4 space-y-2.5">
+                                <div>
+                                  <h4 className="font-black text-sm text-slate-900">
+                                    {formData.marcaPintura || 'Pintuco®'} • Vinil-Acrílica Fachada
+                                  </h4>
+                                  <span className="text-[11px] font-bold text-sky-800 block">
+                                    Fachada Estándar & Muros Exteriores Protegidos
+                                  </span>
+                                </div>
+
+                                <ul className="text-[11px] text-slate-600 space-y-1.5 pt-1">
+                                  <li className="flex items-center gap-1.5">
+                                    <Check className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                                    <span>Resistencia a intemperie moderada (&gt;600 ciclos)</span>
+                                  </li>
+                                  <li className="flex items-center gap-1.5">
+                                    <Check className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                                    <span>Ideal para aleros, terrazas techadas y cerramientos</span>
+                                  </li>
+                                  <li className="flex items-center gap-1.5">
+                                    <Check className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                                    <span>Durabilidad esperada: <strong>3 a 4 años</strong></span>
+                                  </li>
+                                </ul>
+                              </div>
                             </div>
-                            <span className="text-[11px] font-bold text-sky-800 block mb-1">
-                              Colorlink Vinil-Acrílica Exterior
-                            </span>
-                            <p className="text-[11px] text-slate-600 leading-snug">
-                              Resistencia a intemperie moderada (&gt;600 ciclos). Ideal para muros exteriores protegidos, aleros, terrazas cubiertas y patios.
-                            </p>
-                            <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex items-center justify-between text-[11px]">
-                              <span className="text-slate-500 font-medium">Durabilidad: 3-4 años</span>
-                              <strong className="text-slate-900 font-mono font-bold">$315.000 / Cuñete</strong>
+
+                            <div className="p-4 pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                              <span className="text-slate-500 font-medium">
+                                Galón: {formatCOP(getPaintTypePrice('Exterior Tipo 2', formData.marcaPintura).precioGalon)}
+                              </span>
+                              <strong className="text-slate-900 font-mono font-black text-sm bg-slate-100 text-slate-900 px-2.5 py-1 rounded-lg">
+                                {formatCOP(getPaintTypePrice('Exterior Tipo 2', formData.marcaPintura).precioCunete)} / Cuñete
+                              </strong>
                             </div>
                           </div>
 
                           {/* Exterior Tipo 3 */}
                           <div
                             onClick={() => handleInputChange('tipoPintura', 'Exterior Tipo 3')}
-                            className={`p-4 rounded-2xl border-2 cursor-pointer transition-all ${
+                            className={`rounded-2xl border-2 cursor-pointer transition-all overflow-hidden flex flex-col justify-between ${
                               formData.tipoPintura === 'Exterior Tipo 3'
-                                ? 'border-indigo-600 bg-indigo-50/80 shadow-xs ring-2 ring-indigo-500/25'
-                                : 'border-slate-200 hover:border-slate-300 bg-white'
+                                ? 'border-indigo-600 bg-indigo-50/60 shadow-md ring-2 ring-indigo-500/30'
+                                : 'border-slate-200 hover:border-slate-300 bg-white hover:shadow-sm'
                             }`}
                           >
-                            <div className="flex items-center justify-between mb-1.5">
-                              <span className="font-black text-xs text-slate-900">Exterior Tipo 3</span>
-                              <span className="text-[10px] font-bold bg-indigo-600 text-white px-2 py-0.5 rounded-md">
-                                Fondeo / Cerramientos
-                              </span>
+                            <div>
+                              {/* Foto de Referencia Real */}
+                              <div className="relative h-40 w-full overflow-hidden bg-slate-100">
+                                <img
+                                  src={exteriorT3RefImg}
+                                  alt="Fondeo Imprimante Exterior"
+                                  className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                                />
+                                <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-[10px] font-black bg-indigo-700 text-white px-2.5 py-1 rounded-md shadow-xs uppercase tracking-wider">
+                                    Exterior Tipo 3
+                                  </span>
+                                  <span className="text-[10px] font-bold bg-slate-900/80 backdrop-blur-xs text-white px-2 py-0.5 rounded-md">
+                                    {formData.marcaPintura || 'Pintuco®'}
+                                  </span>
+                                </div>
+                                <span className="absolute bottom-2 right-2 text-[10px] font-bold bg-white/95 text-slate-800 px-2 py-0.5 rounded-md shadow-2xs">
+                                  Foto Referencia Obra
+                                </span>
+                              </div>
+
+                              <div className="p-4 space-y-2.5">
+                                <div>
+                                  <h4 className="font-black text-sm text-slate-900">
+                                    {formData.marcaPintura || 'Pintuco®'} • Base Imprimante & Fondeo
+                                  </h4>
+                                  <span className="text-[11px] font-bold text-indigo-900 block">
+                                    Regularización de Absorción & Cerramientos
+                                  </span>
+                                </div>
+
+                                <ul className="text-[11px] text-slate-600 space-y-1.5 pt-1">
+                                  <li className="flex items-center gap-1.5">
+                                    <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                                    <span>Capa base de impregnación para revoque exterior nuevo</span>
+                                  </li>
+                                  <li className="flex items-center gap-1.5">
+                                    <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                                    <span>Económica para cerramientos provisionales de obra</span>
+                                  </li>
+                                  <li className="flex items-center gap-1.5">
+                                    <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                                    <span>Fondeo permanente / 1 año de acabado</span>
+                                  </li>
+                                </ul>
+                              </div>
                             </div>
-                            <span className="text-[11px] font-bold text-indigo-900 block mb-1">
-                              Colorlink Base Imprimante Fachada
-                            </span>
-                            <p className="text-[11px] text-slate-600 leading-snug">
-                              Capa base de impregnación para regularizar revoques nuevos en exteriores o pintura económica de cerramientos de obra.
-                            </p>
-                            <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex items-center justify-between text-[11px]">
-                              <span className="text-slate-500 font-medium">Fondeo / 1 año</span>
-                              <strong className="text-slate-900 font-mono font-bold">$215.000 / Cuñete</strong>
+
+                            <div className="p-4 pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                              <span className="text-slate-500 font-medium">
+                                Galón: {formatCOP(getPaintTypePrice('Exterior Tipo 3', formData.marcaPintura).precioGalon)}
+                              </span>
+                              <strong className="text-slate-900 font-mono font-black text-sm bg-slate-100 text-slate-900 px-2.5 py-1 rounded-lg">
+                                {formatCOP(getPaintTypePrice('Exterior Tipo 3', formData.marcaPintura).precioCunete)} / Cuñete
+                              </strong>
                             </div>
                           </div>
                         </div>
                       ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                           {/* Interior Tipo 1 */}
                           <div
                             onClick={() => handleInputChange('tipoPintura', 'Interior Tipo 1')}
-                            className={`p-4 rounded-2xl border-2 cursor-pointer transition-all ${
+                            className={`rounded-2xl border-2 cursor-pointer transition-all overflow-hidden flex flex-col justify-between ${
                               formData.tipoPintura === 'Interior Tipo 1'
-                                ? 'border-emerald-600 bg-emerald-50/80 shadow-xs ring-2 ring-emerald-500/25'
-                                : 'border-slate-200 hover:border-slate-300 bg-white'
+                                ? 'border-emerald-600 bg-emerald-50/60 shadow-md ring-2 ring-emerald-500/30'
+                                : 'border-slate-200 hover:border-slate-300 bg-white hover:shadow-sm'
                             }`}
                           >
-                            <div className="flex items-center justify-between mb-1.5">
-                              <span className="font-black text-xs text-emerald-950">Interior Tipo 1</span>
-                              <span className="text-[10px] font-bold bg-emerald-600 text-white px-2 py-0.5 rounded-md">
-                                Superlavable Pro
-                              </span>
+                            <div>
+                              {/* Foto de Referencia Real */}
+                              <div className="relative h-40 w-full overflow-hidden bg-slate-100">
+                                <img
+                                  src={interiorRefImg}
+                                  alt="Interior Tipo 1 Superlavable"
+                                  className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                                />
+                                <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-[10px] font-black bg-emerald-700 text-white px-2.5 py-1 rounded-md shadow-xs uppercase tracking-wider">
+                                    Interior Tipo 1
+                                  </span>
+                                  <span className="text-[10px] font-bold bg-slate-900/80 backdrop-blur-xs text-white px-2 py-0.5 rounded-md">
+                                    {formData.marcaPintura || 'Pintuco®'}
+                                  </span>
+                                </div>
+                                <span className="absolute bottom-2 right-2 text-[10px] font-bold bg-white/95 text-slate-800 px-2 py-0.5 rounded-md shadow-2xs">
+                                  Foto Referencia Obra
+                                </span>
+                              </div>
+
+                              <div className="p-4 space-y-2.5">
+                                <div>
+                                  <h4 className="font-black text-sm text-slate-900">
+                                    {formData.marcaPintura || 'Pintuco®'} • Vinilo Pro Superlavable
+                                  </h4>
+                                  <span className="text-[11px] font-bold text-emerald-800 block">
+                                    Superlavable Muros de Alto Tráfico
+                                  </span>
+                                </div>
+
+                                <ul className="text-[11px] text-slate-600 space-y-1.5 pt-1">
+                                  <li className="flex items-center gap-1.5">
+                                    <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                    <span>Superlavable (&gt;800 ciclos con agua y jabón)</span>
+                                  </li>
+                                  <li className="flex items-center gap-1.5">
+                                    <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                    <span>Máxima remoción de manchas domésticas y grasa</span>
+                                  </li>
+                                  <li className="flex items-center gap-1.5">
+                                    <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                    <span>Salas, pasillos, cocinas, consultorios • <strong>4-5 años</strong></span>
+                                  </li>
+                                </ul>
+                              </div>
                             </div>
-                            <span className="text-[11px] font-bold text-emerald-800 block mb-1">
-                              Colorlink Vinilo Pro Interior Superlavable
-                            </span>
-                            <p className="text-[11px] text-slate-600 leading-snug">
-                              Superlavable (&gt;800 ciclos de lavado). Máxima remoción de manchas y grasa. Muros de alto tráfico, salas, pasillos, cocinas y consultorios.
-                            </p>
-                            <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex items-center justify-between text-[11px]">
-                              <span className="text-slate-500 font-medium">Durabilidad: 4-5 años</span>
-                              <strong className="text-slate-900 font-mono font-bold">$320.000 / Cuñete</strong>
+
+                            <div className="p-4 pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                              <span className="text-slate-500 font-medium">
+                                Galón: {formatCOP(getPaintTypePrice('Interior Tipo 1', formData.marcaPintura).precioGalon)}
+                              </span>
+                              <strong className="text-slate-900 font-mono font-black text-sm bg-emerald-100/70 text-emerald-950 px-2.5 py-1 rounded-lg">
+                                {formatCOP(getPaintTypePrice('Interior Tipo 1', formData.marcaPintura).precioCunete)} / Cuñete
+                              </strong>
                             </div>
                           </div>
 
                           {/* Interior Tipo 2 */}
                           <div
                             onClick={() => handleInputChange('tipoPintura', 'Interior Tipo 2')}
-                            className={`p-4 rounded-2xl border-2 cursor-pointer transition-all ${
+                            className={`rounded-2xl border-2 cursor-pointer transition-all overflow-hidden flex flex-col justify-between ${
                               formData.tipoPintura === 'Interior Tipo 2' || formData.tipoPintura === 'Tipo 2'
-                                ? 'border-teal-600 bg-teal-50/80 shadow-xs ring-2 ring-teal-500/25'
-                                : 'border-slate-200 hover:border-slate-300 bg-white'
+                                ? 'border-teal-600 bg-teal-50/60 shadow-md ring-2 ring-teal-500/30'
+                                : 'border-slate-200 hover:border-slate-300 bg-white hover:shadow-sm'
                             }`}
                           >
-                            <div className="flex items-center justify-between mb-1.5">
-                              <span className="font-black text-xs text-teal-950">Interior Tipo 2</span>
-                              <span className="text-[10px] font-bold bg-teal-600 text-white px-2 py-0.5 rounded-md">
-                                Lavable Estándar
-                              </span>
+                            <div>
+                              {/* Foto de Referencia Real */}
+                              <div className="relative h-40 w-full overflow-hidden bg-slate-100">
+                                <img
+                                  src={interiorT2RefImg}
+                                  alt="Interior Tipo 2 Lavable Habitaciones"
+                                  className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                                />
+                                <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-[10px] font-black bg-teal-700 text-white px-2.5 py-1 rounded-md shadow-xs uppercase tracking-wider">
+                                    Interior Tipo 2
+                                  </span>
+                                  <span className="text-[10px] font-bold bg-slate-900/80 backdrop-blur-xs text-white px-2 py-0.5 rounded-md">
+                                    {formData.marcaPintura || 'Pintuco®'}
+                                  </span>
+                                </div>
+                                <span className="absolute bottom-2 right-2 text-[10px] font-bold bg-white/95 text-slate-800 px-2 py-0.5 rounded-md shadow-2xs">
+                                  Foto Referencia Obra
+                                </span>
+                              </div>
+
+                              <div className="p-4 space-y-2.5">
+                                <div>
+                                  <h4 className="font-black text-sm text-slate-900">
+                                    {formData.marcaPintura || 'Pintuco®'} • Viniltex Muros Lavable
+                                  </h4>
+                                  <span className="text-[11px] font-bold text-teal-800 block">
+                                    Lavable Estándar para Habitaciones
+                                  </span>
+                                </div>
+
+                                <ul className="text-[11px] text-slate-600 space-y-1.5 pt-1">
+                                  <li className="flex items-center gap-1.5">
+                                    <Check className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                                    <span>Lavabilidad media (&gt;400 ciclos con esponja suave)</span>
+                                  </li>
+                                  <li className="flex items-center gap-1.5">
+                                    <Check className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                                    <span>Habitaciones, dormitorios, estudios residenciales</span>
+                                  </li>
+                                  <li className="flex items-center gap-1.5">
+                                    <Check className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                                    <span>Durabilidad esperada: <strong>3 a 4 años</strong></span>
+                                  </li>
+                                </ul>
+                              </div>
                             </div>
-                            <span className="text-[11px] font-bold text-teal-800 block mb-1">
-                              Colorlink Viniltex Muros Interiores
-                            </span>
-                            <p className="text-[11px] text-slate-600 leading-snug">
-                              Lavabilidad media (&gt;400 ciclos). Limpieza con esponja suave. Diseñada para habitaciones, dormitorios, estudios y áreas residenciales secas.
-                            </p>
-                            <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex items-center justify-between text-[11px]">
-                              <span className="text-slate-500 font-medium">Durabilidad: 3-4 años</span>
-                              <strong className="text-slate-900 font-mono font-bold">$260.000 / Cuñete</strong>
+
+                            <div className="p-4 pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                              <span className="text-slate-500 font-medium">
+                                Galón: {formatCOP(getPaintTypePrice('Interior Tipo 2', formData.marcaPintura).precioGalon)}
+                              </span>
+                              <strong className="text-slate-900 font-mono font-black text-sm bg-slate-100 text-slate-900 px-2.5 py-1 rounded-lg">
+                                {formatCOP(getPaintTypePrice('Interior Tipo 2', formData.marcaPintura).precioCunete)} / Cuñete
+                              </strong>
                             </div>
                           </div>
 
                           {/* Interior Tipo 3 */}
                           <div
                             onClick={() => handleInputChange('tipoPintura', 'Interior Tipo 3')}
-                            className={`p-4 rounded-2xl border-2 cursor-pointer transition-all ${
+                            className={`rounded-2xl border-2 cursor-pointer transition-all overflow-hidden flex flex-col justify-between ${
                               formData.tipoPintura === 'Interior Tipo 3' || formData.tipoPintura === 'Tipo 3'
-                                ? 'border-amber-600 bg-amber-50/80 shadow-xs ring-2 ring-amber-500/25'
-                                : 'border-slate-200 hover:border-slate-300 bg-white'
+                                ? 'border-amber-600 bg-amber-50/60 shadow-md ring-2 ring-amber-500/30'
+                                : 'border-slate-200 hover:border-slate-300 bg-white hover:shadow-sm'
                             }`}
                           >
-                            <div className="flex items-center justify-between mb-1.5">
-                              <span className="font-black text-xs text-amber-950">Interior Tipo 3</span>
-                              <span className="text-[10px] font-bold bg-amber-600 text-white px-2 py-0.5 rounded-md">
-                                Techos & Cielorrasos
-                              </span>
+                            <div>
+                              {/* Foto de Referencia Real */}
+                              <div className="relative h-40 w-full overflow-hidden bg-slate-100">
+                                <img
+                                  src={ceilingRefImg}
+                                  alt="Interior Tipo 3 Cielorrasos"
+                                  className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                                />
+                                <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-[10px] font-black bg-amber-700 text-white px-2.5 py-1 rounded-md shadow-xs uppercase tracking-wider">
+                                    Interior Tipo 3
+                                  </span>
+                                  <span className="text-[10px] font-bold bg-slate-900/80 backdrop-blur-xs text-white px-2 py-0.5 rounded-md">
+                                    {formData.marcaPintura || 'Pintuco®'}
+                                  </span>
+                                </div>
+                                <span className="absolute bottom-2 right-2 text-[10px] font-bold bg-white/95 text-slate-800 px-2 py-0.5 rounded-md shadow-2xs">
+                                  Foto Referencia Obra
+                                </span>
+                              </div>
+
+                              <div className="p-4 space-y-2.5">
+                                <div>
+                                  <h4 className="font-black text-sm text-slate-900">
+                                    {formData.marcaPintura || 'Pintuco®'} • Económica Cielorrasos
+                                  </h4>
+                                  <span className="text-[11px] font-bold text-amber-800 block">
+                                    Techos, Placas de Drywall & Fondeo
+                                  </span>
+                                </div>
+
+                                <ul className="text-[11px] text-slate-600 space-y-1.5 pt-1">
+                                  <li className="flex items-center gap-1.5">
+                                    <Check className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                    <span>Alto poder de relleno y acabado mate sin reflejos</span>
+                                  </li>
+                                  <li className="flex items-center gap-1.5">
+                                    <Check className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                    <span>Techos, placas de yeso y primeras manos económicas</span>
+                                  </li>
+                                  <li className="flex items-center gap-1.5">
+                                    <Check className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                    <span>No lavable al frote húmedo • <strong>1-2 años</strong></span>
+                                  </li>
+                                </ul>
+                              </div>
                             </div>
-                            <span className="text-[11px] font-bold text-amber-800 block mb-1">
-                              Colorlink Económica Cielorrasos
-                            </span>
-                            <p className="text-[11px] text-slate-600 leading-snug">
-                              Acabado mate de alto poder de relleno para cielos rasos, placas de drywall y primeras manos económicas no lavables (&gt;100 ciclos).
-                            </p>
-                            <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex items-center justify-between text-[11px]">
-                              <span className="text-slate-500 font-medium">Durabilidad: 1-2 años</span>
-                              <strong className="text-slate-900 font-mono font-bold">$185.000 / Cuñete</strong>
+
+                            <div className="p-4 pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                              <span className="text-slate-500 font-medium">
+                                Galón: {formatCOP(getPaintTypePrice('Interior Tipo 3', formData.marcaPintura).precioGalon)}
+                              </span>
+                              <strong className="text-slate-900 font-mono font-black text-sm bg-slate-100 text-slate-900 px-2.5 py-1 rounded-lg">
+                                {formatCOP(getPaintTypePrice('Interior Tipo 3', formData.marcaPintura).precioCunete)} / Cuñete
+                              </strong>
                             </div>
                           </div>
                         </div>
@@ -2271,7 +2931,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                           <CheckCircle2 className={`w-4 h-4 ${formData.tipoPintura ? 'text-emerald-600' : 'text-amber-500'}`} />
                           <span>
                             {formData.tipoPintura
-                              ? `Pintura seleccionada: ${technicalCalc.productoRecomendado} (${formData.tipoPintura})`
+                              ? `Pintura seleccionada: ${technicalCalc.productoRecomendado} (${formData.tipoPintura}) • Tarifa: ${formatCOP(technicalCalc.tipoPinturaDetalle.precioCunete)} / Cuñete`
                               : 'No has seleccionado tipo de pintura aún. Por favor haz clic en una de las tarjetas arriba.'}
                           </span>
                         </div>
@@ -2381,51 +3041,117 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                           <span className="text-[11px] text-slate-400">Mínimo 1 foto</span>
                         </div>
 
-                        <div className="border-2 border-dashed border-slate-200 hover:border-[#009FE3] rounded-2xl p-4 text-center bg-slate-50/50 hover:bg-sky-50/20 transition-all">
-                          <div className="max-w-md mx-auto space-y-2">
-                            <Upload className="w-6 h-6 text-[#009FE3] mx-auto" />
-                            <p className="text-xs font-semibold text-slate-700">
-                              Sube fotos de la fachada, superficie o patologías
-                            </p>
-                            <div className="flex items-center justify-center gap-2">
+                        {/* Inputs ocultos para subida desde computador y captura de cámara */}
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={handleFileInputChange}
+                          className="hidden"
+                        />
+                        <input
+                          ref={cameraInputRef}
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          onChange={handleFileInputChange}
+                          className="hidden"
+                        />
+
+                        <div className="border-2 border-dashed border-slate-300 hover:border-purple-500 rounded-3xl p-5 text-center bg-slate-50/60 hover:bg-purple-50/20 transition-all">
+                          <div className="max-w-lg mx-auto space-y-3">
+                            <div className="w-12 h-12 rounded-2xl bg-purple-100 text-purple-700 mx-auto flex items-center justify-center font-bold">
+                              <Upload className="w-6 h-6 text-purple-600" />
+                            </div>
+                            <div>
+                              <p className="text-xs font-black text-slate-800">
+                                Adjuntar Registro Fotográfico de la Superficie u Obra
+                              </p>
+                              <p className="text-[11px] text-slate-500 mt-0.5">
+                                Puedes seleccionar archivos desde tu computador o abrir tu cámara para tomar la foto directamente.
+                              </p>
+                            </div>
+
+                            <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                              {/* Botón 1: Subir desde el computador */}
                               <button
                                 type="button"
-                                onClick={handleAddMockPhoto}
-                                className="px-3.5 py-1.5 bg-white hover:bg-slate-100 text-[#009FE3] font-bold text-xs rounded-xl border border-sky-200 shadow-xs transition-all cursor-pointer"
+                                onClick={() => fileInputRef.current?.click()}
+                                className="px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-800 font-bold text-xs rounded-xl border border-slate-300 shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
                               >
-                                + Adjuntar Foto de Evidencia
+                                <Upload className="w-3.5 h-3.5 text-purple-600" />
+                                <span>📁 Subir desde el Computador</span>
                               </button>
+
+                              {/* Botón 2: Tomar foto con la cámara */}
+                              <button
+                                type="button"
+                                onClick={handleStartLiveCamera}
+                                className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                              >
+                                <Camera className="w-3.5 h-3.5 text-white" />
+                                <span>📷 Tomar Foto con Cámara</span>
+                              </button>
+
+                              {/* Botón 3: Diagnóstico IA */}
                               <button
                                 type="button"
                                 onClick={() => setShowImageDiagnosisModal(true)}
-                                className="px-3.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-[#003882] font-bold text-xs rounded-xl border border-sky-200 transition-all flex items-center gap-1 cursor-pointer"
+                                className="px-3.5 py-2.5 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
                               >
-                                <Camera className="w-3.5 h-3.5 text-[#009FE3]" />
+                                <Sparkles className="w-3.5 h-3.5 text-amber-200" />
                                 <span>Diagnosticar con IA</span>
                               </button>
                             </div>
                           </div>
                         </div>
 
-                        {/* Lista de Fotos */}
+                        {/* Galería de Fotos Adjuntas con Vista Previa Real */}
                         {formData.fotos.length > 0 && (
-                          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
                             {formData.fotos.map((foto, idx) => (
                               <div
                                 key={idx}
-                                className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200"
+                                className="flex items-center justify-between p-3 rounded-2xl bg-white border border-slate-200 shadow-2xs hover:border-purple-300 transition-all"
                               >
-                                <div className="flex items-center gap-2 truncate">
-                                  <FileText className="w-4 h-4 text-[#009FE3] shrink-0" />
-                                  <span className="text-xs font-medium text-slate-800 truncate">{foto.name}</span>
-                                  <span className="text-[10px] text-slate-400 font-mono">({foto.size})</span>
+                                <div className="flex items-center gap-3 truncate">
+                                  {foto.previewUrl ? (
+                                    <div
+                                      onClick={() => setPreviewEnlargedPhoto({ name: foto.name, url: foto.previewUrl })}
+                                      className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0 border border-slate-200 cursor-pointer group"
+                                      title="Clic para ampliar imagen"
+                                    >
+                                      <img
+                                        src={foto.previewUrl}
+                                        alt={foto.name}
+                                        className="w-full h-full object-cover group-hover:scale-110 transition-transform"
+                                      />
+                                      <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                        <ZoomIn className="w-4 h-4 text-white" />
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="w-12 h-12 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+                                      <FileText className="w-5 h-5 text-purple-600" />
+                                    </div>
+                                  )}
+                                  <div className="truncate">
+                                    <span className="text-xs font-bold text-slate-800 truncate block">
+                                      {foto.name}
+                                    </span>
+                                    <span className="text-[10px] text-slate-400 font-mono">
+                                      {foto.size} • Foto verificada
+                                    </span>
+                                  </div>
                                 </div>
                                 <button
                                   type="button"
                                   onClick={() => handleRemovePhoto(idx)}
-                                  className="text-slate-400 hover:text-rose-600 p-1 transition-colors"
+                                  className="text-slate-400 hover:text-rose-600 p-2 rounded-xl hover:bg-rose-50 transition-colors cursor-pointer"
+                                  title="Eliminar foto"
                                 >
-                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <Trash2 className="w-4 h-4" />
                                 </button>
                               </div>
                             ))}

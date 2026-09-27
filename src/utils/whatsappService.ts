@@ -19,6 +19,8 @@ export interface ReceiptWhatsAppParams {
   email?: string;
   ciudad: string;
   producto: string;
+  marca?: string;
+  metodoPago?: string;
   color: string;
   cunetes: number;
   galones: number;
@@ -120,6 +122,7 @@ export function generateReceiptWhatsAppMessage(params: ReceiptWhatsAppParams): s
 • *Cliente / Empresa:* ${empresa}
 • *NIT / Documento:* ${params.nit}
 • *Ciudad de Entrega:* ${params.ciudad}
+• *Marca de Pintura:* ${params.marca || 'Pintuco®'}
 • *Especificación Técnica:* ${params.producto} (${params.color})
 • *Dosificación Requerida:* ${params.cunetes} Cuñete(s) (5 gal) y ${params.galones} Galón(es)
 
@@ -127,6 +130,7 @@ export function generateReceiptWhatsAppMessage(params: ReceiptWhatsAppParams): s
 • *Subtotal Materiales:* ${subtotal} COP
 • *Flete Logístico:* ${params.flete || 'GRATIS'}
 • *TOTAL OFICIAL:* *${total} COP*
+• *Método de Pago Seleccionado:* ${params.metodoPago || 'Transferencia Bancolombia / QR'}
 • *Fecha Estimada de Llegada:* ${params.fechaLlegada || '1 a 2 días hábiles'}
 
 🚚 *ESTADO LOGÍSTICO:*

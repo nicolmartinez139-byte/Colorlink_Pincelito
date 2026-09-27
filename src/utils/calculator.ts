@@ -1,5 +1,125 @@
 import { ProjectFormData, TechnicalCalculationResult, BudgetBreakdown, BudgetItem, PaintTypeProfile, PaintTypeCategory } from '../types/form';
 
+export interface PaintBrand {
+  id: string;
+  name: string;
+  tagline: string;
+  origin: string;
+  badgeColor: string;
+  accentBorder: string;
+  description: string;
+  popularProduct: string;
+  factorPrecio: number; // Multiplicador comercial respecto a la base estándar
+  etiquetaPrecio: string; // Ej: "Precio Base Oficial", "-15% Fábrica Directa", "+15% Importada", etc.
+  ahorroPorcentaje: number; // Ej: 0, -15, -8, -4, -20, +15
+  precioRefCuneteT1: number; // Precio de referencia Cuñete Exterior Tipo 1
+  precioRefGalonT1: number; // Precio de referencia Galón Exterior Tipo 1
+}
+
+export const AVAILABLE_PAINT_BRANDS: PaintBrand[] = [
+  {
+    id: 'pintuco',
+    name: 'Pintuco®',
+    tagline: 'Líder en pinturas y recubrimientos en Colombia',
+    origin: 'Colombia',
+    badgeColor: 'bg-red-600 text-white',
+    accentBorder: 'hover:border-red-500',
+    popularProduct: 'Koraza Pro & Viniltex',
+    description: 'Máxima durabilidad certificada NTC con tecnología antihumedad y alta solidez de color a la intemperie.',
+    factorPrecio: 1.0,
+    etiquetaPrecio: 'Oficial Estándar (100%)',
+    ahorroPorcentaje: 0,
+    precioRefCuneteT1: 398000,
+    precioRefGalonT1: 89500
+  },
+  {
+    id: 'colorlink_pro',
+    name: 'Colorlink® Pro',
+    tagline: 'Fábrica directa & tintometría computarizada',
+    origin: 'Fábrica Colorlink',
+    badgeColor: 'bg-purple-600 text-white',
+    accentBorder: 'hover:border-purple-500',
+    popularProduct: 'Fórmula Industrial Especializada',
+    description: 'Tintometría computarizada de alta precisión y resina 100% acrílica con pigmentación alemana premium.',
+    factorPrecio: 0.85,
+    etiquetaPrecio: '⚡ Directo Fábrica (-15%)',
+    ahorroPorcentaje: -15,
+    precioRefCuneteT1: 338000,
+    precioRefGalonT1: 76000
+  },
+  {
+    id: 'tito_pabon',
+    name: 'Tito Pabón®',
+    tagline: 'Pintura ecológica y arquitectónica de alto desempeño',
+    origin: 'Colombia',
+    badgeColor: 'bg-emerald-600 text-white',
+    accentBorder: 'hover:border-emerald-500',
+    popularProduct: 'Acriltech Fachadas & Vinilo Tipo 1',
+    description: 'Formulaciones ecológicas con bajo VOC, excelente nivelación y gran poder de cubrimiento en obra.',
+    factorPrecio: 0.92,
+    etiquetaPrecio: '🌱 Ecológica (-8%)',
+    ahorroPorcentaje: -8,
+    precioRefCuneteT1: 366000,
+    precioRefGalonT1: 82500
+  },
+  {
+    id: 'corona',
+    name: 'Corona® Pinturas',
+    tagline: 'Protección y tecnología para tus espacios',
+    origin: 'Colombia',
+    badgeColor: 'bg-blue-600 text-white',
+    accentBorder: 'hover:border-blue-500',
+    popularProduct: 'CoronaPro Fachadas & Lavable',
+    description: 'Pinturas superlavables con tecnología microbicida que previene hongos y manchas difíciles.',
+    factorPrecio: 0.96,
+    etiquetaPrecio: '🛡️ Antihongos (-4%)',
+    ahorroPorcentaje: -4,
+    precioRefCuneteT1: 382000,
+    precioRefGalonT1: 86000
+  },
+  {
+    id: 'sapolin',
+    name: 'Sapolín® (Invesa)',
+    tagline: 'Poder cubriente superior para contratistas',
+    origin: 'Colombia',
+    badgeColor: 'bg-amber-600 text-white',
+    accentBorder: 'hover:border-amber-500',
+    popularProduct: 'Vinilo Acrílico & Esmaltes',
+    description: 'Excelente rendimiento por m², secado rápido y precio competitivo para grandes áreas residenciales y comerciales.',
+    factorPrecio: 0.80,
+    etiquetaPrecio: '📉 Contratista (-20%)',
+    ahorroPorcentaje: -20,
+    precioRefCuneteT1: 318000,
+    precioRefGalonT1: 71500
+  },
+  {
+    id: 'sherwin_williams',
+    name: 'Sherwin-Williams®',
+    tagline: 'Tecnología global de recubrimientos',
+    origin: 'Internacional',
+    badgeColor: 'bg-sky-600 text-white',
+    accentBorder: 'hover:border-sky-500',
+    popularProduct: 'Loxon Fachadas & SuperPaint',
+    description: 'Resistencia arquitectónica probada en climas extremos con elasticidad superior para evitar microfisuras.',
+    factorPrecio: 1.15,
+    etiquetaPrecio: '⭐ Importada (+15%)',
+    ahorroPorcentaje: 15,
+    precioRefCuneteT1: 458000,
+    precioRefGalonT1: 103000
+  }
+];
+
+export function getPaintTypePrice(tipo: PaintTypeCategory, brandName?: string): { precioGalon: number; precioCunete: number } {
+  const baseProfile = PAINT_TYPE_PROFILES[tipo] || PAINT_TYPE_PROFILES['Exterior Tipo 1'];
+  const brand = AVAILABLE_PAINT_BRANDS.find((b) => b.name === brandName) || AVAILABLE_PAINT_BRANDS[0];
+  const factor = brand?.factorPrecio ?? 1.0;
+
+  return {
+    precioGalon: Math.round((baseProfile.precioGalon * factor) / 500) * 500,
+    precioCunete: Math.round((baseProfile.precioCunete * factor) / 1000) * 1000
+  };
+}
+
 // Clasificación Oficial según Norma Técnica Colombiana (NTC 1335 / NTC 5828) para Pinturas Arquitectónicas al Agua
 export const PAINT_TYPE_PROFILES: Record<PaintTypeCategory, PaintTypeProfile> = {
   'Exterior Tipo 1': {
@@ -222,9 +342,18 @@ export function calculateTechnicalRequirements(formData: Partial<ProjectFormData
     tipoPintura = (ambiente === 'Exterior Intemperie') ? 'Exterior Tipo 3' : 'Interior Tipo 3';
   }
 
-  const tipoPinturaDetalle = PAINT_TYPE_PROFILES[tipoPintura] || PAINT_TYPE_PROFILES['Exterior Tipo 1'];
+  const selectedBrand = formData.marcaPintura || 'Pintuco®';
+  const brandObj = AVAILABLE_PAINT_BRANDS.find((b) => b.name === selectedBrand) || AVAILABLE_PAINT_BRANDS[0];
+  const brandFactor = brandObj?.factorPrecio ?? 1.0;
 
-  let productoRecomendado = tipoPinturaDetalle.nombreComercial;
+  const baseTipoPinturaDetalle = PAINT_TYPE_PROFILES[tipoPintura] || PAINT_TYPE_PROFILES['Exterior Tipo 1'];
+  const tipoPinturaDetalle: PaintTypeProfile = {
+    ...baseTipoPinturaDetalle,
+    precioGalon: Math.round((baseTipoPinturaDetalle.precioGalon * brandFactor) / 500) * 500,
+    precioCunete: Math.round((baseTipoPinturaDetalle.precioCunete * brandFactor) / 1000) * 1000
+  };
+
+  let productoRecomendado = `${selectedBrand} • ${tipoPinturaDetalle.nombreComercial.replace(/^Colorlink\s+/, '')}`;
   let tipoSolucion = tipoPintura.includes('Exterior')
     ? 'Sistema Impermeable y Acrílico para Fachadas & Exteriores'
     : tipoPintura.includes('Tipo 3')
@@ -354,19 +483,19 @@ export function calculateTechnicalRequirements(formData: Partial<ProjectFormData
   // --- CÁLCULO DE PRESUPUESTO COMERCIAL EN COP ---
   // Determinar precios unitarios de pintura principal
   const precioCuneteUnitario = ambiente === 'Industrial Severo / Químico'
-    ? PRODUCT_PRICES['Pintucoat Epóxico Poliamida de Alto Sólidos'].cuñete5Gal
+    ? Math.round((PRODUCT_PRICES['Pintucoat Epóxico Poliamida de Alto Sólidos'].cuñete5Gal * brandFactor) / 1000) * 1000
     : (ambiente.includes('Pisos') || ambiente.includes('Tráfico'))
-    ? PRODUCT_PRICES['Pisos Epóxicos Autonivelante Pintucoat'].cuñete5Gal
+    ? Math.round((PRODUCT_PRICES['Pisos Epóxicos Autonivelante Pintucoat'].cuñete5Gal * brandFactor) / 1000) * 1000
     : superficie.includes('Metal')
-    ? PRODUCT_PRICES['Esmalte Sintético Pintucoat + Anticorrosivo Wash Primer'].cuñete5Gal
+    ? Math.round((PRODUCT_PRICES['Esmalte Sintético Pintucoat + Anticorrosivo Wash Primer'].cuñete5Gal * brandFactor) / 1000) * 1000
     : tipoPinturaDetalle.precioCunete;
 
   const precioGalonUnitario = ambiente === 'Industrial Severo / Químico'
-    ? PRODUCT_PRICES['Pintucoat Epóxico Poliamida de Alto Sólidos'].galon
+    ? Math.round((PRODUCT_PRICES['Pintucoat Epóxico Poliamida de Alto Sólidos'].galon * brandFactor) / 500) * 500
     : (ambiente.includes('Pisos') || ambiente.includes('Tráfico'))
-    ? PRODUCT_PRICES['Pisos Epóxicos Autonivelante Pintucoat'].galon
+    ? Math.round((PRODUCT_PRICES['Pisos Epóxicos Autonivelante Pintucoat'].galon * brandFactor) / 500) * 500
     : superficie.includes('Metal')
-    ? PRODUCT_PRICES['Esmalte Sintético Pintucoat + Anticorrosivo Wash Primer'].galon
+    ? Math.round((PRODUCT_PRICES['Esmalte Sintético Pintucoat + Anticorrosivo Wash Primer'].galon * brandFactor) / 500) * 500
     : tipoPinturaDetalle.precioGalon;
 
   const items: BudgetItem[] = [];
@@ -380,7 +509,7 @@ export function calculateTechnicalRequirements(formData: Partial<ProjectFormData
       quantity: cuñetesRequeridos,
       unitPrice: precioCuneteUnitario,
       totalPrice: cuñetesRequeridos * precioCuneteUnitario,
-      description: `Pintura ${tipoPintura} (${tipoPinturaDetalle.normaNTC}). Acabado ${formData.colorAcabado || 'Gris'} para ${area} m² a ${manosSugeridas} manos.`
+      description: `Pintura ${tipoPintura} marca ${selectedBrand} (${tipoPinturaDetalle.normaNTC}). Acabado ${formData.colorAcabado || 'Gris'} para ${area} m² a ${manosSugeridas} manos.`
     });
   }
 
@@ -393,7 +522,7 @@ export function calculateTechnicalRequirements(formData: Partial<ProjectFormData
       quantity: galonesSueltosRequeridos,
       unitPrice: precioGalonUnitario,
       totalPrice: galonesSueltosRequeridos * precioGalonUnitario,
-      description: `Fracción pintura ${tipoPintura} para ajuste volumétrico exacto (${galonesSueltosRequeridos} gal).`
+      description: `Fracción pintura ${tipoPintura} marca ${selectedBrand} para ajuste volumétrico exacto (${galonesSueltosRequeridos} gal).`
     });
   }
 
