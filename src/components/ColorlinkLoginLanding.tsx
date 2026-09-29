@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, Lock, Mail, Building, User, Phone, Check, ArrowRight, ShieldCheck, MessageCircle, Sparkles } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail, Building, User, Phone, Check, ArrowRight, ShieldCheck, MessageCircle, Sparkles, UserCheck } from 'lucide-react';
 import { ColorlinkPenguin } from './ColorlinkPenguin';
 import { UserProfile } from '../types/form';
 import { supabase } from '../lib/supabase';
@@ -10,11 +10,13 @@ import paintSplatterBg from '../assets/images/paint_splatter_bg_1788742862980.jp
 interface ColorlinkLoginLandingProps {
   onLoginSuccess: (user: UserProfile, isSimulation?: boolean) => void;
   onOpenAdminModal: () => void;
+  onOpenAdvisorModal: () => void;
 }
 
 export function ColorlinkLoginLanding({
   onLoginSuccess,
-  onOpenAdminModal
+  onOpenAdminModal,
+  onOpenAdvisorModal
 }: ColorlinkLoginLandingProps) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   
@@ -462,7 +464,7 @@ export function ColorlinkLoginLanding({
             </button>
 
             {/* ENTRADA DIRECTA: COTIZAR SIN INICIAR SESIÓN */}
-            <div className="pt-1">
+            <div className="pt-1 space-y-2">
               <button
                 type="button"
                 onClick={handleGuestEntry}
@@ -470,6 +472,15 @@ export function ColorlinkLoginLanding({
               >
                 <span>Cotizar directamente sin iniciar sesión</span>
                 <ArrowRight className="w-3.5 h-3.5 text-[#009FE3]" />
+              </button>
+
+              <button
+                type="button"
+                onClick={onOpenAdvisorModal}
+                className="w-full py-2.5 px-4 bg-gradient-to-r from-pink-50 to-purple-50 hover:from-pink-100 hover:to-purple-100 text-[#E5007D] font-bold text-xs rounded-full transition-all border border-pink-200/90 shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <UserCheck className="w-3.5 h-3.5 text-[#E5007D]" />
+                <span>¿Eres Asesor Comercial? Ingresa aquí</span>
               </button>
             </div>
 
@@ -631,18 +642,29 @@ export function ColorlinkLoginLanding({
         />
       </div>
 
-      {/* PIE DE PÁGINA CON ACCESO ADMINISTRADOR DISCRETO */}
-      <div className="relative z-10 mt-6 flex items-center justify-between w-full max-w-[430px] px-2 text-[11px] text-slate-500 font-medium">
-        <span>© 2026 COLORLINK Pinturas & Tintometría</span>
-        <button
-          type="button"
-          onClick={onOpenAdminModal}
-          className="flex items-center gap-1.5 text-slate-600 hover:text-slate-900 bg-white/80 hover:bg-white px-2.5 py-1 rounded-xl border border-slate-200/90 shadow-2xs backdrop-blur-xs transition-colors cursor-pointer"
-          title="Acceso restringido para personal técnico y comercial"
-        >
-          <Lock className="w-3 h-3 text-amber-500" />
-          <span>Acceso Administrador</span>
-        </button>
+      {/* PIE DE PÁGINA CON ACCESO ASESOR Y ADMINISTRADOR */}
+      <div className="relative z-10 mt-6 flex flex-wrap items-center justify-between gap-2 w-full max-w-[430px] px-2 text-[11px] text-slate-500 font-medium">
+        <span>© 2026 COLORLINK</span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onOpenAdvisorModal}
+            className="flex items-center gap-1.5 text-[#E5007D] hover:text-[#C7006D] bg-white/90 hover:bg-white px-2.5 py-1.5 rounded-xl border border-pink-200/90 shadow-2xs backdrop-blur-xs transition-colors cursor-pointer font-bold"
+            title="Ingreso para Asesores Comerciales y Técnicos"
+          >
+            <UserCheck className="w-3.5 h-3.5 text-[#E5007D]" />
+            <span>Asesores</span>
+          </button>
+          <button
+            type="button"
+            onClick={onOpenAdminModal}
+            className="flex items-center gap-1.5 text-slate-600 hover:text-slate-900 bg-white/90 hover:bg-white px-2.5 py-1.5 rounded-xl border border-slate-200/90 shadow-2xs backdrop-blur-xs transition-colors cursor-pointer font-medium"
+            title="Acceso restringido para personal técnico y directivo"
+          >
+            <Lock className="w-3 h-3 text-amber-500" />
+            <span>Admin</span>
+          </button>
+        </div>
       </div>
 
       {/* MODAL DE CONFIRMACIÓN DE REGISTRO CON ENVÍO DIRECTO A WHATSAPP */}
@@ -686,7 +708,7 @@ export function ColorlinkLoginLanding({
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-slate-500">Correo Electrónico:</span>
-                <span className="font-bold text-blue-600 truncate max-w-[180px]">{registeredSuccessData.userProfile.email}</span>
+                <span className="font-bold text-[#E5007D] truncate max-w-[180px]">{registeredSuccessData.userProfile.email}</span>
               </div>
             </div>
 
@@ -711,7 +733,7 @@ export function ColorlinkLoginLanding({
               <button
                 type="button"
                 onClick={() => onLoginSuccess(registeredSuccessData.userProfile, false)}
-                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-3 px-4 rounded-2xl flex items-center justify-center gap-2 transition-all cursor-pointer"
+                className="w-full bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] hover:brightness-110 text-white font-bold text-xs py-3 px-4 rounded-2xl flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md"
               >
                 <span>Continuar al Cotizador y Dosificación</span>
                 <ArrowRight className="w-4 h-4" />

@@ -4,6 +4,7 @@ import { AdminBackoffice } from './components/AdminBackoffice';
 import { ColorlinkRainbowBar } from './components/ColorlinkSplashes';
 import { PenguinLogo } from './components/PenguinLogo';
 import { ColorlinkLoginLanding } from './components/ColorlinkLoginLanding';
+import { AdvisorPortal, AdvisorData, COLORLINK_ADVISORS } from './components/AdvisorPortal';
 import { ProjectFormData } from './types/form';
 import { CASE_STUDY_PRESET } from './data/dictionaryData';
 import { calculateTechnicalRequirements } from './utils/calculator';
@@ -34,9 +35,16 @@ import {
 import { UserProfile } from './types/form';
 
 export default function App() {
-  // Role switcher: 'client' (default) | 'admin'
-  const [userRole, setUserRole] = useState<'client' | 'admin'>('client');
+  // Role switcher: 'client' (default) | 'admin' | 'advisor'
+  const [userRole, setUserRole] = useState<'client' | 'admin' | 'advisor'>('client');
   const [showAdminLoginModal, setShowAdminLoginModal] = useState<boolean>(false);
+  const [showAdvisorLoginModal, setShowAdvisorLoginModal] = useState<boolean>(false);
+  const [activeAdvisor, setActiveAdvisor] = useState<AdvisorData | null>(null);
+  const [advisorEmail, setAdvisorEmail] = useState<string>('');
+  const [advisorPassword, setAdvisorPassword] = useState<string>('');
+  const [showAdvisorPassword, setShowAdvisorPassword] = useState<boolean>(false);
+  const [advisorLoginError, setAdvisorLoginError] = useState<string | null>(null);
+
   const [activeClient, setActiveClient] = useState<UserProfile | null>(null);
   const [isSimulationMode, setIsSimulationMode] = useState<boolean>(false);
   const [adminUsername, setAdminUsername] = useState<string>('');
@@ -175,6 +183,23 @@ export default function App() {
     }
   };
 
+  // Si el usuario está en rol asesor, mostramos el Portal de Asesores Comerciales
+  if (userRole === 'advisor' && activeAdvisor) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col font-sans selection:bg-[#E5007D] selection:text-white">
+        <ColorlinkRainbowBar className="h-1.5 w-full" />
+        <AdvisorPortal
+          currentAdvisor={activeAdvisor}
+          onLogout={() => {
+            setUserRole('client');
+            setActiveAdvisor(null);
+          }}
+          onSwitchAdvisor={(adv) => setActiveAdvisor(adv)}
+        />
+      </div>
+    );
+  }
+
   // Si el usuario está en rol cliente y no ha iniciado sesión,
   // mostramos la pantalla de inicio con estilo idéntico a la Imagen 1 y el logo de la Imagen 2.
   if (userRole === 'client' && !activeClient) {
@@ -187,6 +212,7 @@ export default function App() {
             setIsSimulationMode(!!isSim);
           }}
           onOpenAdminModal={() => setShowAdminLoginModal(true)}
+          onOpenAdvisorModal={() => setShowAdvisorLoginModal(true)}
         />
 
         {/* Modal de Acceso de Administrador */}
@@ -300,6 +326,168 @@ export default function App() {
                   >
                     <Lock className="w-3.5 h-3.5" />
                     <span>Ingresar como Admin</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal de Acceso de Asesores Comerciales */}
+        {showAdvisorLoginModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fadeIn">
+            <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-200 space-y-5">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#FF6A00] to-[#E5007D] text-white flex items-center justify-center font-bold shadow-xs">
+                    <UserCheck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">
+                      Portal de Asesores Comerciales Colorlink®
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Ingreso exclusivo para asesores técnicos y consultores
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAdvisorLoginModal(false);
+                    setAdvisorLoginError(null);
+                  }}
+                  className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const cleanEmail = advisorEmail.trim().toLowerCase();
+                  const cleanPass = advisorPassword.trim();
+
+                  const matched = COLORLINK_ADVISORS.find(
+                    (a) => a.email.toLowerCase() === cleanEmail
+                  );
+
+                  if (
+                    (matched || cleanEmail.includes('@colorlink.com.co')) &&
+                    (cleanPass === 'Asesor2026*' || cleanPass === 'Colorlink2026*')
+                  ) {
+                    const activeAdv = matched || COLORLINK_ADVISORS[0];
+                    setActiveAdvisor(activeAdv);
+                    setUserRole('advisor');
+                    setShowAdvisorLoginModal(false);
+                    setAdvisorPassword('');
+                    setAdvisorLoginError(null);
+                  } else {
+                    setAdvisorLoginError(
+                      'Credenciales incorrectas. Ingrese el correo institucional (@colorlink.com.co) y la contraseña asignada.'
+                    );
+                  }
+                }}
+                className="space-y-4"
+              >
+                {advisorLoginError && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-2.5 text-xs text-rose-800 animate-fadeIn">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                    <span>{advisorLoginError}</span>
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 block">
+                    Correo Institucional del Asesor:
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={advisorEmail}
+                    onChange={(e) => {
+                      setAdvisorEmail(e.target.value);
+                      if (advisorLoginError) setAdvisorLoginError(null);
+                    }}
+                    placeholder="sofia.asesora@colorlink.com.co"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#E5007D] focus:bg-white transition-all"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 block">
+                    Contraseña Asignada:
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showAdvisorPassword ? 'text' : 'password'}
+                      required
+                      value={advisorPassword}
+                      onChange={(e) => {
+                        setAdvisorPassword(e.target.value);
+                        if (advisorLoginError) setAdvisorLoginError(null);
+                      }}
+                      placeholder="Asesor2026*"
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#E5007D] focus:bg-white transition-all pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowAdvisorPassword(!showAdvisorPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      {showAdvisorPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Chips de Selección Rápida de Asesor */}
+                <div className="p-3 bg-pink-50/70 border border-pink-200/80 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-[#E5007D]">
+                    <span className="flex items-center gap-1">
+                      <Key className="w-3.5 h-3.5 text-[#E5007D]" />
+                      Asesores Autorizados (Clic para autocompletar):
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {COLORLINK_ADVISORS.map((adv) => (
+                      <button
+                        key={adv.id}
+                        type="button"
+                        onClick={() => {
+                          setAdvisorEmail(adv.email);
+                          setAdvisorPassword('Asesor2026*');
+                          if (advisorLoginError) setAdvisorLoginError(null);
+                        }}
+                        className="px-2.5 py-1 bg-white hover:bg-pink-100 text-pink-900 border border-pink-200 rounded-lg text-[10px] font-bold transition-colors cursor-pointer flex items-center gap-1"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        <span>{adv.name.split(' ')[0]} ({adv.territory.split(' ')[0]})</span>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-pink-800 font-medium">
+                    Clave por defecto: <code className="bg-pink-200/70 px-1.5 py-0.5 rounded text-pink-950 font-bold">Asesor2026*</code>
+                  </p>
+                </div>
+
+                <div className="pt-2 flex items-center justify-end gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAdvisorLoginModal(false);
+                      setAdvisorLoginError(null);
+                    }}
+                    className="px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] hover:brightness-110 rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <UserCheck className="w-3.5 h-3.5 text-emerald-300" />
+                    <span>Ingresar como Asesor</span>
                   </button>
                 </div>
               </form>
@@ -484,7 +672,7 @@ export default function App() {
                       if (loginError) setLoginError(null);
                     }}
                     placeholder="admin@colorlink.com.co"
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 transition-all font-mono"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:border-[#E5007D] focus:ring-2 focus:ring-[#E5007D]/20 transition-all font-mono"
                   />
                 </div>
               </div>
@@ -503,7 +691,7 @@ export default function App() {
                       if (loginError) setLoginError(null);
                     }}
                     placeholder="••••••••••••"
-                    className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20 transition-all font-mono"
+                    className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:border-[#E5007D] focus:ring-2 focus:ring-[#E5007D]/20 transition-all font-mono"
                   />
                   <button
                     type="button"
@@ -542,7 +730,7 @@ export default function App() {
               <div className="pt-2 flex items-center gap-3">
                 <button
                   type="submit"
-                  className="flex-1 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                  className="flex-1 py-3 bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] hover:brightness-110 text-white font-bold text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer active:scale-95"
                 >
                   <ShieldCheck className="w-4 h-4 text-amber-300" />
                   <span>Validar & Entrar al Backoffice</span>

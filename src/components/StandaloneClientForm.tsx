@@ -205,6 +205,8 @@ export function StandaloneClientForm({
   const [showLiveCameraModal, setShowLiveCameraModal] = useState<boolean>(false);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
+  const [capturedPhotoDraft, setCapturedPhotoDraft] = useState<string | null>(null);
   const [previewEnlargedPhoto, setPreviewEnlargedPhoto] = useState<{ name: string; url?: string } | null>(null);
 
   // Estados para Métodos de Pago
@@ -506,24 +508,58 @@ export function StandaloneClientForm({
     e.target.value = '';
   };
 
-  const handleStartLiveCamera = async () => {
+  // Efecto para vincular el stream al elemento de video cuando el modal esté en el DOM
+  useEffect(() => {
+    if (showLiveCameraModal && videoRef.current && cameraStream) {
+      videoRef.current.srcObject = cameraStream;
+      videoRef.current.play().catch((err) => {
+        console.warn('Error al reproducir video de cámara:', err);
+      });
+    }
+  }, [showLiveCameraModal, cameraStream]);
+
+  const handleStartLiveCamera = async (overrideMode?: 'environment' | 'user') => {
+    const targetMode = overrideMode || facingMode;
     setCameraError(null);
+    setCapturedPhotoDraft(null);
     setShowLiveCameraModal(true);
+
+    if (cameraStream) {
+      cameraStream.getTracks().forEach((track) => track.stop());
+      setCameraStream(null);
+    }
+
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Navegador no soporta API de cámara directa');
+        throw new Error('Navegador no soporta API directa de cámara');
       }
+
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+        video: {
+          facingMode: { ideal: targetMode },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
       });
+
       setCameraStream(stream);
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        videoRef.current.play().catch(() => {});
       }
     } catch (err: any) {
-      console.warn('Cámara directa no disponible:', err);
-      setCameraError('No se pudo abrir la cámara en el navegador o se denegaron los permisos. Puedes usar el botón de abajo para tomar foto con la cámara nativa de tu dispositivo.');
+      console.warn('Cámara en vivo no disponible:', err);
+      setCameraError(
+        'No se pudo acceder a la cámara directa del navegador (permisos denegados o entorno restringido). Puedes pulsar "Usar Cámara Nativa" para tomar la foto con la app de cámara de tu dispositivo.'
+      );
     }
+  };
+
+  const handleToggleFacingMode = () => {
+    const nextMode = facingMode === 'environment' ? 'user' : 'environment';
+    setFacingMode(nextMode);
+    handleStartLiveCamera(nextMode);
   };
 
   const handleStopLiveCamera = () => {
@@ -531,6 +567,8 @@ export function StandaloneClientForm({
       cameraStream.getTracks().forEach((track) => track.stop());
       setCameraStream(null);
     }
+    setCapturedPhotoDraft(null);
+    setCameraError(null);
     setShowLiveCameraModal(false);
   };
 
@@ -538,17 +576,28 @@ export function StandaloneClientForm({
     if (!videoRef.current) return;
     const video = videoRef.current;
     const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
+    canvas.width = video.videoWidth || 1280;
+    canvas.height = video.videoHeight || 720;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+
+    if (facingMode === 'user') {
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+    }
+
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
-    const photoName = `foto_camara_obra_${Date.now().toString().slice(-4)}.jpg`;
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.90);
+    setCapturedPhotoDraft(dataUrl);
+  };
+
+  const handleConfirmCapturedPhoto = () => {
+    if (!capturedPhotoDraft) return;
+    const photoName = `foto_obra_${Date.now().toString().slice(-4)}.jpg`;
 
     setFormData((prev) => ({
       ...prev,
-      fotos: [...prev.fotos, { name: photoName, size: '1.4 MB', previewUrl: dataUrl }]
+      fotos: [...prev.fotos, { name: photoName, size: '1.8 MB', previewUrl: capturedPhotoDraft }]
     }));
 
     if (errors.fotos) {
@@ -559,6 +608,10 @@ export function StandaloneClientForm({
       });
     }
     handleStopLiveCamera();
+  };
+
+  const handleRetakeLivePhoto = () => {
+    setCapturedPhotoDraft(null);
   };
 
   const handleRemovePhoto = (idx: number) => {
@@ -635,7 +688,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                 className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-2xl transition-all border border-slate-200/80 flex items-center gap-2 cursor-pointer active:scale-95 shadow-2xs backdrop-blur-xs"
                 title="Copiar cotización para enviar por WhatsApp"
               >
-                {copiedQuote ? <Check className="w-4 h-4 text-emerald-600" /> : <Share2 className="w-4 h-4 text-blue-600" />}
+                {copiedQuote ? <Check className="w-4 h-4 text-emerald-600" /> : <Share2 className="w-4 h-4 text-[#E5007D]" />}
                 <span>{copiedQuote ? '¡Copiado a WhatsApp!' : 'Copiar Resumen'}</span>
               </button>
 
@@ -644,7 +697,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                 id="btn-download-pdf-top"
                 onClick={handleDownloadPDF}
                 disabled={isGeneratingPDF}
-                className="px-5 py-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white text-xs font-bold rounded-2xl shadow-sm hover:shadow-md transition-all flex items-center gap-2 disabled:opacity-75 cursor-pointer active:scale-95"
+                className="px-5 py-2.5 bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] hover:brightness-110 text-white text-xs font-bold rounded-2xl shadow-sm hover:shadow-md transition-all flex items-center gap-2 disabled:opacity-75 cursor-pointer active:scale-95"
                 title="Descargar archivo PDF Oficial de Colorlink"
               >
                 {isGeneratingPDF ? (
@@ -697,7 +750,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
           <div className="no-print space-y-4">
             {/* 1. SI ESTÁ PENDIENTE DE DECISIÓN */}
             {quotationDecision === 'pending' && (
-              <div className="bg-white rounded-3xl p-6 sm:p-7 border-2 border-blue-400/80 shadow-lg space-y-5 relative overflow-hidden">
+              <div className="bg-white rounded-3xl p-6 sm:p-7 border-2 border-pink-300 shadow-lg space-y-5 relative overflow-hidden">
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
                   <div>
                     <div className="flex items-center gap-2">
@@ -926,33 +979,33 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                 </div>
 
                 {/* PARÁMETROS TÉCNICOS CLAVE: MANOS Y DESPERDICIO / MERMA */}
-                <div className="bg-blue-50/70 rounded-2xl p-4 sm:p-5 border border-blue-200/80 space-y-3">
+                <div className="bg-pink-50/70 rounded-2xl p-4 sm:p-5 border border-pink-200/80 space-y-3">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                    <span className="text-xs font-black text-blue-900 uppercase tracking-wider flex items-center gap-1.5">
-                      <Sparkles className="w-4 h-4 text-blue-600" />
+                    <span className="text-xs font-black text-purple-950 uppercase tracking-wider flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-[#E5007D]" />
                       Cálculo Técnico: Rendimiento, Manos y Desperdicio
                     </span>
-                    <span className="text-[11px] font-bold text-blue-800 bg-white px-3 py-1 rounded-full border border-blue-200 shadow-2xs">
+                    <span className="text-[11px] font-bold text-[#E5007D] bg-white px-3 py-1 rounded-full border border-pink-200 shadow-2xs">
                       Sustrato: {formData.superficie} ({formData.ambiente})
                     </span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                    <div className="bg-white p-3.5 rounded-2xl border border-blue-100 space-y-1 shadow-2xs">
+                    <div className="bg-white p-3.5 rounded-2xl border border-pink-100 space-y-1 shadow-2xs">
                       <span className="text-[10px] uppercase font-bold text-slate-400 block">Manos de Pintura</span>
                       <strong className="text-sm font-black text-slate-900 block">{technicalCalc.manosSugeridas} Manos Requeridas</strong>
                       <p className="text-[11px] text-slate-600 leading-snug">{technicalCalc.explicacionManos}</p>
                     </div>
 
-                    <div className="bg-white p-3.5 rounded-2xl border border-blue-100 space-y-1 shadow-2xs">
+                    <div className="bg-white p-3.5 rounded-2xl border border-pink-100 space-y-1 shadow-2xs">
                       <span className="text-[10px] uppercase font-bold text-slate-400 block">Factor de Desperdicio Técnico</span>
                       <strong className="text-sm font-black text-amber-700 block">+{technicalCalc.factorDesperdicioPorcentaje}% (+{technicalCalc.galonesDesperdicio} gal)</strong>
                       <p className="text-[11px] text-slate-600 leading-snug">{technicalCalc.explicacionDesperdicio}</p>
                     </div>
 
-                    <div className="bg-white p-3.5 rounded-2xl border border-blue-100 space-y-1 shadow-2xs">
+                    <div className="bg-white p-3.5 rounded-2xl border border-pink-100 space-y-1 shadow-2xs">
                       <span className="text-[10px] uppercase font-bold text-slate-400 block">Dosificación Final de Envases</span>
-                      <strong className="text-sm font-black text-blue-900 block">
+                      <strong className="text-sm font-black text-[#E5007D] block">
                         {technicalCalc.cuñetesRequeridos} Cuñetes + {technicalCalc.galonesSueltosRequeridos} Galones
                       </strong>
                       <p className="text-[11px] text-slate-600 leading-snug">
@@ -1010,13 +1063,13 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       onClick={() => handleInputChange('metodoPago', 'pse')}
                       className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
                         formData.metodoPago === 'pse'
-                          ? 'border-blue-600 bg-blue-50/60 shadow-xs ring-2 ring-blue-500/20'
+                          ? 'border-[#009FE3] bg-sky-50/60 shadow-xs ring-2 ring-[#009FE3]/20'
                           : 'border-slate-200 hover:border-slate-300 bg-white'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1.5">
                         <span className="font-black text-xs text-slate-900">PSE Débito en Línea</span>
-                        <span className="text-[9px] font-bold bg-blue-600 text-white px-2 py-0.5 rounded-md">
+                        <span className="text-[9px] font-bold bg-[#009FE3] text-white px-2 py-0.5 rounded-md">
                           Todos los bancos
                         </span>
                       </div>
@@ -1150,8 +1203,8 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                   )}
 
                   {formData.metodoPago === 'pse' && (
-                    <div className="p-4 rounded-2xl bg-blue-50/80 border border-blue-200 space-y-3">
-                      <span className="text-[11px] font-bold text-blue-900 uppercase tracking-wider block">
+                    <div className="p-4 rounded-2xl bg-pink-50/80 border border-pink-200 space-y-3">
+                      <span className="text-[11px] font-bold text-purple-950 uppercase tracking-wider block">
                         Pasarela Segura PSE • Selecciona tu Banco
                       </span>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
@@ -1163,7 +1216,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                               setSelectedBankPSE(e.target.value);
                               handleInputChange('bancoPSE', e.target.value);
                             }}
-                            className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+                            className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E5007D] font-medium"
                           >
                             <option value="Bancolombia">Bancolombia</option>
                             <option value="Banco de Bogotá">Banco de Bogotá</option>
@@ -1179,7 +1232,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         </div>
                         <div>
                           <label className="text-[11px] font-bold text-slate-700 block mb-1">Tipo de Cliente *</label>
-                          <select className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium">
+                          <select className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E5007D] font-medium">
                             <option value="juridica">Persona Jurídica (Empresa / NIT)</option>
                             <option value="natural">Persona Natural (C.C.)</option>
                           </select>
@@ -1358,17 +1411,17 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                 </div>
 
                 {/* TARJETA DE CONFIRMACIÓN DE ENVÍO DE CORREO, RECIBO & DETALLES DEL FURGÓN */}
-                <div className="bg-white rounded-3xl p-6 border border-blue-300 shadow-md space-y-4 text-slate-800">
+                <div className="bg-white rounded-3xl p-6 border border-pink-200/90 shadow-md space-y-4 text-slate-800">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
-                        <Mail className="w-5 h-5" />
+                      <div className="w-9 h-9 rounded-xl bg-pink-50 text-[#E5007D] flex items-center justify-center font-bold">
+                        <Mail className="w-5 h-5 text-[#E5007D]" />
                       </div>
                       <div>
                         <h4 className="font-black text-sm text-slate-900">
                           Confirmación de Despacho & Recibo Oficial (Correo y WhatsApp)
                         </h4>
-                        <p className="text-xs text-blue-700 font-medium">
+                        <p className="text-xs text-[#E5007D] font-medium">
                           Correo: <strong>{formData.emailResponsable}</strong> {formData.telefonoResponsable ? `• Celular: ${formData.telefonoResponsable}` : ''}
                         </p>
                       </div>
@@ -1404,7 +1457,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         onClick={() => setShowEmailModal(true)}
                         className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer border border-slate-200"
                       >
-                        <Send className="w-3.5 h-3.5 text-blue-600" />
+                        <Send className="w-3.5 h-3.5 text-[#E5007D]" />
                         <span>Vista Previa del Correo</span>
                       </button>
                     </div>
@@ -1412,16 +1465,16 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
 
                   {/* Estado del envío de correo electrónico real */}
                   {realEmailStatusNotice && (
-                    <div className="p-3 bg-blue-50/90 rounded-2xl border border-blue-200 text-xs font-semibold text-blue-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                    <div className="p-3 bg-pink-50/90 rounded-2xl border border-pink-200 text-xs font-semibold text-purple-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <Mail className="w-4 h-4 text-blue-600 shrink-0" />
+                        <Mail className="w-4 h-4 text-[#E5007D] shrink-0" />
                         <span>{realEmailStatusNotice}</span>
                       </div>
                       <button
                         type="button"
                         onClick={() => handleAcceptQuotation()}
                         disabled={isSendingRealEmail}
-                        className="px-3 py-1 bg-white hover:bg-blue-100 text-blue-700 border border-blue-300 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer disabled:opacity-50"
+                        className="px-3 py-1 bg-white hover:bg-pink-100 text-[#E5007D] border border-pink-300 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer disabled:opacity-50"
                       >
                         {isSendingRealEmail ? 'Enviando...' : 'Reenviar a mi correo'}
                       </button>
@@ -1456,7 +1509,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
 
                     <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 space-y-1">
                       <span className="text-[10px] font-bold uppercase text-slate-400 block">¿En qué vehículo viaja?</span>
-                      <strong className="text-xs font-bold text-blue-900 block">Furgón Colorlink #08</strong>
+                      <strong className="text-xs font-bold text-purple-950 block">Furgón Colorlink #08</strong>
                       <span className="text-[11px] text-slate-600">
                         Placa: <strong>WLL-482</strong> (Conductor: Carlos Restrepo)
                       </span>
@@ -1464,7 +1517,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
 
                     <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 space-y-1">
                       <span className="text-[10px] font-bold uppercase text-slate-400 block">¿Cuándo llega y a qué hora?</span>
-                      <strong className="text-xs font-bold text-blue-900 block">
+                      <strong className="text-xs font-bold text-purple-950 block">
                         {getEstimatedArrivalDate(presupuesto.tiempoEntregaDias)}
                       </strong>
                       <span className="text-[11px] text-slate-600">
@@ -1473,14 +1526,14 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                     </div>
                   </div>
 
-                  <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-200 text-[11px] text-blue-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                  <div className="p-3 bg-pink-50/70 rounded-xl border border-pink-200 text-[11px] text-purple-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                     <span>
                       Cálculo verificado: <strong>{technicalCalc.manosSugeridas} manos recomendadas</strong> y <strong>+{technicalCalc.factorDesperdicioPorcentaje}% de desperdicio técnico</strong> ({technicalCalc.galonesDesperdicio} gal) para cubrir los {formData.areaM2} m².
                     </span>
                     <button
                       type="button"
                       onClick={() => setShowEmailModal(true)}
-                      className="text-xs font-bold text-blue-700 hover:underline flex items-center gap-1 shrink-0 cursor-pointer"
+                      className="text-xs font-bold text-[#E5007D] hover:underline flex items-center gap-1 shrink-0 cursor-pointer"
                     >
                       Ver Recibo en Correo →
                     </button>
@@ -1527,7 +1580,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         handleSwitchPaintType('Tipo 2');
                         setQuotationDecision('pending');
                       }}
-                      className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
+                      className="px-4 py-2.5 bg-[#E5007D] hover:bg-[#C7006D] text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
                     >
                       Re-cotizar con Tipo 2 ($285k)
                     </button>
@@ -1546,8 +1599,8 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
 
           {quotationDecision !== 'accepted' && (
             <div className="no-print bg-white rounded-3xl p-8 border border-slate-200 shadow-xs text-center space-y-4">
-              <div className="w-14 h-14 mx-auto rounded-2xl bg-blue-50 text-blue-700 flex items-center justify-center">
-                <FileText className="w-7 h-7 text-blue-600" />
+              <div className="w-14 h-14 mx-auto rounded-2xl bg-pink-50 text-[#E5007D] flex items-center justify-center">
+                <FileText className="w-7 h-7 text-[#E5007D]" />
               </div>
               <div className="max-w-md mx-auto space-y-2">
                 <h4 className="text-base font-black text-slate-900">
@@ -1565,9 +1618,9 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                 <button
                   type="button"
                   onClick={handleAcceptQuotation}
-                  className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-bold text-xs rounded-2xl shadow-xs transition-all inline-flex items-center gap-2 cursor-pointer"
+                  className="px-6 py-3 bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] hover:brightness-110 text-white font-bold text-xs rounded-2xl shadow-md transition-all inline-flex items-center gap-2 cursor-pointer"
                 >
-                  <CheckCircle2 className="w-4 h-4 text-blue-200" />
+                  <CheckCircle2 className="w-4 h-4 text-white" />
                   <span>Aceptar Cotización y Generar Recibo Ahora</span>
                 </button>
               )}
@@ -1601,7 +1654,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         <span className="font-black text-xl sm:text-2xl tracking-wider text-slate-950 uppercase">
                           COLORLINK<span className="text-red-600">®</span>
                         </span>
-                        <span className="text-[10px] font-bold uppercase tracking-widest bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
+                        <span className="text-[10px] font-bold uppercase tracking-widest bg-pink-100 text-[#E5007D] px-2 py-0.5 rounded font-black">
                           Línea Profesional
                         </span>
                       </div>
@@ -1659,10 +1712,10 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
               </div>
 
               {/* SISTEMA QUÍMICO HOMOLOGADO COLORLINK */}
-              <div className="p-5 rounded-2xl bg-gradient-to-r from-blue-50/90 via-white to-amber-50/70 border border-blue-200/80 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="p-5 rounded-2xl bg-gradient-to-r from-pink-50/90 via-white to-purple-50/70 border border-pink-200/80 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="space-y-1">
-                  <span className="text-xs font-bold text-blue-900 uppercase tracking-wider flex items-center gap-1.5">
-                    <ShieldCheck className="w-4 h-4 text-blue-700" /> Sistema Químico Profesional Recomendado:
+                  <span className="text-xs font-bold text-purple-950 uppercase tracking-wider flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-[#E5007D]" /> Sistema Químico Profesional Recomendado:
                   </span>
                   <h3 className="text-lg font-black text-slate-900">{technicalCalc.productoRecomendado}</h3>
                   <p className="text-xs text-slate-600">
@@ -1673,7 +1726,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className="px-4 py-2 bg-[#003882] text-white text-xs font-black rounded-xl shadow-xs">
+                  <span className="px-4 py-2 bg-gradient-to-r from-[#FF6A00] to-[#E5007D] text-white text-xs font-black rounded-xl shadow-xs">
                     {technicalCalc.cuñetesRequeridos} Cuñetes + {technicalCalc.galonesSueltosRequeridos} Galones
                   </span>
                 </div>
@@ -1693,7 +1746,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                 </div>
                 <div className="space-y-1">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Volumen Total Liquidado</span>
-                  <strong className="text-blue-900 font-bold block text-sm">{technicalCalc.galonesRequeridos} Galones Despachados</strong>
+                  <strong className="text-[#E5007D] font-bold block text-sm">{technicalCalc.galonesRequeridos} Galones Despachados</strong>
                   <span className="text-[11px] text-slate-500 block leading-snug">
                     {technicalCalc.cuñetesRequeridos} Cuñetes + {technicalCalc.galonesSueltosRequeridos} Gal ({technicalCalc.galonesNetosSinDesperdicio} netos + {technicalCalc.galonesDesperdicio} merma)
                   </span>
@@ -1704,7 +1757,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                    <Receipt className="w-4 h-4 text-blue-700" /> Liquidación Detallada de Materiales & Precios Reales (COP)
+                    <Receipt className="w-4 h-4 text-[#E5007D]" /> Liquidación Detallada de Materiales & Precios Reales (COP)
                   </h4>
                   <span className="text-[11px] text-slate-500 font-medium">Lista de Precios Oficial Colorlink</span>
                 </div>
@@ -1744,7 +1797,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                 <div className="md:col-span-6 space-y-3">
                   <div className="p-4 rounded-2xl bg-slate-50/90 border border-slate-200 text-xs space-y-2 text-slate-700">
                     <h5 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
-                      <Truck className="w-4 h-4 text-blue-700" /> Logística de Despacho & Cobertura:
+                      <Truck className="w-4 h-4 text-[#E5007D]" /> Logística de Despacho & Cobertura:
                     </h5>
                     <p>
                       Despacho directo desde el CEDI logístico a la obra en <strong>{formData.ciudad}</strong>.
@@ -1913,8 +1966,8 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
 
                 {activeSession ? (
                   <div className="flex items-center gap-2 shrink-0">
-                    <div className="flex items-center gap-2 bg-blue-50/90 border border-blue-200/90 px-3.5 py-2 rounded-full text-xs shadow-2xs">
-                      <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
+                    <div className="flex items-center gap-2 bg-pink-50/90 border border-pink-200/90 px-3.5 py-2 rounded-full text-xs shadow-2xs">
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#E5007D]"></span>
                       <span className="font-bold text-slate-800 truncate max-w-[170px]">
                         {activeSession.responsable || activeSession.empresa}
                       </span>
@@ -1936,9 +1989,9 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
               </div>
 
               {/* Banner Inteligente de Asistente IA Pincelito */}
-              <div className="mt-5 p-4 rounded-2xl bg-gradient-to-r from-blue-50 via-indigo-50/70 to-pink-50/50 border border-blue-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs backdrop-blur-xs">
+              <div className="mt-5 p-4 rounded-2xl bg-gradient-to-r from-pink-50/80 via-purple-50/60 to-white border border-pink-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs backdrop-blur-xs">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-pink-600 text-white flex items-center justify-center shadow-xs shrink-0 p-1">
+                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] text-white flex items-center justify-center shadow-xs shrink-0 p-1">
                     <svg viewBox="0 0 100 100" fill="none" className="w-full h-full">
                       <ellipse cx="50" cy="58" rx="26" ry="28" fill="#FFFFFF" />
                       <ellipse cx="50" cy="62" rx="17" ry="20" fill="#0F172A" />
@@ -3334,7 +3387,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
           <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-7 space-y-4 shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-bold shadow-xs">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#FF6A00] to-[#E5007D] text-white flex items-center justify-center font-bold shadow-xs">
                   <Camera className="w-5 h-5 text-white" />
                 </div>
                 <div>
@@ -3382,6 +3435,203 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
         decisionTimestamp={decisionTimestamp}
         onDownloadPDF={handleDownloadPDF}
       />
+
+      {/* MODAL: CÁMARA EN VIVO / FOTOGRAFÍA DE OBRA */}
+      {showLiveCameraModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white text-slate-800 rounded-3xl max-w-xl w-full p-5 sm:p-6 space-y-4 shadow-2xl border border-pink-200">
+            {/* Cabecera */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#FF6A00] to-[#E5007D] text-white flex items-center justify-center font-bold shadow-xs">
+                  <Camera className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-black text-slate-900">
+                    Cámara para Registro Fotográfico de Obra
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Apunta a la pared, fachada o superficie a intervenir
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleStopLiveCamera}
+                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 cursor-pointer transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Caso 1: Error al acceder a la cámara directa */}
+            {cameraError ? (
+              <div className="space-y-4 py-2">
+                <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-800 text-xs space-y-2">
+                  <div className="flex items-center gap-2 font-bold text-amber-900">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Aviso de Permiso de Cámara</span>
+                  </div>
+                  <p className="leading-relaxed text-[11px] text-amber-900">
+                    {cameraError}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleStopLiveCamera();
+                      cameraInputRef.current?.click();
+                    }}
+                    className="w-full py-3.5 bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] hover:brightness-110 text-white font-bold text-xs sm:text-sm rounded-2xl shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
+                  >
+                    <Camera className="w-4 h-4" />
+                    <span>Abrir App de Cámara de tu Celular / Dispositivo</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleStartLiveCamera()}
+                    className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Reintentar Permiso de Cámara Web</span>
+                  </button>
+                </div>
+              </div>
+            ) : capturedPhotoDraft ? (
+              /* Caso 2: Foto capturada en borrador para confirmación */
+              <div className="space-y-4">
+                <div className="relative w-full h-72 sm:h-80 bg-black rounded-2xl overflow-hidden border border-slate-200">
+                  <img
+                    src={capturedPhotoDraft}
+                    alt="Foto capturada"
+                    className="w-full h-full object-cover"
+                  />
+                  <span className="absolute top-3 left-3 bg-emerald-600 text-white text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider flex items-center gap-1 shadow-md">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Foto Lista
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleConfirmCapturedPhoto}
+                    className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>Aceptar y Adjuntar a la Cotización</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleRetakeLivePhoto}
+                    className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Repetir</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Caso 3: Vista en vivo de la cámara */
+              <div className="space-y-4">
+                <div className="relative w-full h-72 sm:h-80 bg-black rounded-2xl overflow-hidden border border-slate-700 flex items-center justify-center">
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-full object-cover"
+                  />
+
+                  {/* Indicador de Transmisión Activa */}
+                  <span className="absolute top-3 left-3 bg-red-600/90 text-white text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider flex items-center gap-1.5 shadow-md">
+                    <span className="w-2 h-2 rounded-full bg-white animate-ping"></span>
+                    En Vivo
+                  </span>
+
+                  {/* Botón Voltear Cámara (Frontal / Trasera) */}
+                  <button
+                    type="button"
+                    onClick={handleToggleFacingMode}
+                    className="absolute top-3 right-3 bg-black/60 hover:bg-black/80 text-white px-2.5 py-1.5 rounded-xl backdrop-blur-xs flex items-center gap-1.5 text-xs font-bold border border-white/20 cursor-pointer transition-all"
+                    title="Alternar entre cámara trasera y frontal"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>{facingMode === 'environment' ? 'Modo Selfie' : 'Cámara Trasera'}</span>
+                  </button>
+
+                  {/* Guías ópticas de visor */}
+                  <div className="absolute inset-8 pointer-events-none border-2 border-white/25 rounded-2xl border-dashed"></div>
+                </div>
+
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={handleCaptureLiveCameraPhoto}
+                    className="w-full py-3.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-sm rounded-2xl shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
+                  >
+                    <Camera className="w-5 h-5 text-white" />
+                    <span>📸 Capturar Foto de la Superficie</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleStopLiveCamera();
+                      cameraInputRef.current?.click();
+                    }}
+                    className="w-full py-2 bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                  >
+                    <Upload className="w-3.5 h-3.5 text-purple-400" />
+                    <span>O tomar foto directamente con la cámara del celular</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: VISOR DE FOTO EN TAMAÑO COMPLETO */}
+      {previewEnlargedPhoto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white text-slate-800 rounded-3xl max-w-3xl w-full p-4 sm:p-5 space-y-3 shadow-2xl border border-pink-200">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <ZoomIn className="w-4 h-4 text-[#E5007D]" />
+                <span className="text-xs font-bold text-slate-800 truncate">{previewEnlargedPhoto.name}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewEnlargedPhoto(null)}
+                className="p-1 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="max-h-[75vh] overflow-hidden rounded-2xl bg-black flex items-center justify-center">
+              <img
+                src={previewEnlargedPhoto.url}
+                alt={previewEnlargedPhoto.name}
+                className="max-h-[72vh] w-auto max-w-full object-contain rounded-xl"
+              />
+            </div>
+            <div className="flex justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => setPreviewEnlargedPhoto(null)}
+                className="px-4 py-2 bg-gradient-to-r from-[#FF6A00] to-[#E5007D] text-white font-bold text-xs rounded-xl cursor-pointer hover:brightness-110 shadow-xs"
+              >
+                Cerrar Visor
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
