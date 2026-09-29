@@ -86,7 +86,18 @@ export const getCityImage = (city: string): string => {
   return match ? CITY_IMAGES[match] : cityMedellin;
 };
 
-interface OrderItem {
+export interface OrderHistoryEntry {
+  fecha: string;
+  estado: 'pendiente' | 'preparando' | 'en_ruta' | 'entregado' | 'en_espera' | 'rechazado';
+  autor: 'IA (Pincelito Inspector)' | 'Manual (Supervisor)';
+  motivo?: string;
+  mensajesEnviados?: {
+    email?: string;
+    whatsapp?: string;
+  };
+}
+
+export interface OrderItem {
   id: string;
   cliente: string;
   nit: string;
@@ -104,6 +115,18 @@ interface OrderItem {
   color: string;
   totalCOP: number;
   status: 'pendiente' | 'preparando' | 'en_ruta' | 'entregado' | 'en_espera' | 'rechazado';
+  dictamenIA?: {
+    decision: 'aceptar' | 'en_espera' | 'rechazar';
+    motivo: string;
+    fechaAuditoria: string;
+    insumosVerificados?: {
+      pinturaValida: boolean;
+      colorFormulado: boolean;
+      stockSuficiente: boolean;
+      cuñetesFaltantes: number;
+    };
+  };
+  historialCambios?: OrderHistoryEntry[];
   vehiculoAsignado?: string;
   placa?: string;
   conductor?: string;

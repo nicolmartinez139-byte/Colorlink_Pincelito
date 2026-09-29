@@ -33,31 +33,38 @@ app.post('/api/ai-audit-order', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Faltan datos del pedido' });
     }
 
-    const prompt = `Actúa como el Sistema Inteligente de Despacho y Auditoría Técnica de COLORLINK Pinturas Colombia.
+    const prompt = `Actúa como el Sistema Inteligente de Despacho, Auditoría Técnica y Comunicaciones de COLORLINK Pinturas Colombia.
 Evalúa el siguiente pedido para decidir si debe ser:
-1. "aceptar" (Hay stock suficiente en la sede o fábrica, los datos técnicos de pintura, color, obra y contacto están completos). Asignar vehículo de flota (Camión Turbo NHR o Van Logística) para despacho.
-2. "en_espera" (Falta stock en la sede local de la ciudad, se requiere preparación en tintometría desde fábrica central Medellín, o falta precisión en el tono/dosificación).
-3. "rechazar" (Inconsistencia técnica grave, formulación inviable o zona sin cobertura logística).
+1. "aceptar": Si hay 100% de materiales en la planta/sede local, la superficie y tipo de pintura son compatibles, y la solicitud es viable. Pasa a "Aceptado" (en preparación de tintometría).
+2. "en_espera": Si falta algún insumo o cuñetes en la sede local pero se puede conseguir y despachar desde el CEDI central / fábrica Medellín.
+3. "rechazar": Si es inviable técnicamente (incompatibilidad severa de producto para el sustrato/ambiente, datos inválidos o zona sin cobertura). Explica claramente el motivo técnico.
 
 DATOS DEL PEDIDO:
 - ID Pedido: ${order.id}
 - Cliente: ${order.cliente}
 - NIT / Empresa: ${order.nit || 'No especificado'}
-- Obra / Dirección: ${order.obra} - ${order.ciudad}
-- Responsable: ${order.responsable} (${order.telefono}, ${order.email})
+- Obra: ${order.obra || 'Obra Principal'}
+- Ciudad: ${order.ciudad}
+- Responsable: ${order.responsable} (Tel: ${order.telefono}, Email: ${order.email})
 - Tipo de Pintura: ${order.tipoPintura}
 - Color / Acabado: ${order.color} (Código: ${order.colorHex || 'Estándar'})
-- Cantidad Solicitada: ${order.cunetes} Cuñetes (5 gal c/u) y ${order.galones || 0} Galones
+- Cantidad Solicitada: ${order.cunetes || 1} Cuñetes (5 gal c/u) y ${order.galones || 0} Galones
+- Área a Cubrir: ${order.areaM2 || 50} m²
 - Monto Total: $${Number(order.totalCOP || 0).toLocaleString('es-CO')} COP
 
-INVENTARIO EN SEDE ${order.ciudad?.toUpperCase()}:
-- Stock disponible en sede: ${cityStock ?? 15} cuñetes
-- Stock disponible en Fábrica Central Medellín: ${factoryAvailable} cuñetes
+INVENTARIO EN PLANTA / SEDE ${order.ciudad?.toUpperCase()}:
+- Stock en sede: ${cityStock ?? 15} cuñetes
+- Stock disponible en CEDI Central Medellín: ${factoryAvailable} cuñetes
+- Sellador / Base y Pigmentos: Verificados en laboratorio
 
-Responde ÚNICAMENTE un objeto JSON válido con la siguiente estructura (sin markdown adicional, sin bloques de código extras si es posible):
+REQUISITOS OBLIGATORIOS PARA LA REDACCIÓN:
+- "mensajeCorreoCliente": Correo formal, cordial, claro y profesional. Debe incluir explícitamente el nombre del cliente (${order.responsable || order.cliente}), el producto (${order.tipoPintura}), la cantidad (${order.cunetes || 1} cuñetes / ${order.galones || 0} galones), el área en m² (${order.areaM2 || 50} m²) y la ciudad (${order.ciudad}).
+- "mensajeWhatsAppCliente": Mensaje de WhatsApp más corto, cercano y cordial con formato limpio (negritas con asteriscos, emojis acordes). Debe mencionar también el nombre del cliente, producto, cantidad, área en m² (${order.areaM2 || 50} m²) y ciudad (${order.ciudad}).
+
+Responde ÚNICAMENTE un objeto JSON válido con la siguiente estructura (sin markdown exterior):
 {
   "decision": "aceptar" | "en_espera" | "rechazar",
-  "razonTecnica": "Explicación clara de por qué se toma la decisión respecto a stock, insumos y especificación técnica",
+  "razonTecnica": "Explicación detallada del dictamen respecto a stock en planta vs CEDI, sellador/base, pigmentos y viabilidad técnica",
   "insumosVerificados": {
     "pinturaValida": true,
     "colorFormulado": true,
@@ -70,31 +77,37 @@ Responde ÚNICAMENTE un objeto JSON válido con la siguiente estructura (sin mar
     "conductor": "Carlos Mario Henao" | "Jairo Ramírez" | "Andrés Felipe Gil",
     "horaEstimadaDespacho": "Hoy mismo en 2 horas" | "Mañana a primera hora (08:00 AM)" | "En espera de reposición"
   },
-  "mensajeCorreoCliente": "Texto formal y cálido para enviar por correo al cliente informándole el estado del pedido, si fue aceptado y asignado a qué vehículo, o si está en espera/rechazado",
-  "recomendacionAdicional": "Consejo técnico para el cliente sobre aplicación, rendimiento o sellador"
+  "mensajeCorreoCliente": "Texto formal del correo",
+  "mensajeWhatsAppCliente": "Texto corto y cálido de WhatsApp",
+  "recomendacionAdicional": "Consejo técnico para la aplicación o preparación del sustrato"
 }`;
 
     if (process.env.GEMINI_API_KEY) {
-      try {
-        const aiResponse = await ai.models.generateContent({
-          model: 'gemini-3.8-flash',
-          contents: prompt,
-          config: {
-            responseMimeType: 'application/json'
-          }
-        });
-
-        const rawText = aiResponse.text;
-        if (rawText) {
-          const parsed = JSON.parse(rawText);
-          return res.json({
-            success: true,
-            provider: 'gemini-3.8-flash',
-            audit: parsed
+      // Intentar primero con gemini-3.8-flash, o gemini-3.1-flash-lite si la cuota de flash está copada
+      const candidateModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
+      for (const modelName of candidateModels) {
+        try {
+          const aiResponse = await ai.models.generateContent({
+            model: modelName,
+            contents: prompt,
+            config: {
+              responseMimeType: 'application/json'
+            }
           });
+
+          const rawText = aiResponse.text;
+          if (rawText) {
+            const parsed = JSON.parse(rawText);
+            return res.json({
+              success: true,
+              provider: modelName,
+              audit: parsed
+            });
+          }
+        } catch (geminiErr: any) {
+          console.warn(`[AI AUDIT] Error al invocar ${modelName}:`, geminiErr?.message || geminiErr);
+          // Si es error de cuota/resource_exhausted, probar con el siguiente modelo o caer a heurística
         }
-      } catch (geminiErr: any) {
-        console.warn('[AI AUDIT] Error al invocar Gemini, usando motor de auditoría heurístico:', geminiErr?.message);
       }
     }
 
@@ -117,6 +130,26 @@ Responde ÚNICAMENTE un objeto JSON válido con la siguiente estructura (sin mar
       razon = `Demanda (${needed} cuñetes) excede el stock inmediato en CEDI ${order.ciudad} (${stock} disp.). Se requiere programación de lote desde fábrica central Medellín.`;
     }
 
+    const clientName = order.responsable || order.cliente || 'Cliente';
+    const prodName = order.tipoPintura || 'Pintura Tipo 1';
+    const city = order.ciudad || 'Medellín';
+    const m2 = order.areaM2 || 50;
+    const qtyText = `${needed} cuñete(s)`;
+
+    let emailText = '';
+    let waText = '';
+
+    if (decision === 'aceptar') {
+      emailText = `Estimado(a) ${clientName},\n\nNos complace informarle que su pedido #${order.id} ha sido auditado por nuestro sistema inteligente de control de calidad y ACEPTADO para producción inmediata en planta.\n\nDetalles del despacho:\n• Producto: ${prodName}\n• Color: ${order.color || 'Acabado Estándar'}\n• Cantidad: ${qtyText}\n• Área cubierta: ${m2} m²\n• Ciudad destino: ${city}\n• Total liquidado: $${Number(order.totalCOP || 0).toLocaleString('es-CO')} COP\n\nNuestra planta cuenta con el 100% de insumos, pigmentos y resinas listas. Su pedido ha sido asignado al Camión Turbo NHR Placa TZW-402 conducido por Carlos Mario Henao.\n\nAtentamente,\nEquipo de Calidad y Despacho COLORLINK® Pinturas`;
+      waText = `🎨 *COLORLINK® • PEDIDO ACEPTADO #${order.id}* 🎨\n\n¡Hola *${clientName}*! Tu pedido para cubrir *${m2} m²* en *${city}* ha sido verificado con el 100% de insumos en planta y *ACEPTADO*.\n\n📦 *Detalle:* ${qtyText} de ${prodName} (${order.color || 'Color seleccionado'})\n🚚 *Despacho:* Asignado a Camión Turbo NHR (Placa: TZW-402) conducido por Carlos Mario Henao.\n\n¡Inicia preparación en tintometría!`;
+    } else if (decision === 'en_espera') {
+      emailText = `Estimado(a) ${clientName},\n\nLe informamos que su pedido #${order.id} para ${qtyText} de ${prodName} (${m2} m²) con destino a ${city} ha sido colocado temporalmente EN ESPERA.\n\nMotivo del dictamen: ${razon}\n\nNuestro Centro de Distribución (CEDI) ya programó el traslado del lote faltante para que su pedido no sufra retrasos imprevistos. Le avisaremos tan pronto sea despachado.\n\nCordialmente,\nEquipo Técnico COLORLINK®`;
+      waText = `⏳ *COLORLINK® • PEDIDO EN ESPERA #${order.id}*\n\nHola *${clientName}*, te informamos que tu pedido de *${qtyText}* de ${prodName} para *${m2} m²* en *${city}* está en espera por consolidación de insumos en CEDI.\n\nYa estamos coordinando el traslado para alistarlo cuanto antes. Te mantendremos informado.`;
+    } else {
+      emailText = `Estimado(a) ${clientName},\n\nLe notificamos que el pedido #${order.id} para ${prodName} (${m2} m²) en ${city} ha sido RECHAZADO por el sistema de auditoría técnica.\n\nMotivo del rechazo: ${razon}\n\nUn asesor técnico se pondrá en contacto con usted al número ${order.telefono} para evaluar la formulación apropiada para su requerimiento.\n\nAtentamente,\nControl Técnico COLORLINK®`;
+      waText = `⚠️ *COLORLINK® • PEDIDO NO APROBADO #${order.id}*\n\nHola *${clientName}*, tu solicitud para *${m2} m²* en *${city}* no pudo ser aprobada automáticamente por: ${razon}.\nUn asesor técnico te contactará pronto para darte la mejor solución.`;
+    }
+
     const fallbackAudit = {
       decision,
       razonTecnica: razon,
@@ -132,9 +165,8 @@ Responde ÚNICAMENTE un objeto JSON válido con la siguiente estructura (sin mar
         conductor: 'Carlos Mario Henao',
         horaEstimadaDespacho: decision === 'aceptar' ? 'Hoy en las próximas 2 horas' : 'Programado tras producción'
       },
-      mensajeCorreoCliente: decision === 'aceptar'
-        ? `Estimado(a) ${order.responsable || order.cliente}, le confirmamos que su pedido #${order.id} ha sido auditado y aprobado exitosamente por nuestro departamento de logística. Ha sido asignado al Camión Turbo NHR Placa TZW-402 conducido por Carlos Mario Henao y se encuentra en alistamiento para entrega en ${order.obra}.`
-        : `Estimado(a) ${order.responsable || order.cliente}, le informamos que su pedido #${order.id} se encuentra en estado de espera para despacho directo desde nuestra planta principal. Nuestro equipo comercial coordinará la entrega a la brevedad.`,
+      mensajeCorreoCliente: emailText,
+      mensajeWhatsAppCliente: waText,
       recomendacionAdicional: 'Verificar humedad superficial del revoque (<12%) antes de aplicar la primera mano de pintura.'
     };
 

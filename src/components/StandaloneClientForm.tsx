@@ -1340,7 +1340,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
             {/* 2. SI LA COTIZACIÓN FUE ACEPTADA */}
             {quotationDecision === 'accepted' && (
               <div className="space-y-4 animate-fadeIn">
-                <div className="bg-gradient-to-r from-[#003882] via-[#6A0DAD] to-[#E5007D] text-white rounded-3xl p-6 sm:p-7 shadow-lg border border-purple-800 space-y-4">
+                <div className="bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] text-white rounded-3xl p-6 sm:p-7 shadow-lg border border-pink-400/40 space-y-4">
                   <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                     <div className="flex items-center gap-4">
                       <div className="w-14 h-14 rounded-2xl bg-white/15 backdrop-blur-xs flex items-center justify-center font-bold text-white shadow-inner shrink-0">

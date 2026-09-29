@@ -38,7 +38,10 @@ export interface OrderStatusWhatsAppParams {
   telefono?: string;
   email?: string;
   ciudad?: string;
-  status: 'aprobado' | 'preparando' | 'en_ruta' | 'entregado';
+  areaM2?: number;
+  cantidadTexto?: string;
+  status: 'aprobado' | 'preparando' | 'en_ruta' | 'entregado' | 'en_espera' | 'rechazado';
+  motivo?: string;
   producto?: string;
   color?: string;
   totalCOP?: number;
@@ -146,6 +149,9 @@ export function generateOrderStatusWhatsAppMessage(params: OrderStatusWhatsAppPa
   const nombre = params.responsable?.trim() || 'Cliente';
   const empresa = params.cliente?.trim() || 'Constructora';
   const orderId = params.orderId || 'CLK-2026';
+  const ciudad = params.ciudad || 'tu ciudad';
+  const m2Text = params.areaM2 ? ` (${params.areaM2} m²)` : '';
+  const cantText = params.cantidadTexto || 'cuñetes según requerimiento';
 
   let estadoTitulo = 'ACTUALIZACIÓN DE PEDIDO';
   let estadoDetalle = '';
@@ -154,41 +160,51 @@ export function generateOrderStatusWhatsAppMessage(params: OrderStatusWhatsAppPa
   switch (params.status) {
     case 'aprobado':
       icono = '🟢';
-      estadoTitulo = 'PEDIDO APROBADO Y CONFIRMADO';
-      estadoDetalle = `Tu pedido ha sido aprobado formalmente y programado para preparación inmediata en nuestra planta central de tintometría.`;
+      estadoTitulo = 'PEDIDO ACEPTADO & CONFIRMADO';
+      estadoDetalle = `¡Buenas noticias! Tu pedido ha sido auditado con 100% de insumos en planta y pasa a estado *Aceptado* para tintometría y alistamiento inmediato.`;
       break;
     case 'preparando':
       icono = '🟡';
       estadoTitulo = 'EN PREPARACIÓN & TINTOMETRÍA';
       estadoDetalle = `Nuestros químicos y operarios de laboratorio están preparando y dosificando tu pintura con los pigmentos y resinas oficiales en planta.`;
       break;
+    case 'en_espera':
+      icono = '⏳';
+      estadoTitulo = 'PEDIDO EN ESPERA • REABASTECIMIENTO CEDI';
+      estadoDetalle = `Tu pedido se encuentra temporalmente en espera. ${params.motivo || 'Estamos coordinando el envío de insumos desde nuestro CEDI para garantizar tu fórmula al 100%.'}`;
+      break;
+    case 'rechazado':
+      icono = '⚠️';
+      estadoTitulo = 'SOLICITUD NO APROBADA';
+      estadoDetalle = `Tu pedido no pudo ser aprobado. ${params.motivo || 'Incompatibilidad técnica con el sustrato o cobertura.'} Un asesor se contactará contigo para brindarte una solución adecuada.`;
+      break;
     case 'en_ruta':
       icono = '🚚';
-      estadoTitulo = 'PEDIDO DESPACHADO • EN CAMINO A TU OBRA';
-      estadoDetalle = `El pedido fue cargado y va en camino hacia *${params.ciudad || 'tu obra'}*.
-• *Vehículo Asignado:* ${params.vehiculo || 'Furgón Colorlink #08'} (Placa: ${params.placa || 'WLL-482'})
-• *Conductor:* ${params.conductor || 'Carlos Restrepo'}
-• *Llegada Estimada:* ${params.horaEstimada || '10:30 AM - 12:30 PM'}
-• *Ruta:* Optimización por IA para evitar embotellamientos viales.`;
+      estadoTitulo = 'PEDIDO EN CAMINO A TU OBRA';
+      estadoDetalle = `El pedido fue cargado y va en camino hacia *${ciudad}*.
+• *Vehículo:* ${params.vehiculo || 'Camión Turbo NHR Colorlink'} (Placa: ${params.placa || 'TZW-402'})
+• *Conductor:* ${params.conductor || 'Carlos Mario Henao'}
+• *Llegada Estimada:* ${params.horaEstimada || 'Hoy en 2 horas'}`;
       break;
     case 'entregado':
       icono = '✅';
       estadoTitulo = 'PEDIDO ENTREGADO A SATISFACCIÓN';
-      estadoDetalle = `El furgón ha completado la entrega de los materiales en tu obra. Recibido conforme por el personal autorizado.`;
+      estadoDetalle = `Los materiales han sido entregados con éxito en tu obra en *${ciudad}*. ¡Gracias por confiar en Colorlink®!`;
       break;
   }
 
   return `${icono} *COLORLINK® PINTURAS • ${estadoTitulo}* ${icono}
 
-Estimado(a) *${nombre}* (*${empresa}*), te informamos el estado en tiempo real de tu pedido *#${orderId}*:
+¡Hola *${nombre}*! Te informamos el estado de tu pedido *#${orderId}* para tu proyecto en *${ciudad}*${m2Text}:
 
-📍 *ESTADO ACTUAL:*
+📍 *ESTADO:*
 ${estadoDetalle}
 
 ${params.producto ? `📦 *Producto:* ${params.producto} (${params.color || 'Acabado Estándar'})` : ''}
+${params.cantidadTexto ? `📊 *Cantidad:* ${params.cantidadTexto}` : ''}
+${params.areaM2 ? `📐 *Área de Obra:* ${params.areaM2} m²` : ''}
 ${params.totalCOP ? `💵 *Total:* ${formatCOP(params.totalCOP)} COP` : ''}
 
-Por favor ten personal disponible en obra para la recepción.
 Atentamente,
 *Equipo de Logística & Tintometría Colorlink®* 🐧🎨`;
 }
