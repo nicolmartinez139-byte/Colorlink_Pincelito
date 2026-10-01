@@ -369,16 +369,9 @@ export function ColorlinkLoginLanding({
         {/* Puntitos de colores variados característicos dentro de la tarjeta */}
         <ColorlinkConfettiDots className="absolute inset-0 z-0 opacity-75" />
 
-        {/* PUNTOS VIVOS DESTACADOS JUSTO ALREDEDOR DEL BADGE Y TÍTULO (Exactos a la imagen de referencia) */}
-        <div className="absolute top-4 left-10 w-3 h-3 rounded-full bg-[#8E89A1] opacity-90 shadow-2xs z-10" />
-        <div className="absolute top-3.5 right-14 w-3.5 h-3.5 rounded-full bg-[#48C78E] opacity-95 shadow-xs z-10" />
-        <div className="absolute top-5 right-5 w-3 h-3 rounded-full bg-[#FACC15] opacity-95 shadow-xs z-10" />
-        <div className="absolute top-11 left-16 w-2.5 h-2.5 rounded-full bg-[#D77E63] opacity-85 z-10" />
-        <div className="absolute top-12 right-28 w-2 h-2 rounded-full bg-[#009FE3] opacity-90 z-10" />
-
-        {/* BADGE CIRCULAR SUPERPUESTO CON EL ARO EN DEGRADADO ROSA/CORAL VIBRANTE (Exacto a la imagen de referencia) */}
+        {/* BADGE CIRCULAR SUPERPUESTO CON EL PINGÜINITO TIERNO */}
         <div className="absolute -top-12 left-1/2 -translate-x-1/2 flex items-center justify-center z-10">
-          <div className="p-1.5 rounded-full bg-gradient-to-tr from-[#FF5E62] via-[#FF416C] to-[#EC4899] shadow-[0_10px_35px_-5px_rgba(255,75,110,0.55)]">
+          <div className="p-1.5 rounded-full bg-gradient-to-tr from-[#FF6A00] via-[#EC4899] to-[#009FE3] shadow-xl">
             <div className="w-20 h-20 sm:w-22 sm:h-22 rounded-full bg-white flex items-center justify-center p-1.5 overflow-hidden border-2 border-white shadow-inner">
               {/* Mascota Pingüino Colorlink */}
               <ColorlinkPenguin size="xl" className="transform hover:scale-105 transition-transform" />
@@ -386,9 +379,9 @@ export function ColorlinkLoginLanding({
           </div>
         </div>
 
-        {/* TÍTULO PRINCIPAL CON DEGRADADO VIBRANTE COLORIDO (Exacto a 'Inicia sesión ahora' de la imagen) */}
+        {/* TÍTULO PRINCIPAL CON DEGRADADO VIBRANTE COLORIDO */}
         <div className="relative z-10 text-center mb-6">
-          <h1 className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-[#D77E63] via-[#8E89A1] via-[#009FE3] to-[#0052CC] bg-clip-text text-transparent tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-[#FF6A00] via-[#009FE3] to-[#003882] bg-clip-text text-transparent tracking-tight">
             {mode === 'login' ? 'Inicia sesión ahora' : 'Crear cuenta nueva'}
           </h1>
           <p className="text-xs text-slate-500 mt-1 font-semibold">
@@ -471,7 +464,7 @@ export function ColorlinkLoginLanding({
             <button
               type="submit"
               disabled={loading}
-              className="w-full mt-2 bg-gradient-to-r from-[#FF6A00] via-[#EC4899] to-[#009FE3] hover:from-[#FF781F] hover:via-[#F43F5E] hover:to-[#0EA5E9] text-white font-black text-sm tracking-widest uppercase py-3.5 sm:py-4 rounded-full shadow-[0_12px_28px_-6px_rgba(236,72,153,0.45)] hover:shadow-[0_16px_34px_-6px_rgba(236,72,153,0.55)] transition-all active:scale-[0.98] cursor-pointer"
+              className="w-full mt-2 bg-gradient-to-r from-sky-500 via-sky-600 to-blue-700 hover:from-sky-600 hover:via-sky-700 hover:to-blue-800 text-white font-black text-sm tracking-widest uppercase py-3.5 sm:py-4 rounded-full shadow-[0_10px_25px_-5px_rgba(14,165,233,0.4)] hover:shadow-[0_15px_30px_-5px_rgba(14,165,233,0.5)] transition-all active:scale-[0.98] cursor-pointer"
             >
               {loading ? 'ACCEDIENDO...' : 'ACCESO'}
             </button>
@@ -481,18 +474,18 @@ export function ColorlinkLoginLanding({
               <button
                 type="button"
                 onClick={handleGuestEntry}
-                className="w-full py-2.5 px-4 bg-gradient-to-r from-amber-500/10 via-rose-500/10 to-sky-500/10 hover:from-amber-500/20 hover:via-rose-500/20 hover:to-sky-500/20 text-slate-800 font-bold text-xs rounded-full transition-all border border-rose-200/60 shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
+                className="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-full transition-all border border-slate-200 shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <span>Cotizar directamente sin iniciar sesión</span>
-                <ArrowRight className="w-3.5 h-3.5 text-rose-600" />
+                <ArrowRight className="w-3.5 h-3.5 text-sky-600" />
               </button>
 
               <button
                 type="button"
                 onClick={onOpenAdvisorModal}
-                className="w-full py-2.5 px-4 bg-gradient-to-r from-sky-50 to-blue-50 hover:from-sky-100 hover:to-blue-100 text-sky-800 font-bold text-xs rounded-full transition-all border border-sky-300 shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
+                className="w-full py-2.5 px-4 bg-gradient-to-r from-sky-50 to-blue-50 hover:from-sky-100 hover:to-blue-100 text-sky-700 font-bold text-xs rounded-full transition-all border border-sky-200/90 shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                <UserCheck className="w-3.5 h-3.5 text-[#009FE3]" />
+                <UserCheck className="w-3.5 h-3.5 text-sky-600" />
                 <span>¿Eres Asesor Comercial? Ingresa aquí</span>
               </button>
             </div>
@@ -625,7 +618,7 @@ export function ColorlinkLoginLanding({
             <button
               type="submit"
               disabled={loading}
-              className="w-full mt-3 bg-gradient-to-r from-[#FF6A00] via-[#EC4899] to-[#009FE3] hover:from-[#FF781F] hover:via-[#F43F5E] hover:to-[#0EA5E9] text-white font-black text-sm tracking-wider uppercase py-3.5 rounded-full shadow-[0_12px_28px_-6px_rgba(236,72,153,0.45)] hover:shadow-[0_16px_34px_-6px_rgba(236,72,153,0.55)] transition-all active:scale-[0.98] cursor-pointer"
+              className="w-full mt-3 bg-gradient-to-r from-sky-500 via-sky-600 to-blue-700 hover:from-sky-600 hover:via-sky-700 hover:to-blue-800 text-white font-black text-sm tracking-wider uppercase py-3.5 rounded-full shadow-[0_10px_25px_-5px_rgba(14,165,233,0.4)] hover:shadow-[0_15px_30px_-5px_rgba(14,165,233,0.5)] transition-all active:scale-[0.98] cursor-pointer"
             >
               {loading ? 'REGISTRANDO...' : 'REGISTRARME Y ENTRAR'}
             </button>

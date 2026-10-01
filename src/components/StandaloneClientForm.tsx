@@ -3090,7 +3090,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       <button
                         type="button"
                         onClick={handleNextStep}
-                        className="px-6 py-3 bg-gradient-to-r from-[#FF6A00] via-[#EC4899] to-[#009FE3] hover:from-[#FF781F] hover:via-[#F43F5E] hover:to-[#0EA5E9] text-white font-bold text-sm rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                        className="px-6 py-3 bg-gradient-to-r from-sky-500 via-sky-600 to-blue-600 hover:brightness-110 text-white font-bold text-sm rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer active:scale-95"
                       >
                         Continuar a Evidencias & Diagnóstico <ArrowRight className="w-4 h-4" />
                       </button>
@@ -3299,7 +3299,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         id="standalone-submit-btn"
                         type="submit"
                         onClick={handleSubmit}
-                        className="px-8 py-3.5 bg-gradient-to-r from-[#FF6A00] via-[#EC4899] to-[#009FE3] hover:from-[#FF781F] hover:via-[#F43F5E] hover:to-[#0EA5E9] text-white font-black text-sm rounded-2xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2.5 active:scale-95 cursor-pointer"
+                        className="px-8 py-3.5 bg-gradient-to-r from-sky-500 via-sky-600 to-blue-600 hover:brightness-110 text-white font-black text-sm rounded-2xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2.5 active:scale-95 cursor-pointer"
                       >
                         <Send className="w-4 h-4" />
                         Emitir Cotización Oficial
@@ -3316,7 +3316,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
       <button
         type="button"
         onClick={() => setIsAiAssistantOpen(true)}
-        className="fixed bottom-6 right-6 z-40 bg-gradient-to-r from-[#FF6A00] via-[#EC4899] to-[#009FE3] hover:from-[#FF781F] hover:via-[#F43F5E] hover:to-[#0EA5E9] text-white px-4 py-3 rounded-2xl shadow-xl hover:shadow-2xl transition-all flex items-center gap-2.5 group cursor-pointer border-2 border-white/40 active:scale-95"
+        className="fixed bottom-6 right-6 z-40 bg-gradient-to-r from-sky-500 via-sky-600 to-blue-600 hover:brightness-110 text-white px-4 py-3 rounded-2xl shadow-xl hover:shadow-2xl transition-all flex items-center gap-2.5 group cursor-pointer border-2 border-white/40 active:scale-95"
         title="Abrir Asistente Virtual con IA de Colorlink"
       >
         <div className="w-8 h-8 rounded-xl bg-white/20 backdrop-blur-xs flex items-center justify-center text-amber-300 shadow-inner">
