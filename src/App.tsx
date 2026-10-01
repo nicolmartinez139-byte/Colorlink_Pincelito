@@ -186,7 +186,7 @@ export default function App() {
   // Si el usuario está en rol asesor, mostramos el Portal de Asesores Comerciales
   if (userRole === 'advisor' && activeAdvisor) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col font-sans selection:bg-[#E5007D] selection:text-white">
+      <div className="min-h-screen bg-slate-50 flex flex-col font-sans selection:bg-sky-500 selection:text-white">
         <ColorlinkRainbowBar className="h-1.5 w-full" />
         <AdvisorPortal
           currentAdvisor={activeAdvisor}
@@ -204,7 +204,7 @@ export default function App() {
   // mostramos la pantalla de inicio con estilo idéntico a la Imagen 1 y el logo de la Imagen 2.
   if (userRole === 'client' && !activeClient) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col font-sans selection:bg-[#E5007D] selection:text-white">
+      <div className="min-h-screen bg-slate-50 flex flex-col font-sans selection:bg-sky-500 selection:text-white">
         <ColorlinkRainbowBar className="h-1.5 w-full" />
         <ColorlinkLoginLanding
           onLoginSuccess={(user, isSim) => {
@@ -339,7 +339,7 @@ export default function App() {
             <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-200 space-y-5">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#FF6A00] to-[#E5007D] text-white flex items-center justify-center font-bold shadow-xs">
+                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-400 to-blue-600 text-white flex items-center justify-center font-bold shadow-xs">
                     <UserCheck className="w-5 h-5" />
                   </div>
                   <div>
@@ -411,7 +411,7 @@ export default function App() {
                       if (advisorLoginError) setAdvisorLoginError(null);
                     }}
                     placeholder="sofia.asesora@colorlink.com.co"
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#E5007D] focus:bg-white transition-all"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white transition-all"
                   />
                 </div>
 
@@ -429,7 +429,7 @@ export default function App() {
                         if (advisorLoginError) setAdvisorLoginError(null);
                       }}
                       placeholder="Asesor2026*"
-                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#E5007D] focus:bg-white transition-all pr-10"
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white transition-all pr-10"
                     />
                     <button
                       type="button"
@@ -442,10 +442,10 @@ export default function App() {
                 </div>
 
                 {/* Chips de Selección Rápida de Asesor */}
-                <div className="p-3 bg-pink-50/70 border border-pink-200/80 rounded-2xl space-y-2">
-                  <div className="flex items-center justify-between text-[11px] font-bold text-[#E5007D]">
+                <div className="p-3 bg-sky-50/80 border border-sky-200/90 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-sky-700">
                     <span className="flex items-center gap-1">
-                      <Key className="w-3.5 h-3.5 text-[#E5007D]" />
+                      <Key className="w-3.5 h-3.5 text-sky-600" />
                       Asesores Autorizados (Clic para autocompletar):
                     </span>
                   </div>
@@ -459,15 +459,15 @@ export default function App() {
                           setAdvisorPassword('Asesor2026*');
                           if (advisorLoginError) setAdvisorLoginError(null);
                         }}
-                        className="px-2.5 py-1 bg-white hover:bg-pink-100 text-pink-900 border border-pink-200 rounded-lg text-[10px] font-bold transition-colors cursor-pointer flex items-center gap-1"
+                        className="px-2.5 py-1 bg-white hover:bg-sky-100 text-sky-900 border border-sky-200 rounded-lg text-[10px] font-bold transition-colors cursor-pointer flex items-center gap-1"
                       >
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                         <span>{adv.name.split(' ')[0]} ({adv.territory.split(' ')[0]})</span>
                       </button>
                     ))}
                   </div>
-                  <p className="text-[10px] text-pink-800 font-medium">
-                    Clave por defecto: <code className="bg-pink-200/70 px-1.5 py-0.5 rounded text-pink-950 font-bold">Asesor2026*</code>
+                  <p className="text-[10px] text-sky-800 font-medium">
+                    Clave por defecto: <code className="bg-sky-200/80 px-1.5 py-0.5 rounded text-sky-950 font-bold">Asesor2026*</code>
                   </p>
                 </div>
 
@@ -484,9 +484,9 @@ export default function App() {
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] hover:brightness-110 rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                    className="px-5 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-sky-500 via-sky-600 to-blue-600 hover:brightness-110 rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
                   >
-                    <UserCheck className="w-3.5 h-3.5 text-emerald-300" />
+                    <UserCheck className="w-3.5 h-3.5 text-white" />
                     <span>Ingresar como Asesor</span>
                   </button>
                 </div>
@@ -499,7 +499,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-800 flex flex-col font-sans selection:bg-[#E5007D] selection:text-white">
+    <div className="min-h-screen bg-[#f8fafc] text-slate-800 flex flex-col font-sans selection:bg-sky-500 selection:text-white">
       {/* Barra de Colores Institucional Colorlink */}
       <ColorlinkRainbowBar className="h-2 w-full" />
 
@@ -523,14 +523,14 @@ export default function App() {
                 <>
                   {/* Info de contacto cliente */}
                   <div className="hidden lg:flex items-center gap-2 text-xs text-slate-600 border-r border-slate-200/80 pr-3 mr-1 font-semibold">
-                    <Phone className="w-3.5 h-3.5 text-[#FF6A00]" />
+                    <Phone className="w-3.5 h-3.5 text-sky-600" />
                     <span>Línea Constructoras: (604) 448-0000</span>
                   </div>
 
                   {activeClient && (
                     <div className="flex items-center gap-2 mr-1">
                       <span className="hidden sm:inline-flex items-center gap-1.5 text-xs text-slate-700 bg-white border border-slate-200/90 px-3 py-1.5 rounded-xl font-bold shadow-2xs">
-                        <User className="w-3.5 h-3.5 text-[#E5007D]" />
+                        <User className="w-3.5 h-3.5 text-sky-600" />
                         <span className="truncate max-w-[160px]">{activeClient.responsable || activeClient.empresa}</span>
                       </span>
                       <button
@@ -554,7 +554,7 @@ export default function App() {
                     className="p-2.5 bg-white hover:bg-slate-50 text-slate-500 hover:text-slate-800 rounded-xl transition-all border border-slate-200/90 shadow-2xs cursor-pointer active:scale-95"
                     title="Acceso Administrador"
                   >
-                    <Lock className="w-4 h-4 text-amber-500" />
+                    <Lock className="w-4 h-4 text-sky-600" />
                   </button>
                 </>
               ) : (
@@ -566,7 +566,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => setUserRole('client')}
-                    className="px-4 py-2 bg-gradient-to-r from-[#E5007D] via-[#6A0DAD] to-[#009FE3] hover:opacity-95 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+                    className="px-4 py-2 bg-gradient-to-r from-sky-500 via-sky-600 to-blue-600 hover:opacity-95 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
                   >
                     <span>Volver a Vista Cliente</span>
                   </button>
@@ -672,7 +672,7 @@ export default function App() {
                       if (loginError) setLoginError(null);
                     }}
                     placeholder="admin@colorlink.com.co"
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:border-[#E5007D] focus:ring-2 focus:ring-[#E5007D]/20 transition-all font-mono"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all font-mono"
                   />
                 </div>
               </div>
@@ -691,7 +691,7 @@ export default function App() {
                       if (loginError) setLoginError(null);
                     }}
                     placeholder="••••••••••••"
-                    className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:border-[#E5007D] focus:ring-2 focus:ring-[#E5007D]/20 transition-all font-mono"
+                    className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all font-mono"
                   />
                   <button
                     type="button"
@@ -704,10 +704,10 @@ export default function App() {
               </div>
 
               {/* HINT DE PRUEBA RÁPIDA / CREDENCIALES OFICIALES */}
-              <div className="p-3 rounded-2xl bg-amber-50/70 border border-amber-200/80 text-[11px] text-amber-950 space-y-1.5">
+              <div className="p-3 rounded-2xl bg-sky-50/70 border border-sky-200/80 text-[11px] text-sky-950 space-y-1.5">
                 <div className="flex items-center justify-between font-bold">
-                  <span className="flex items-center gap-1 text-amber-900">
-                    <Key className="w-3.5 h-3.5 text-amber-700" /> Credenciales Oficiales de Acceso:
+                  <span className="flex items-center gap-1 text-sky-900">
+                    <Key className="w-3.5 h-3.5 text-sky-600" /> Credenciales Oficiales de Acceso:
                   </span>
                   <button
                     type="button"
@@ -716,7 +716,7 @@ export default function App() {
                       setAdminPassword('Colorlink2026*');
                       setLoginError(null);
                     }}
-                    className="text-[10px] bg-amber-200/80 hover:bg-amber-300 text-amber-950 font-bold px-2 py-0.5 rounded-md cursor-pointer transition-colors"
+                    className="text-[10px] bg-sky-200/80 hover:bg-sky-300 text-sky-950 font-bold px-2 py-0.5 rounded-md cursor-pointer transition-colors"
                   >
                     Autocompletar
                   </button>
@@ -730,9 +730,9 @@ export default function App() {
               <div className="pt-2 flex items-center gap-3">
                 <button
                   type="submit"
-                  className="flex-1 py-3 bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] hover:brightness-110 text-white font-bold text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                  className="flex-1 py-3 bg-gradient-to-r from-sky-500 via-sky-600 to-blue-600 hover:brightness-110 text-white font-bold text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer active:scale-95"
                 >
-                  <ShieldCheck className="w-4 h-4 text-amber-300" />
+                  <ShieldCheck className="w-4 h-4 text-white" />
                   <span>Validar & Entrar al Backoffice</span>
                 </button>
                 <button

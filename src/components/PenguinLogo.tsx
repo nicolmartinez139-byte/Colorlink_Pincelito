@@ -25,10 +25,10 @@ export function PenguinLogo({
       {showText && (
         <div className="flex flex-col">
           <div className="flex items-center gap-1.5">
-            <span className="font-black text-lg sm:text-xl tracking-tight bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] bg-clip-text text-transparent">
+            <span className="font-black text-lg sm:text-xl tracking-tight bg-gradient-to-r from-[#D77E63] via-[#EC4899] via-[#009FE3] to-[#0052CC] bg-clip-text text-transparent">
               COLORLINK
             </span>
-            <span className="text-[10px] font-black text-pink-500 bg-pink-50 px-1.5 py-0.2 rounded-md border border-pink-200">
+            <span className="text-[10px] font-black text-[#009FE3] bg-sky-50 px-1.5 py-0.2 rounded-md border border-sky-200">
               ®
             </span>
           </div>

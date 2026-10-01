@@ -627,7 +627,7 @@ export function FormCapture({ onSuccessSubmit }: FormCaptureProps) {
             <button
               id="submit-form-btn"
               type="submit"
-              className="px-6 py-2.5 bg-gradient-to-r from-[#FF6A00] to-[#E5007D] hover:brightness-110 text-white font-bold text-sm rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 w-full sm:w-auto cursor-pointer"
+              className="px-6 py-2.5 bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-110 text-white font-bold text-sm rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 w-full sm:w-auto cursor-pointer"
             >
               <Send className="w-4 h-4" />
               Validar y Enviar a Automatización
@@ -660,12 +660,12 @@ export function FormCapture({ onSuccessSubmit }: FormCaptureProps) {
         <div className="bg-white text-slate-800 p-5 rounded-3xl shadow-sm border border-slate-200/90 space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-slate-200">
             <div className="flex items-center gap-2">
-              <div className="p-1.5 bg-pink-50 text-[#E5007D] rounded-lg">
+              <div className="p-1.5 bg-sky-50 text-sky-700 rounded-lg">
                 <Calculator className="w-4 h-4" />
               </div>
               <h4 className="text-sm font-bold text-slate-900">Motor Técnico (Cálculo sin IA)</h4>
             </div>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-pink-50 text-[#E5007D] border border-pink-200 font-semibold">
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200 font-semibold">
               Determinista
             </span>
           </div>
@@ -674,7 +674,7 @@ export function FormCapture({ onSuccessSubmit }: FormCaptureProps) {
             <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200">
               <span className="text-slate-500 block text-[11px] font-medium">Producto Recomendado por Matriz:</span>
               <span className="font-bold text-slate-900 text-sm block mt-0.5">{technicalCalc.productoRecomendado}</span>
-              <span className="text-[#E5007D] text-[11px] block mt-0.5 font-medium">{technicalCalc.tipoSolucion}</span>
+              <span className="text-sky-700 text-[11px] block mt-0.5 font-medium">{technicalCalc.tipoSolucion}</span>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
@@ -685,7 +685,7 @@ export function FormCapture({ onSuccessSubmit }: FormCaptureProps) {
               </div>
               <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-200 text-center">
                 <span className="text-slate-500 block text-[10px] uppercase font-bold">Cuñetes (5 Gal)</span>
-                <span className="text-lg font-black text-[#E5007D]">{technicalCalc.cuñetesRequeridos}</span>
+                <span className="text-lg font-black text-sky-700">{technicalCalc.cuñetesRequeridos}</span>
                 <span className="text-[10px] text-slate-500 block font-medium">+ {technicalCalc.galonesRequeridos % 5} gal sueltos</span>
               </div>
             </div>
@@ -734,8 +734,8 @@ export function FormCapture({ onSuccessSubmit }: FormCaptureProps) {
               </div>
             ) : (
               <div className="pt-2 border-t border-slate-200 text-[10px] text-slate-500 flex items-center gap-1.5 font-medium">
-                <Receipt className="w-3.5 h-3.5 text-[#E5007D] shrink-0" />
-                <span>Precios reales y liquidación total se mostrarán al enviar / emitir cotización.</span>
+                <Receipt className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                <span>Precios oficiales y liquidación total se mostrarán al emitir cotización.</span>
               </div>
             )}
 
@@ -758,9 +758,9 @@ export function FormCapture({ onSuccessSubmit }: FormCaptureProps) {
           <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Estructura Relacional Capturada</h4>
           
           <div className="space-y-2 text-xs">
-            <div className="flex items-center justify-between p-2 rounded-lg bg-pink-50 border border-pink-100">
-              <span className="font-semibold text-purple-950">1. Identificación</span>
-              <span className="text-[#E5007D] font-mono text-[11px] truncate max-w-[140px]">
+            <div className="flex items-center justify-between p-2 rounded-lg bg-sky-50 border border-sky-100">
+              <span className="font-semibold text-sky-950">1. Identificación</span>
+              <span className="text-sky-700 font-mono text-[11px] truncate max-w-[140px]">
                 {formData.cliente || 'Sin asignar'}
               </span>
             </div>

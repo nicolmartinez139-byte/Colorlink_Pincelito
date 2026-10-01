@@ -282,9 +282,9 @@ export function ImageDiagnosisWidget({
   };
 
   return (
-    <div className="bg-white rounded-3xl border border-pink-200 shadow-xl overflow-hidden animate-fadeIn">
+    <div className="bg-white rounded-3xl border border-sky-200 shadow-xl overflow-hidden animate-fadeIn">
       {/* HEADER DEL DIAGNÓSTICO IA */}
-      <div className="bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] text-white p-4 sm:p-5 flex items-center justify-between">
+      <div className="bg-gradient-to-r from-sky-500 via-sky-600 to-blue-700 text-white p-4 sm:p-5 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center text-amber-300 shadow-inner">
             <Camera className="w-5 h-5" />
@@ -294,11 +294,11 @@ export function ImageDiagnosisWidget({
               <h3 className="font-extrabold text-sm sm:text-base tracking-tight text-white">
                 Diagnóstico de Imágenes con IA Colorlink®
               </h3>
-              <span className="px-2 py-0.5 bg-amber-400 text-slate-900 text-[10px] font-black rounded-md uppercase">
+              <span className="px-2 py-0.5 bg-sky-300 text-slate-900 text-[10px] font-black rounded-md uppercase">
                 Visión Artificial
               </span>
             </div>
-            <p className="text-xs text-blue-100">
+            <p className="text-xs text-sky-100">
               Analiza tu foto para detectar patologías, sustrato y el Tipo de Pintura requerido (Tipo 1, 2 o 3).
             </p>
           </div>
@@ -308,7 +308,7 @@ export function ImageDiagnosisWidget({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-xl text-blue-200 hover:text-white hover:bg-white/10 transition-colors"
+            className="p-1.5 rounded-xl text-sky-200 hover:text-white hover:bg-white/10 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -320,10 +320,10 @@ export function ImageDiagnosisWidget({
         <div className="space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-              <FileImage className="w-4 h-4 text-[#E5007D]" />
+              <FileImage className="w-4 h-4 text-sky-600" />
               Selecciona una fotografía de obra para escanear o sube tu propia imagen:
             </label>
-            <label className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-pink-50 hover:bg-pink-100 text-[#E5007D] text-xs font-bold rounded-xl cursor-pointer border border-pink-200 transition-all">
+            <label className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-bold rounded-xl cursor-pointer border border-sky-200 transition-all">
               <Upload className="w-3.5 h-3.5" />
               <span>Subir Foto de mi Obra</span>
               <input
@@ -345,7 +345,7 @@ export function ImageDiagnosisWidget({
                 className={`p-2.5 rounded-2xl border text-left transition-all flex items-center gap-3 cursor-pointer ${
                   selectedSample === sample.id
                     ? sample.esValida
-                      ? 'border-[#E5007D] bg-pink-50/70 ring-2 ring-[#E5007D]/20 shadow-xs'
+                      ? 'border-sky-500 bg-sky-50/70 ring-2 ring-sky-500/20 shadow-xs'
                       : 'border-rose-500 bg-rose-50/80 ring-2 ring-rose-500/20 shadow-xs'
                     : 'border-slate-200 hover:border-slate-300 bg-slate-50/70'
                 }`}
@@ -358,7 +358,7 @@ export function ImageDiagnosisWidget({
                   />
                   {selectedSample === sample.id && (
                     <div className={`absolute inset-0 flex items-center justify-center ${
-                      sample.esValida ? 'bg-[#E5007D]/30' : 'bg-rose-600/40'
+                      sample.esValida ? 'bg-sky-500/30' : 'bg-rose-600/40'
                     }`}>
                       {sample.esValida ? (
                         <Check className="w-4 h-4 text-white drop-shadow" />
@@ -398,7 +398,7 @@ export function ImageDiagnosisWidget({
         {/* PROCESADOR / SCANNER ANIMADO */}
         {isScanning ? (
           <div className="p-8 rounded-3xl bg-slate-50 border border-slate-200 text-center space-y-3 animate-pulse">
-            <Sparkles className="w-8 h-8 text-[#E5007D] mx-auto animate-spin" />
+            <Sparkles className="w-8 h-8 text-sky-600 mx-auto animate-spin" />
             <h4 className="text-sm font-bold text-slate-900">
               La IA está analizando la imagen de tu fachada...
             </h4>
@@ -458,9 +458,9 @@ export function ImageDiagnosisWidget({
                   <button
                     type="button"
                     onClick={() => handleSelectSample('sample-horizonte-fachada')}
-                    className="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-[#FF6A00] to-[#E5007D] hover:brightness-110 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    className="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-110 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                    <Sparkles className="w-3.5 h-3.5 text-white" />
                     <span>Cargar Fachada Válida de Ejemplo</span>
                   </button>
                 </div>
@@ -545,9 +545,9 @@ export function ImageDiagnosisWidget({
                   </div>
 
                   {/* Protocolo de Aplicación */}
-                  <div className="p-4 rounded-2xl bg-pink-50/70 border border-pink-200/80 space-y-2">
-                    <span className="font-bold text-purple-950 flex items-center gap-1.5 text-xs">
-                      <ShieldCheck className="w-4 h-4 text-[#E5007D]" /> Protocolo de Aplicación Recomendado:
+                  <div className="p-4 rounded-2xl bg-sky-50/70 border border-sky-200/80 space-y-2">
+                    <span className="font-bold text-sky-950 flex items-center gap-1.5 text-xs">
+                      <ShieldCheck className="w-4 h-4 text-sky-600" /> Protocolo de Aplicación Recomendado:
                     </span>
                     <ul className="space-y-1.5 text-slate-700">
                       {activeDiagnosis.pasosPreparacion.map((paso, idx) => (
@@ -568,7 +568,7 @@ export function ImageDiagnosisWidget({
                   <button
                     type="button"
                     onClick={handleApplyToForm}
-                    className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] hover:from-[#FF7A10] hover:via-[#F00084] hover:to-[#7B1FA2] text-white font-black text-xs rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 shrink-0"
+                    className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-sky-500 via-sky-600 to-blue-600 hover:brightness-110 text-white font-black text-xs rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 shrink-0"
                   >
                     {applied ? (
                       <>

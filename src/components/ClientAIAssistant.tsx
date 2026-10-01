@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { ProjectFormData } from '../types/form';
 import { CASE_STUDY_PRESET } from '../data/dictionaryData';
+import { saveAdvisorLead } from '../utils/advisorService';
 
 interface Message {
   id: string;
@@ -91,17 +92,39 @@ export function ClientAIAssistant({
     }
   };
 
-  // Conectar con asesor humano
-  const handleConnectAdvisor = () => {
+  // Conectar con asesor humano y guardar datos en toda situación
+  const handleConnectAdvisor = (userQueryText?: string) => {
     setIsConnectingAdvisor(true);
 
     const userReqMsg: Message = {
       id: Date.now().toString(),
       sender: 'user',
-      text: 'Quiero hablar con un asesor humano, por favor.',
+      text: userQueryText || 'Quiero hablar con un asesor humano, por favor.',
       timestamp: 'Ahora'
     };
     setMessages((prev) => [...prev, userReqMsg]);
+
+    const clientName = currentFormData.cliente || currentFormData.responsable || 'Cliente Particular';
+    const clientPhone = currentFormData.telefonoResponsable || '+57 321 246 0658';
+    const clientCity = currentFormData.ciudad || 'Medellín';
+    const clientWork = currentFormData.tipoObra || 'Obra General';
+    const clientPaint = currentFormData.tipoPintura || 'Pintura Tipo 1 Exterior NTC 1335';
+
+    // Guardar los datos del lead en el servicio oficial de asesores
+    const savedLead = saveAdvisorLead({
+      cliente: clientName,
+      nit: currentFormData.nitDocumento || 'NIT No Especificado',
+      responsable: currentFormData.responsable || clientName,
+      telefono: clientPhone,
+      email: currentFormData.emailResponsable || 'contacto@cliente.com',
+      ciudad: clientCity,
+      obra: clientWork,
+      consulta: userQueryText || 'Solicitud de atención y asesoría técnica especializada desde chat Pincelito.',
+      canal: 'whatsapp',
+      estado: 'en_negociacion',
+      montoCOP: currentFormData.areaM2 ? currentFormData.areaM2 * 28000 : 1850000,
+      requerimientoPintura: clientPaint
+    });
 
     setTimeout(() => {
       setIsConnectingAdvisor(false);
@@ -110,27 +133,28 @@ export function ClientAIAssistant({
       const pincelitoHandoff: Message = {
         id: (Date.now() + 1).toString(),
         sender: 'pincelito',
-        text: '¡Con gusto! Le he transferido tu consulta y el contexto de tu proyecto a nuestro equipo de ventas e ingeniería. Te presento a la **Arq. Sofía Martínez**, asesora técnica especialista de Colorlink.',
+        text: `¡Con gusto! He guardado tus datos de contacto (**${clientName}** • Tel: **${clientPhone}** en **${clientCity}**) en nuestra base de datos oficial de asesoría técnica. Te comunico de inmediato con la **${savedLead.advisorName}**, especialista asignada a tu zona.`,
         timestamp: 'Ahora'
       };
 
       const advisorGreeting: Message = {
         id: (Date.now() + 2).toString(),
         sender: 'asesor',
-        text: '¡Hola! Qué gusto saludarte, soy la **Arq. Sofía Martínez** 👩‍💼 de Colorlink.\n\nHe revisado tus requerimientos de pintura y el stock en fábrica en tiempo real. Puedo ayudarte a ajustar el presupuesto, coordinar la ruta de despacho con nuestro furgón o darte un descuento especial por volumen para tu obra.\n\n¿En qué ciudad está tu proyecto y cuántos metros tienes presupuestados?',
+        text: `¡Hola ${clientName}! Qué gusto saludarte, soy la **${savedLead.advisorName}** 👩‍💼 de Colorlink.\n\nHe recibido tus datos y requerimiento para **${clientWork}** en **${clientCity}**.\n\n• **Estado:** Ficha técnica registrada exitosamente (#${savedLead.leadId}).\n• **Siguiente paso:** Te puedo asesorar en este chat, o si lo prefieres, te marco a tu número **${clientPhone}** o coordinamos por WhatsApp.\n\n¿En qué te puedo asesorar ahora mismo?`,
         timestamp: 'Ahora',
         options: [
-          'Tengo un proyecto en Medellín de 85 m²',
+          '¿Cuál es el mejor tipo de pintura para mi obra?',
           '¿Tienen stock disponible para entrega inmediata?',
-          '¿Hacen visitas técnicas a la obra?'
+          '¿Hacen visitas técnicas a la obra en mi ciudad?',
+          'Volver a consultar con Pincelito 🐧'
         ]
       };
 
       setMessages((prev) => [...prev, pincelitoHandoff, advisorGreeting]);
-    }, 1200);
+    }, 1000);
   };
 
-  const handleSendMessage = (textToSend?: string) => {
+  const handleSendMessage = async (textToSend?: string) => {
     const query = textToSend || inputQuery.trim();
     if (!query && !attachedImage) return;
 
@@ -148,169 +172,219 @@ export function ClientAIAssistant({
     setAttachedImage(null);
     setIsTyping(true);
 
-    // Si ya está conectado el asesor humano
-    if (advisorConnected) {
-      setTimeout(() => {
-        let advisorReply = '';
-        const lower = (query || '').toLowerCase();
+    const lower = (query || '').toLowerCase();
 
-        if (lower.includes('stock') || lower.includes('disponible') || lower.includes('entrega')) {
-          advisorReply = 'Acabo de verificar en bodega central: tenemos **18 cuñetes de Pintura Tipo 1 Gris Mate** listos para despacho hoy mismo en el Furgón #08. Si confirmas tu cotización antes de las 2:00 PM, sale en la primera ruta matutina.';
-        } else if (lower.includes('visita') || lower.includes('obra')) {
-          advisorReply = 'Sí, para constructoras y obras de más de 60 m² realizamos visita técnica sin costo en el área metropolitana para verificar adherencia y humedad antes de la aplicación.';
-        } else if (lower.includes('medellín') || lower.includes('85') || lower.includes('horizonte')) {
-          advisorReply = 'Excelente metraje. Para 85 m² en fachada exterior en Medellín necesitarás 4 cuñetes Tipo 1 más sellador hidrófugo. El flete local está cubierto. ¿Deseas que activemos la cotización con precio preferencial?';
-        } else {
-          advisorReply = `Entendido perfectamente. Con respecto a "${query}", puedo validar con el departamento de tintometría la muestra física de color o coordinar la orden de despacho cuando estés listo.`;
-        }
-
-        const replyMsg: Message = {
-          id: (Date.now() + 1).toString(),
-          sender: 'asesor',
-          text: advisorReply,
-          timestamp: 'Ahora',
-          options: [
-            'Aplicar datos al formulario',
-            '¿Qué garantía tiene la pintura?',
-            'Volver a consultar con Pincelito 🐧'
-          ]
-        };
-
-        setMessages((prev) => [...prev, replyMsg]);
-        setIsTyping(false);
-      }, 900);
+    // Detección universal: Si el usuario quiere hablar con un asesor
+    if (
+      lower.includes('asesor') ||
+      lower.includes('humano') ||
+      lower.includes('persona') ||
+      lower.includes('contacto') ||
+      lower.includes('llamar') ||
+      lower.includes('llamada') ||
+      lower.includes('agente')
+    ) {
+      handleConnectAdvisor(query);
       return;
     }
 
-    // Respuestas inteligentes de PINCELITO
-    setTimeout(() => {
-      const lower = (query || '').toLowerCase();
-      let aiResponse: Message;
-
-      // 0. Si el usuario envió una foto
-      if (currentImg) {
-        aiResponse = {
-          id: (Date.now() + 1).toString(),
-          sender: 'pincelito',
-          text: '📸 **Diagnóstico de Imagen de Pincelito:**\n\nHe analizado la fotografía de tu pared mediante visión artificial:\n\n• **Sustrato detectado:** Revoque / Concreto exterior con exposición solar y lluvia.\n• **Patología observada:** Microfisuras superficiales y marcas de humedad por capilaridad.\n• **Recomendación Técnica Colorlink:** Imprimante Sellador Hidrófugo + Pintura Acrílica Elastomérica Tipo 1 (Fachadas de Alta Resistencia).\n• **Rendimiento estimado:** Aprox. 20 a 25 m² por galón a 2 manos.\n\n¿Quieres aplicar este diagnóstico técnico automáticamente a tu cotización?',
-          timestamp: 'Ahora',
-          actionLabel: 'Aplicar Diagnóstico de Foto al Formulario',
-          actionPayload: {
-            superficie: 'Concreto / Revoque',
-            ambiente: 'Exterior Intemperie',
-            condicion: 'Fisuras leves y humedad',
-            descripcionLibre: 'Diagnóstico con IA Pincelito: Fachada exterior con microfisuras superficiales y humedad. Requiere sellador hidrófugo y pintura acrílica elastomérica Tipo 1.'
-          },
-          options: [
-            'Aplicar este diagnóstico al formulario',
-            '👤 Hablar con un asesor para validar la foto',
-            '📐 ¿Cuántos galones necesito para 85 m²?'
-          ]
-        };
-      }
-      // 1. Solicitar asesor humano
-      else if (lower.includes('asesor') || lower.includes('humano') || lower.includes('persona') || lower.includes('contacto') || lower.includes('llamar')) {
-        handleConnectAdvisor();
+    // Si ya está conectado el asesor humano
+    if (advisorConnected) {
+      if (lower.includes('pincelito')) {
+        setAdvisorConnected(false);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now().toString(),
+            sender: 'pincelito',
+            text: '¡Aquí estoy de nuevo contigo! 🐧🎨 ¿Qué más necesitas verificar para tu pedido de pinturas?',
+            timestamp: 'Ahora'
+          }
+        ]);
+        setIsTyping(false);
         return;
       }
-      // 2. Caso Constructora Horizonte
-      else if (lower.includes('horizonte') || lower.includes('caso')) {
-        aiResponse = {
-          id: (Date.now() + 1).toString(),
-          sender: 'pincelito',
-          text: '¡Listo! He cargado el caso oficial de **Constructora Horizonte S.A.S.** en Medellín:\n\n• **Proyecto:** Fachada edificio de 5 pisos\n• **Área:** 85.00 m²\n• **Superficie:** Concreto exterior con fisuras y humedad\n• **Pintura recomendada:** Pintura Tipo 1 Exterior de Alta Resistencia (Gris Cemento Mate)\n• **Flete:** Medellín (Entrega en Furgón Colorlink #08)\n\n¿Deseas aplicar estos datos a tu formulario?',
-          timestamp: 'Ahora',
-          actionLabel: 'Aplicar datos de Constructora Horizonte',
-          actionPayload: {
-            cliente: CASE_STUDY_PRESET.cliente || 'Constructora Horizonte S.A.S.',
-            nitDocumento: CASE_STUDY_PRESET.nitDocumento || '900854219',
-            responsable: CASE_STUDY_PRESET.responsable || 'Arq. Valentina Gómez',
-            emailResponsable: CASE_STUDY_PRESET.emailResponsable || 'vgomez@constructorahorizonte.com.co',
-            telefonoResponsable: CASE_STUDY_PRESET.telefonoResponsable || '+57 312 845 6721',
-            ciudad: 'Medellín',
-            tipoObra: 'Fachada Edificio',
-            areaM2: 85,
-            superficie: 'Concreto / Revoque',
-            ambiente: 'Exterior Intemperie',
-            condicion: 'Fisuras leves y humedad',
-            colorAcabado: 'Gris (Mate)',
-            descripcionLibre: 'Mantenimiento preventivo en fachada de edificio de 5 pisos con fisuras superficiales y humedad de lluvia directa.',
-            observaciones: 'Acceso por andamios colgantes certificados de obra.',
-            fechaRequerida: '2026-09-24',
-            consentimiento: true
+
+      // Guardar seguimiento en el lead del asesor
+      saveAdvisorLead({
+        cliente: currentFormData.cliente || currentFormData.responsable || 'Cliente Particular',
+        responsable: currentFormData.responsable || 'Cliente',
+        telefono: currentFormData.telefonoResponsable || '+57 321 246 0658',
+        email: currentFormData.emailResponsable || 'contacto@cliente.com',
+        ciudad: currentFormData.ciudad || 'Medellín',
+        obra: currentFormData.tipoObra || 'Obra General',
+        consulta: query,
+        estado: 'en_negociacion'
+      });
+
+      setTimeout(() => {
+        let advisorReply = '';
+        if (lower.includes('stock') || lower.includes('disponible') || lower.includes('entrega')) {
+          advisorReply = `Acabo de verificar en bodega central de ${currentFormData.ciudad || 'Medellín'}: tenemos cuñetes listos para despacho hoy mismo en camión Colorlink asegurado. Si confirmas antes de las 2:00 PM, sale en la primera ruta.`;
+        } else if (lower.includes('visita') || lower.includes('obra')) {
+          advisorReply = 'Sí, para constructoras y proyectos realizamos visita técnica sin costo en el área metropolitana para verificar adherencia, alcalinidad y humedad antes de la aplicación.';
+        } else if (lower.includes('garantia') || lower.includes('años')) {
+          advisorReply = 'Nuestra Pintura Tipo 1 cuenta con garantía por escrito de 5 a 7 años, avalada bajo las normas NTC 1335 y NTC 5828. Te entregamos el certificado técnico junto con la remisión de flete.';
+        } else {
+          advisorReply = `Con respecto a tu consulta "${query}": nuestros ingenieros recomiendan asegurar la imprimación adecuada con sellador hidrófugo antialcalino y dos capas de acabado. ¿Deseas que apliquemos estos productos o te llamo directamente al ${currentFormData.telefonoResponsable || 'teléfono'}?`;
+        }
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now().toString(),
+            sender: 'asesor',
+            text: advisorReply,
+            timestamp: 'Ahora',
+            options: [
+              'Aplicar datos al formulario',
+              '¿Tienen stock disponible?',
+              'Volver a consultar con Pincelito 🐧'
+            ]
           }
-        };
-      }
-      // 3. Cálculo de área
-      else if (lower.includes('área') || lower.includes('area') || lower.includes('m2') || lower.includes('calcular') || lower.includes('medir')) {
-        const mathMatch = lower.match(/(\d+(?:\.\d+)?)\s*(?:por|x|\*)\s*(\d+(?:\.\d+)?)/);
-        if (mathMatch) {
-          const width = parseFloat(mathMatch[1]);
-          const height = parseFloat(mathMatch[2]);
-          const total = Math.round(width * height * 100) / 100;
-          aiResponse = {
-            id: (Date.now() + 1).toString(),
+        ]);
+        setIsTyping(false);
+      }, 800);
+      return;
+    }
+
+    // 0. Si el usuario adjuntó una imagen
+    if (currentImg) {
+      setTimeout(() => {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now().toString(),
+            sender: 'pincelito',
+            text: '📸 **Diagnóstico de Imagen de Pincelito:**\n\nHe analizado la fotografía de tu pared mediante visión artificial:\n\n• **Sustrato detectado:** Revoque / Concreto arquitectónico con exposición ambiental.\n• **Evaluación técnica:** Superficie apta con adherencia adecuada para repinte.\n• **Recomendación Técnica Colorlink:** Imprimante Sellador Hidrófugo + Pintura Acrílica Elastomérica Tipo 1 (Fachadas de Alta Resistencia NTC 1335).\n• **Rendimiento estimado:** Aprox. 20 a 25 m² por galón a 2 manos.\n\n¿Quieres aplicar este diagnóstico técnico automáticamente a tu cotización?',
+            timestamp: 'Ahora',
+            actionLabel: 'Aplicar Diagnóstico al Formulario',
+            actionPayload: {
+              superficie: 'Concreto / Revoque',
+              ambiente: 'Exterior Intemperie',
+              condicion: 'Fisuras leves y humedad',
+              descripcionLibre: 'Diagnóstico con IA Pincelito: Fachada exterior analizada. Apta para sellador hidrófugo y pintura acrílica elastomérica Tipo 1.'
+            },
+            options: [
+              'Aplicar este diagnóstico al formulario',
+              '👤 Hablar con un asesor para validar la foto',
+              '📐 ¿Cuántos galones necesito?'
+            ]
+          }
+        ]);
+        setIsTyping(false);
+      }, 700);
+      return;
+    }
+
+    // 1. Caso especial: Constructora Horizonte
+    if (lower.includes('horizonte') || lower.includes('caso')) {
+      setTimeout(() => {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now().toString(),
+            sender: 'pincelito',
+            text: '¡Listo! He cargado el caso oficial de **Constructora Horizonte S.A.S.** en Medellín:\n\n• **Proyecto:** Fachada edificio de 5 pisos\n• **Área:** 85.00 m²\n• **Superficie:** Concreto exterior con fisuras y humedad\n• **Pintura recomendada:** Pintura Tipo 1 Exterior de Alta Resistencia (Gris Cemento Mate)\n• **Flete:** Medellín (Entrega en Furgón Colorlink #08)\n\n¿Deseas aplicar estos datos a tu formulario?',
+            timestamp: 'Ahora',
+            actionLabel: 'Aplicar datos de Constructora Horizonte',
+            actionPayload: {
+              cliente: CASE_STUDY_PRESET.cliente || 'Constructora Horizonte S.A.S.',
+              nitDocumento: CASE_STUDY_PRESET.nitDocumento || '900854219',
+              responsable: CASE_STUDY_PRESET.responsable || 'Arq. Valentina Gómez',
+              emailResponsable: CASE_STUDY_PRESET.emailResponsable || 'vgomez@constructorahorizonte.com.co',
+              telefonoResponsable: CASE_STUDY_PRESET.telefonoResponsable || '+57 312 845 6721',
+              ciudad: 'Medellín',
+              tipoObra: 'Fachada Edificio',
+              areaM2: 85,
+              superficie: 'Concreto / Revoque',
+              ambiente: 'Exterior Intemperie',
+              condicion: 'Fisuras leves y humedad',
+              colorAcabado: 'Gris (Mate)',
+              descripcionLibre: 'Mantenimiento preventivo en fachada de edificio de 5 pisos con fisuras superficiales y humedad de lluvia directa.',
+              observaciones: 'Acceso por andamios colgantes certificados de obra.',
+              fechaRequerida: '2026-09-24',
+              consentimiento: true
+            }
+          }
+        ]);
+        setIsTyping(false);
+      }, 600);
+      return;
+    }
+
+    // 2. Cálculo matemático de área si el usuario dio dimensiones
+    const mathMatch = lower.match(/(\d+(?:\.\d+)?)\s*(?:por|x|\*)\s*(\d+(?:\.\d+)?)/);
+    if (mathMatch) {
+      const width = parseFloat(mathMatch[1]);
+      const height = parseFloat(mathMatch[2]);
+      const total = Math.round(width * height * 100) / 100;
+      setTimeout(() => {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now().toString(),
             sender: 'pincelito',
             text: `Multiplicando **${width}m de ancho** por **${height}m de alto**, tu área total es de **${total} m²**.\n\nPara esa superficie te calcularemos la dosificación justa de cuñetes y galones con 10% de desperdicio técnico incluido.`,
             timestamp: 'Ahora',
             actionLabel: `Aplicar ${total} m² al Formulario`,
             actionPayload: { areaM2: total },
             options: ['Aplicar metraje al formulario', '👤 Hablar con un asesor']
-          };
-        } else {
-          aiResponse = {
-            id: (Date.now() + 1).toString(),
+          }
+        ]);
+        setIsTyping(false);
+      }, 500);
+      return;
+    }
+
+    // 3. Consulta al motor inteligente de Pincelito (Responde CUALQUIER pregunta)
+    try {
+      const res = await fetch('/api/pincelito-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query,
+          formData: currentFormData
+        })
+      });
+
+      const data = await res.json();
+      if (data.success && data.reply) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now().toString(),
             sender: 'pincelito',
-            text: 'Para calcular los **metros cuadrados (m²)** de tu muro o fachada, solo multiplica:\n\n📏 **Ancho (metros) × Alto (metros) = m² totales**\n\n*Ejemplo:* Si tu fachada mide 10m de frente por 8.5m de altura:\n`10m × 8.5m = 85 m²`.\n\nEscribe aquí tus medidas (ej: *"mide 10 por 8.5"*) y te daré el cálculo de inmediato.',
+            text: data.reply,
             timestamp: 'Ahora',
-            options: ['Mi fachada mide 10 por 8.5 metros', 'Tengo 50 m²', 'Tengo 120 m²']
-          };
-        }
+            options: [
+              '📐 ¿Cómo calculo los m² de mi fachada o pared?',
+              '👤 Hablar con un asesor humano',
+              '🏢 Cargar datos de Constructora Horizonte'
+            ]
+          }
+        ]);
+      } else {
+        throw new Error('Sin respuesta');
       }
-      // 4. Humedad / Fisuras
-      else if (lower.includes('humedad') || lower.includes('fisura') || lower.includes('grieta') || lower.includes('moho')) {
-        aiResponse = {
-          id: (Date.now() + 1).toString(),
+    } catch (err) {
+      // Fallback amigable
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now().toString(),
           sender: 'pincelito',
-          text: '⚠️ **Tratamiento Técnico para Humedad y Fisuras:**\n\n1. **Sellado Primario:** Aplicar 1 mano de Sellador Hidrófugo para detener el agua.\n2. **Acabado Elastomérico:** 2 manos de Pintura Tipo 1 Exterior que tolera dilatación térmica sin cuartearse.\n\n¿Deseas que configure estos parámetros en tu cotización?',
-          timestamp: 'Ahora',
-          actionLabel: 'Configurar Humedad y Fisuras',
-          actionPayload: {
-            superficie: 'Concreto / Revoque',
-            ambiente: 'Exterior Intemperie',
-            condicion: 'Fisuras leves y humedad'
-          },
-          options: ['Configurar en formulario', '👤 Consultar con asesor en línea']
-        };
-      }
-      // 5. Volver a Pincelito
-      else if (lower.includes('pincelito')) {
-        setAdvisorConnected(false);
-        aiResponse = {
-          id: (Date.now() + 1).toString(),
-          sender: 'pincelito',
-          text: '¡Aquí estoy de nuevo contigo! 🐧🎨 ¿Qué más necesitas verificar para tu pedido?',
-          timestamp: 'Ahora'
-        };
-      }
-      // 6. Respuesta general
-      else {
-        aiResponse = {
-          id: (Date.now() + 1).toString(),
-          sender: 'pincelito',
-          text: `He tomado nota de tu consulta sobre **"${query}"**.\n\nPuedo ayudarte a definir las medidas, el tipo de pintura adecuado (Tipo 1, Tipo 2 o Tipo 3) o ponerte en contacto directo con un asesor humano en tiempo real.`,
+          text: `Con respecto a tu consulta sobre **"${query}"**:\n\n• En **Colorlink®** todas nuestras pinturas cumplen con las normas técnicas **NTC 1335 y NTC 5828** con pigmentos resistentes a intemperie y cero VOC.\n• Para despachos en **${currentFormData.ciudad || 'Colombia'}**, contamos con flota propia de furgones urbanos con entrega en 24h a 48h.\n• ¿Deseas que te ayude a calcular los metros cuadrados o prefieres hablar con un asesor humano?`,
           timestamp: 'Ahora',
           options: [
-            '📸 Enviar foto para diagnóstico',
             '👤 Hablar con un asesor humano',
-            '🏢 Cargar datos de Constructora Horizonte'
+            '📐 Calcular metros cuadrados'
           ]
-        };
-      }
-
-      setMessages((prev) => [...prev, aiResponse]);
+        }
+      ]);
+    } finally {
       setIsTyping(false);
-    }, 600);
+    }
   };
 
   const handleApplyPayload = (payload: Partial<ProjectFormData>, label?: string) => {
@@ -324,9 +398,9 @@ export function ClientAIAssistant({
   }
 
   return (
-    <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 w-[95vw] sm:w-[440px] max-h-[85vh] h-[640px] flex flex-col bg-white rounded-3xl shadow-2xl border border-pink-200 overflow-hidden animate-fadeIn">
+    <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 w-[95vw] sm:w-[440px] max-h-[85vh] h-[640px] flex flex-col bg-white rounded-3xl shadow-2xl border border-sky-200 overflow-hidden animate-fadeIn">
       {/* HEADER DE PINCELITO */}
-      <div className="bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] text-white p-4 sm:p-5 flex items-center justify-between shadow-md relative shrink-0">
+      <div className="bg-gradient-to-r from-sky-500 via-sky-600 to-blue-700 text-white p-4 sm:p-5 flex items-center justify-between shadow-md relative shrink-0">
         <div className="flex items-center gap-3">
           {/* Avatar de Pincelito */}
           <div className="w-11 h-11 rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center p-1 shadow-inner relative">
@@ -595,13 +669,13 @@ export function ClientAIAssistant({
                 ? 'Añade una nota o presiona enviar...'
                 : 'Pregúntale a Pincelito o escribe tus m²...'
             }
-            className="flex-1 px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#E5007D] transition-all font-medium text-slate-900"
+            className="flex-1 px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 transition-all font-medium text-slate-900"
           />
 
           <button
             type="submit"
             disabled={!inputQuery.trim() && !attachedImage}
-            className="p-2.5 bg-gradient-to-r from-[#FF6A00] to-[#E5007D] hover:from-[#FF7A10] hover:to-[#F00084] disabled:opacity-40 text-white rounded-xl shadow-xs transition-all cursor-pointer shrink-0"
+            className="p-2.5 bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-110 disabled:opacity-40 text-white rounded-xl shadow-xs transition-all cursor-pointer shrink-0"
             title="Enviar mensaje"
           >
             <Send className="w-4 h-4" />
@@ -613,7 +687,7 @@ export function ClientAIAssistant({
           <button
             type="button"
             onClick={handleConnectAdvisor}
-            className="text-[#E5007D] hover:underline font-semibold cursor-pointer"
+            className="text-sky-600 hover:underline font-semibold cursor-pointer"
           >
             {advisorConnected ? '✓ Asesor conectado' : '¿Prefieres hablar con un asesor? Haz clic aquí'}
           </button>

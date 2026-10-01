@@ -49,7 +49,20 @@ export interface ProjectFormData {
 
   // Evidencia
   descripcionLibre: string;
-  fotos: Array<{ name: string; size: string; previewUrl?: string }>;
+  fotos: Array<{
+    name: string;
+    size: string;
+    previewUrl?: string;
+    aiReviewed?: boolean;
+    aiDiagnosis?: {
+      valid: boolean;
+      statusText: string;
+      sustrato: string;
+      condicion: string;
+      recomendacion: string;
+      normaNTC?: string;
+    };
+  }>;
   observaciones: string;
   consentimiento: boolean;
 }

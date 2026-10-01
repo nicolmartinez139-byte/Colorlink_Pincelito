@@ -264,7 +264,7 @@ export async function sendOrderStatusUpdateEmail(params: {
   try {
     const htmlBody = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;">
-        <div style="text-align: center; border-bottom: 2px solid #E5007D; padding-bottom: 12px; margin-bottom: 20px;">
+        <div style="text-align: center; border-bottom: 2px solid #0284C7; padding-bottom: 12px; margin-bottom: 20px;">
           <h2 style="color: #0f172a; margin: 0; font-size: 20px;">COLORLINK® Pinturas de Colombia</h2>
           <p style="color: #64748b; font-size: 12px; margin: 4px 0 0;">Actualización Oficial de Despacho y Estado de Pedido</p>
         </div>

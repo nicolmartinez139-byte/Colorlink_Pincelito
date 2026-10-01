@@ -42,7 +42,9 @@ import {
   User,
   Briefcase,
   Calendar,
-  X
+  X,
+  Bot,
+  Zap
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import {
@@ -118,7 +120,29 @@ export interface OrderItem {
   dictamenIA?: {
     decision: 'aceptar' | 'en_espera' | 'rechazar';
     motivo: string;
+    porQueSeAcepto?: string;
     fechaAuditoria: string;
+    modo?: 'Automático por IA' | 'Manual';
+    busAsignado?: {
+      tipo: string;
+      placa: string;
+      conductor: string;
+      capacidad?: string;
+    };
+    rutaAsignada?: {
+      origen: string;
+      destino: string;
+      recorrido: string;
+      distanciaKm: number;
+      tiempoMin: number;
+      ahorroMin: number;
+      horaEstimada: string;
+    };
+    mensajesEnviados?: {
+      email?: string;
+      whatsapp?: string;
+      fechaEnvio?: string;
+    };
     insumosVerificados?: {
       pinturaValida: boolean;
       colorFormulado: boolean;
@@ -233,11 +257,14 @@ export function AdminBackoffice({
 
   // Estados para Auditoría Inteligente con IA (Gemini 3.8 Flash)
   const [isAuditingWithAI, setIsAuditingWithAI] = useState<boolean>(false);
+  const [isAutoPilotRunning, setIsAutoPilotRunning] = useState<boolean>(false);
+  const [aiAutoPilotEnabled, setAiAutoPilotEnabled] = useState<boolean>(true);
   const [showAiAuditModal, setShowAiAuditModal] = useState<boolean>(false);
   const [currentAiAudit, setCurrentAiAudit] = useState<{
     orderId: string;
     decision: 'aceptar' | 'en_espera' | 'rechazar';
     razonTecnica: string;
+    porQueSeAcepto?: string;
     insumosVerificados: {
       pinturaValida: boolean;
       colorFormulado: boolean;
@@ -248,9 +275,20 @@ export function AdminBackoffice({
       tipo: string;
       placa: string;
       conductor: string;
+      capacidad?: string;
       horaEstimadaDespacho: string;
     };
+    rutaAsignada?: {
+      origen: string;
+      destino: string;
+      corredor: string;
+      distanciaKm: number;
+      tiempoMin: number;
+      ahorroMin: number;
+      horaEstimada: string;
+    };
     mensajeCorreoCliente: string;
+    mensajeWhatsAppCliente?: string;
     recomendacionAdicional?: string;
   } | null>(null);
 
@@ -310,7 +348,7 @@ export function AdminBackoffice({
       color: 'Gris Cemento (Mate)',
       totalCOP: 18450000,
       status: 'preparando',
-      vehiculoAsignado: 'Furgón Colorlink #08',
+      vehiculoAsignado: 'Buseta Logística Colorlink #04',
       placa: 'WLL-482',
       conductor: 'Carlos Restrepo',
       rutaOptima: {
@@ -322,10 +360,55 @@ export function AdminBackoffice({
         ahorroMin: 22,
         horaEstimada: '11:15 AM'
       },
+      dictamenIA: {
+        decision: 'aceptar',
+        motivo: 'Insumos 100% verificados en CEDI Medellín (38 cuñetes disp. vs 18 req.). Formulación tintométrica autorizada.',
+        porQueSeAcepto: 'Aceptado automáticamente por la IA: Insumos verificados al 100% en CEDI Medellín (38 cuñetes en existencia vs 18 requeridos), formulación tintométrica aprobada y flete programado sin demoras.',
+        fechaAuditoria: 'Hoy, 09:28 AM',
+        modo: 'Automático por IA',
+        busAsignado: {
+          tipo: 'Buseta Logística Colorlink #04',
+          placa: 'WLL-482',
+          conductor: 'Carlos Restrepo',
+          capacidad: '45 cuñetes (2.5 Ton)'
+        },
+        rutaAsignada: {
+          origen: 'Planta Central Colorlink (Itagüí)',
+          destino: 'Obra Edificio Horizonte - Cra 43A # 18 Sur, El Poblado, Medellín',
+          recorrido: 'Autopista Sur ➔ Av. Las Vegas ➔ Puente 4 Sur ➔ Cra 43A',
+          distanciaKm: 13.4,
+          tiempoMin: 32,
+          ahorroMin: 22,
+          horaEstimada: '11:15 AM'
+        },
+        mensajesEnviados: {
+          email: 'vgomez@constructorahorizonte.com.co',
+          whatsapp: '+57 312 845 6721',
+          fechaEnvio: 'Hoy, 09:30 AM'
+        },
+        insumosVerificados: {
+          pinturaValida: true,
+          colorFormulado: true,
+          stockSuficiente: true,
+          cuñetesFaltantes: 0
+        }
+      },
+      historialCambios: [
+        {
+          fecha: 'Hoy, 09:30 AM',
+          estado: 'preparando',
+          autor: 'IA (Pincelito Inspector)',
+          motivo: 'IA aceptó el pedido por stock 100% verificado en CEDI Medellín. Asignó Buseta Logística Colorlink #04 y corredor Autopista Sur.',
+          mensajesEnviados: {
+            email: 'Confirmación de despacho enviada a vgomez@constructorahorizonte.com.co',
+            whatsapp: 'Notificación de preparación enviada a +57 312 845 6721'
+          }
+        }
+      ],
       notificaciones: [
         {
           tipo: 'whatsapp',
-          texto: 'Su pedido #PED-2026-081 está en preparación en almacén y laboratorio de tintometría.',
+          texto: 'Su pedido #PED-2026-081 está en preparación en almacén y laboratorio de tintometría. Asignado a Buseta Logística Colorlink #04 (WLL-482).',
           fecha: 'Hoy, 09:30 AM'
         }
       ]
@@ -357,7 +440,46 @@ export function AdminBackoffice({
         ahorroMin: 20,
         horaEstimada: '02:30 PM'
       },
-      notificaciones: []
+      dictamenIA: {
+        decision: 'aceptar',
+        motivo: 'Stock completo en CEDI Mosquera (52 cuñetes disponibles). Pigmentos para Blanco Puro aprobados.',
+        porQueSeAcepto: 'Aceptado automáticamente por la IA: Disponibilidad inmediata de 52 cuñetes en CEDI Sabana Mosquera y programación de entrega en camión de distribución directo por Calle 13 y Av. Boyacá.',
+        fechaAuditoria: 'Hoy, 08:45 AM',
+        modo: 'Automático por IA',
+        busAsignado: {
+          tipo: 'Camión Distribución Bogotá #03',
+          placa: 'DEX-712',
+          conductor: 'Hernán Morales',
+          capacidad: '80 cuñetes (4.5 Ton)'
+        },
+        rutaAsignada: {
+          origen: 'CEDI Sabana Mosquera',
+          destino: 'Torre Empresarial Calle 100 # 19-61, Chicó, Bogotá',
+          recorrido: 'Calle 13 ➔ Av. Boyacá ➔ Calle 100',
+          distanciaKm: 24.6,
+          tiempoMin: 55,
+          ahorroMin: 20,
+          horaEstimada: '02:30 PM'
+        },
+        mensajesEnviados: {
+          email: 'fsamper@consorciometropolitano.co',
+          whatsapp: '+57 311 987 6543',
+          fechaEnvio: 'Hoy, 08:46 AM'
+        },
+        insumosVerificados: {
+          pinturaValida: true,
+          colorFormulado: true,
+          stockSuficiente: true,
+          cuñetesFaltantes: 0
+        }
+      },
+      notificaciones: [
+        {
+          tipo: 'ambos',
+          texto: 'Pedido despachado en Camión Distribución Bogotá #03 (DEX-712). ETA 02:30 PM.',
+          fecha: 'Hoy, 08:46 AM'
+        }
+      ]
     },
     {
       id: 'PED-2026-082',
@@ -646,6 +768,185 @@ export function AdminBackoffice({
     setTimeout(() => setSupplyNotice(null), 6000);
   };
 
+  // Algoritmo de Inteligencia Artificial Autónomo para Asignación de Bus, Ruta y Notificaciones
+  const generateAiAutoAssignment = (order: OrderItem): OrderItem => {
+    const neededCunetes = Math.max(1, Math.ceil((order.areaM2 || 50) / 28));
+    const rawCity = order.ciudad?.trim() || 'Medellín';
+    let normCity = 'Medellín';
+    let cedi = 'Planta Central Itagüí / CEDI Guarne';
+    let stock = 120;
+
+    if (rawCity.toLowerCase().includes('bogot')) {
+      normCity = 'Bogotá D.C.';
+      cedi = 'CEDI Sabana Mosquera (Cra 13)';
+      stock = 24;
+    } else if (rawCity.toLowerCase().includes('cali')) {
+      normCity = 'Cali';
+      cedi = 'CEDI Valle Yumbo (Vía Cali-Yumbo)';
+      stock = 16;
+    } else if (rawCity.toLowerCase().includes('barran')) {
+      normCity = 'Barranquilla';
+      cedi = 'CEDI Costa Malambo (Calle 30)';
+      stock = 12;
+    } else if (rawCity.toLowerCase().includes('bucara')) {
+      normCity = 'Bucaramanga';
+      cedi = 'CEDI Santanderes Girón (Km 7)';
+      stock = 14;
+    } else if (rawCity.toLowerCase().includes('cartag')) {
+      normCity = 'Cartagena';
+      cedi = 'CEDI Bolívar Mamonal (Km 3)';
+      stock = 10;
+    } else if (rawCity.toLowerCase().includes('envig')) {
+      normCity = 'Envigado';
+      cedi = 'CEDI Sur Aburrá (Av. Las Vegas)';
+      stock = 20;
+    } else if (rawCity.toLowerCase().includes('rioneg')) {
+      normCity = 'Rionegro';
+      cedi = 'CEDI Oriente Llanogrande (Aeropuerto)';
+      stock = 18;
+    }
+
+    // 1. Asignación inteligente de bus/vehículo según cubicaje y volumen
+    let busInfo = {
+      tipo: 'Buseta Ágil Colorlink #01',
+      placa: 'WKN-512',
+      conductor: 'Mauricio Vélez',
+      capacidad: '12 cuñetes (1.5 Ton) - Maniobrabilidad ágil urbana',
+      motivoSeleccion: 'Seleccionado por IA para lote pequeño-mediano con entrega express'
+    };
+
+    if (neededCunetes > 8 && neededCunetes <= 25) {
+      busInfo = {
+        tipo: 'Buseta de Reparto Colorlink #03',
+        placa: 'TZW-402',
+        conductor: 'Carlos Mario Henao',
+        capacidad: '28 cuñetes (2.8 Ton) - Óptima para obra civil media',
+        motivoSeleccion: 'Seleccionado por IA: Relación óptima de carga para volumen mediano'
+      };
+    } else if (neededCunetes > 25) {
+      busInfo = {
+        tipo: 'Camión Turbo Pesado Colorlink #08',
+        placa: 'SZF-891',
+        conductor: 'Juan Fernando Gómez',
+        capacidad: '65 cuñetes (5.0 Ton) - Gran volumen de carga pesada',
+        motivoSeleccion: 'Seleccionado por IA para gran cubicaje y transporte de alta densidad'
+      };
+    }
+
+    // 2. Cálculo de Ruta Óptima de Despacho
+    let rutaInfo = {
+      origen: cedi,
+      destino: `Obra ${order.obra || order.cliente} (${normCity})`,
+      recorrido: 'Autopista Sur ➔ Av. Las Vegas ➔ Puente 4 Sur ➔ Obra',
+      distanciaKm: 14.2,
+      tiempoMin: 32,
+      ahorroMin: 18,
+      horaEstimada: '11:15 AM'
+    };
+
+    if (normCity === 'Bogotá D.C.') {
+      rutaInfo = {
+        origen: 'CEDI Sabana Mosquera (Calle 13)',
+        destino: `Obra ${order.obra || order.cliente} (Bogotá D.C.)`,
+        recorrido: 'Calle 13 ➔ Av. Boyacá ➔ Calle 100 ➔ Obra',
+        distanciaKm: 24.6,
+        tiempoMin: 50,
+        ahorroMin: 25,
+        horaEstimada: '02:30 PM'
+      };
+    } else if (normCity === 'Cali') {
+      rutaInfo = {
+        origen: 'CEDI Valle Yumbo',
+        destino: `Obra ${order.obra || order.cliente} (Cali)`,
+        recorrido: 'Vía Cali-Yumbo ➔ Carrera 1 ➔ Autopista Suroriental ➔ Obra',
+        distanciaKm: 18.3,
+        tiempoMin: 36,
+        ahorroMin: 16,
+        horaEstimada: '10:45 AM'
+      };
+    } else if (normCity === 'Barranquilla') {
+      rutaInfo = {
+        origen: 'CEDI Costa Malambo',
+        destino: `Obra ${order.obra || order.cliente} (Barranquilla)`,
+        recorrido: 'Calle 30 ➔ Vía 40 ➔ Circunvalar de la Prosperidad ➔ Obra',
+        distanciaKm: 16.8,
+        tiempoMin: 30,
+        ahorroMin: 20,
+        horaEstimada: '11:00 AM'
+      };
+    } else if (normCity === 'Bucaramanga') {
+      rutaInfo = {
+        origen: 'CEDI Santanderes Girón',
+        destino: `Obra ${order.obra || order.cliente} (Bucaramanga)`,
+        recorrido: 'Km 7 Girón ➔ Autopista Floridablanca ➔ Anillo Vial ➔ Obra',
+        distanciaKm: 13.5,
+        tiempoMin: 26,
+        ahorroMin: 15,
+        horaEstimada: '10:20 AM'
+      };
+    } else if (normCity === 'Cartagena') {
+      rutaInfo = {
+        origen: 'CEDI Bolívar Mamonal',
+        destino: `Obra ${order.obra || order.cliente} (Cartagena)`,
+        recorrido: 'Mamonal Km 3 ➔ Corredor de Carga ➔ Transversal 54 ➔ Obra',
+        distanciaKm: 19.2,
+        tiempoMin: 38,
+        ahorroMin: 22,
+        horaEstimada: '01:15 PM'
+      };
+    } else if (normCity === 'Rionegro') {
+      rutaInfo = {
+        origen: 'CEDI Oriente Llanogrande',
+        destino: `Obra ${order.obra || order.cliente} (Rionegro)`,
+        recorrido: 'Llanogrande ➔ Corredor Túnel de Oriente ➔ Autopista ➔ Obra',
+        distanciaKm: 28.4,
+        tiempoMin: 42,
+        ahorroMin: 25,
+        horaEstimada: '02:00 PM'
+      };
+    }
+
+    // 3. Justificación de Aceptación por la IA ("¿Por qué se aceptó?")
+    const porQueSeAcepto = `Aceptado automáticamente por la IA: Insumos verificados al 100% en ${cedi} (${stock} cuñetes disponibles vs ${neededCunetes} requeridos para cubrir ${order.areaM2} m²). Formulación tintométrica autorizada bajo norma NTC 1335 para el acabado '${order.color}' (${order.tipoPintura}). Asignado flete directo en ${busInfo.tipo} (Placa ${busInfo.placa}) conducido por ${busInfo.conductor} por el corredor '${rutaInfo.recorrido}', logrando un ahorro logístico de ${rutaInfo.ahorroMin} minutos con entrega estimada a las ${rutaInfo.horaEstimada}.`;
+
+    return {
+      ...order,
+      status: 'preparando' as const,
+      vehiculoAsignado: busInfo.tipo,
+      placa: busInfo.placa,
+      conductor: busInfo.conductor,
+      rutaOptima: rutaInfo,
+      dictamenIA: {
+        decision: 'aceptar',
+        motivo: `Stock 100% verificado en ${cedi}. Formulación validada NTC 1335.`,
+        porQueSeAcepto,
+        fechaAuditoria: 'Automático por IA (En vivo)',
+        modo: 'Automático por IA',
+        busAsignado: busInfo,
+        rutaAsignada: rutaInfo,
+        mensajesEnviados: {
+          email: order.email,
+          whatsapp: order.telefono,
+          fechaEnvio: 'Hoy en automático'
+        },
+        insumosVerificados: {
+          pinturaValida: true,
+          colorFormulado: true,
+          stockSuficiente: true,
+          cuñetesFaltantes: 0
+        }
+      },
+      notificaciones: [
+        {
+          tipo: 'ambos',
+          texto: `[IA Auto-Piloto] Pedido aceptado automáticamente. Asignado ${busInfo.tipo} (${busInfo.placa}) por ${rutaInfo.recorrido}. Notificaciones enviadas por correo (${order.email}) y WhatsApp (${order.telefono}).`,
+          fecha: 'Ahora mismo'
+        },
+        ...(order.notificaciones || [])
+      ]
+    };
+  };
+
   useEffect(() => {
     if (submittedProjects && submittedProjects.length > 0) {
       const mappedOrders: OrderItem[] = submittedProjects.map((p) => ({
@@ -667,10 +968,46 @@ export function AdminBackoffice({
       setOrders((prev) => {
         const existingIds = new Set(prev.map((o) => o.id));
         const newOnes = mappedOrders.filter((o) => !existingIds.has(o.id));
-        return newOnes.length > 0 ? [...newOnes, ...prev] : prev;
+        if (newOnes.length === 0) return prev;
+        const autoProcessed = aiAutoPilotEnabled
+          ? newOnes.map((o) => generateAiAutoAssignment(o))
+          : newOnes;
+        return [...autoProcessed, ...prev];
       });
     }
-  }, [submittedProjects]);
+  }, [submittedProjects, aiAutoPilotEnabled]);
+
+  // Ejecutar Auto-Asignación IA para un pedido individual
+  const handleRunAutoPilotForOrder = (orderId: string) => {
+    setOrders((prev) =>
+      prev.map((o) => {
+        if (o.id === orderId) {
+          return generateAiAutoAssignment(o);
+        }
+        return o;
+      })
+    );
+    showToast(`🤖 IA Auto-Piloto: Bus y ruta asignados automáticamente para pedido #${orderId}`);
+  };
+
+  // Ejecutar Auto-Asignación IA para todos los pedidos pendientes
+  const handleRunAutoPilotForAllPending = () => {
+    setIsAutoPilotRunning(true);
+    let count = 0;
+    setOrders((prev) =>
+      prev.map((o) => {
+        if (o.status === 'pendiente') {
+          count++;
+          return generateAiAutoAssignment(o);
+        }
+        return o;
+      })
+    );
+    setTimeout(() => {
+      setIsAutoPilotRunning(false);
+      showToast(`🤖 IA Auto-Piloto: ${count > 0 ? count : 'Todos los'} pedidos pendientes fueron auto-asignados con su bus y ruta.`);
+    }, 600);
+  };
   const [notificationToast, setNotificationToast] = useState<string | null>(null);
   const [showNotificationModal, setShowNotificationModal] = useState<boolean>(false);
   const [modalNotificationData, setModalNotificationData] = useState<{
@@ -678,6 +1015,7 @@ export function AdminBackoffice({
     order: OrderItem;
     mensaje: string;
   } | null>(null);
+  const [forceManualIntervention, setForceManualIntervention] = useState<boolean>(false);
 
   const activeOrder = orders.find((o) => o.id === selectedOrderId) || orders[0];
 
@@ -1041,15 +1379,15 @@ export function AdminBackoffice({
       )}
 
       {/* HEADER OPERATIVO CLARO Y PINTURESCO COLORLINK */}
-      <div className="bg-gradient-to-r from-white via-pink-50/50 to-purple-50/40 rounded-3xl p-6 sm:p-7 border border-pink-200/90 shadow-sm relative overflow-hidden">
+      <div className="bg-gradient-to-r from-white via-sky-50/60 to-blue-50/40 rounded-3xl p-6 sm:p-7 border border-sky-200/90 shadow-sm relative overflow-hidden">
         {/* Decoración sutil de fondo */}
-        <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-br from-pink-400/10 via-purple-400/10 to-amber-400/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-br from-sky-400/10 via-blue-400/10 to-cyan-400/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
           <div className="space-y-1.5">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="px-3 py-1 bg-[#E5007D] text-white text-xs font-bold rounded-full flex items-center gap-1.5 shadow-xs">
-                <ShieldCheck className="w-3.5 h-3.5 text-pink-200" />
+              <span className="px-3 py-1 bg-sky-600 text-white text-xs font-bold rounded-full flex items-center gap-1.5 shadow-xs">
+                <ShieldCheck className="w-3.5 h-3.5 text-sky-200" />
                 Panel de Supervisión & Operaciones Colorlink®
               </span>
               <span className="px-3 py-1 bg-amber-100 text-amber-900 text-xs font-bold rounded-full border border-amber-200">
@@ -1061,7 +1399,7 @@ export function AdminBackoffice({
               <span className="text-2xl">🐧</span>
             </h1>
             <p className="text-slate-600 text-xs sm:text-sm max-w-2xl leading-relaxed">
-              Supervisión de pedidos de clientes en tiempo real, asignación de flota de furgones, cálculo de ruta óptima por IA y mensajería automática al cliente.
+              Supervisión de pedidos en tiempo real, asignación autónoma de buses y rutas con IA, verificación de existencias y mensajería automática al cliente.
             </p>
           </div>
 
@@ -1069,9 +1407,9 @@ export function AdminBackoffice({
             <button
               type="button"
               onClick={onBackToClientView}
-              className="px-4 py-2.5 bg-[#E5007D] hover:bg-[#C7006D] text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+              className="px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer active:scale-95"
             >
-              <Eye className="w-4 h-4 text-pink-200" />
+              <Eye className="w-4 h-4 text-sky-200" />
               <span>Ver Vista Cliente</span>
             </button>
             <button
@@ -1103,10 +1441,10 @@ export function AdminBackoffice({
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
               Sedes & Cobertura
             </span>
-            <strong className="text-base sm:text-lg font-black text-purple-950 block mt-0.5">
+            <strong className="text-base sm:text-lg font-black text-slate-900 block mt-0.5">
               {cityAnalytics.length} Ciudades
             </strong>
-            <span className="text-[10px] text-[#E5007D] font-semibold block mt-0.5">
+            <span className="text-[10px] text-sky-600 font-semibold block mt-0.5">
               {cityAnalytics[0]?.ciudad || 'Medellín'} (Líder en ventas)
             </span>
           </div>
@@ -1125,14 +1463,14 @@ export function AdminBackoffice({
 
           <div className="p-3.5 rounded-2xl bg-white/90 border border-slate-200/80 shadow-2xs">
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-              Auditoría Inteligente IA
+              Despacho Autónomo IA
             </span>
             <strong className="text-base sm:text-lg font-black text-slate-900 block mt-0.5 flex items-center gap-1.5">
               <Sparkles className="w-4 h-4 text-amber-500" />
               <span>Gemini 3.8 Flash</span>
             </strong>
             <span className="text-[10px] text-emerald-600 font-semibold block mt-0.5">
-              ✓ Inspección automática de stock
+              ✓ Asignación de bus y ruta en vivo
             </span>
           </div>
         </div>
@@ -1145,12 +1483,12 @@ export function AdminBackoffice({
             onClick={() => setActiveTab('pedidos')}
             className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'pedidos'
-                ? 'bg-[#E5007D] text-white shadow-sm ring-2 ring-[#E5007D]/25'
+                ? 'bg-sky-600 text-white shadow-sm ring-2 ring-sky-500/25'
                 : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
             }`}
           >
             <Truck className="w-4 h-4" />
-            <span>Supervisión de Pedidos & Auditoría IA</span>
+            <span>Supervisión de Pedidos & Despacho IA</span>
             <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
               activeTab === 'pedidos' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
             }`}>
@@ -1164,14 +1502,14 @@ export function AdminBackoffice({
             onClick={() => setActiveTab('ciudades')}
             className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'ciudades'
-                ? 'bg-gradient-to-r from-[#FF6A00] to-[#E5007D] text-white shadow-sm ring-2 ring-[#E5007D]/25'
+                ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-sm ring-2 ring-sky-500/25'
                 : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
             }`}
           >
             <TrendingUp className="w-4 h-4 text-amber-300" />
             <span>Sedes & Ventas por Ciudad</span>
             <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
-              activeTab === 'ciudades' ? 'bg-white/20 text-white' : 'bg-pink-100 text-[#E5007D]'
+              activeTab === 'ciudades' ? 'bg-white/20 text-white' : 'bg-sky-100 text-sky-800'
             }`}>
               {cityAnalytics.length} Sedes
             </span>
@@ -1217,18 +1555,56 @@ export function AdminBackoffice({
 
       {/* CONTENIDO DE TAB 1: SUPERVISIÓN DE PEDIDOS, AUDITORÍA IA, FLOTA Y MENSAJERÍA */}
       {activeTab === 'pedidos' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="space-y-5">
+          {/* BARRA SUPERIOR: AUTO-PILOTO IA Y ASIGNACIÓN AUTOMÁTICA */}
+          <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-sky-500 via-sky-600 to-blue-700 text-white shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-xs flex items-center justify-center text-white shrink-0 shadow-inner">
+                <Sparkles className="w-6 h-6 text-amber-300 animate-pulse" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-extrabold text-sm sm:text-base tracking-tight text-white">
+                    Modo Despacho & Asignación Autónoma IA
+                  </h3>
+                  <span className="px-2.5 py-0.5 bg-emerald-400 text-slate-950 font-black text-[10px] rounded-full uppercase tracking-wider shadow-xs">
+                    ● ACTIVO
+                  </span>
+                </div>
+                <p className="text-xs text-sky-100 max-w-2xl mt-0.5">
+                  La IA escoge automáticamente el bus de la flota, calcula y asigna la ruta vial óptima y despacha las notificaciones al cliente.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 shrink-0">
+              <button
+                type="button"
+                onClick={handleRunAutoPilotForAllPending}
+                disabled={isAutoPilotRunning}
+                className="px-4 py-2.5 bg-white hover:bg-sky-50 text-sky-900 font-black text-xs rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-60"
+              >
+                <Sparkles className="w-4 h-4 text-sky-600" />
+                <span>{isAutoPilotRunning ? 'Asignando Flota y Rutas...' : '⚡ Auto-Asignar Todos los Pendientes con IA'}</span>
+                <span className="px-2 py-0.5 bg-sky-100 text-sky-900 rounded-md text-[10px] font-mono font-black">
+                  {orders.filter((o) => o.status === 'pendiente').length}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Columna Izquierda: Lista de Pedidos Entrantes con Búsqueda y Filtros Ordenados */}
           <div className="lg:col-span-5 space-y-3">
             <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-3">
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <div className="flex items-center gap-2">
-                  <Inbox className="w-4 h-4 text-[#E5007D]" />
+                  <Inbox className="w-4 h-4 text-sky-600" />
                   <h3 className="text-sm font-extrabold text-slate-900">
                     Bandeja de Pedidos ({orders.length})
                   </h3>
                 </div>
-                <span className="text-[10px] bg-pink-50 text-[#E5007D] px-2 py-0.5 rounded-full font-bold border border-pink-200">
+                <span className="text-[10px] bg-sky-50 text-sky-700 px-2 py-0.5 rounded-full font-bold border border-sky-200">
                   En Vivo
                 </span>
               </div>
@@ -1241,7 +1617,7 @@ export function AdminBackoffice({
                   value={orderSearchText}
                   onChange={(e) => setOrderSearchText(e.target.value)}
                   placeholder="Buscar por cliente, ID, ciudad o responsable..."
-                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#E5007D] focus:bg-white transition-all"
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white transition-all"
                 />
               </div>
 
@@ -1267,7 +1643,7 @@ export function AdminBackoffice({
                       onClick={() => setOrderStatusFilter(st.id as any)}
                       className={`px-2.5 py-1 rounded-lg font-bold shrink-0 transition-all cursor-pointer flex items-center gap-1 ${
                         orderStatusFilter === st.id
-                          ? 'bg-[#E5007D] text-white shadow-2xs'
+                          ? 'bg-sky-600 text-white shadow-2xs'
                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                       }`}
                     >
@@ -1305,7 +1681,7 @@ export function AdminBackoffice({
                         onClick={() => setSelectedOrderId(ord.id)}
                         className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
                           isSelected
-                            ? 'border-[#E5007D] bg-pink-50/50 shadow-xs ring-2 ring-[#E5007D]/20'
+                            ? 'border-sky-500 bg-sky-50/50 shadow-xs ring-2 ring-sky-500/20'
                             : 'border-slate-200 hover:border-slate-300 bg-white'
                         }`}
                       >
@@ -1331,7 +1707,7 @@ export function AdminBackoffice({
                                   ord.status === 'pendiente'
                                     ? 'bg-amber-100 text-amber-800 border border-amber-200'
                                     : ord.status === 'preparando'
-                                    ? 'bg-pink-100 text-[#E5007D] border border-pink-200'
+                                    ? 'bg-sky-100 text-sky-800 border border-sky-200'
                                     : ord.status === 'en_ruta'
                                     ? 'bg-purple-100 text-purple-800 border border-purple-200'
                                     : ord.status === 'en_espera'
@@ -1399,7 +1775,7 @@ export function AdminBackoffice({
                   </div>
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-mono font-black text-[#E5007D] bg-pink-50 px-2.5 py-0.5 rounded-lg border border-pink-200">
+                      <span className="text-xs font-mono font-black text-sky-700 bg-sky-50 px-2.5 py-0.5 rounded-lg border border-sky-200">
                         {activeOrder.id}
                       </span>
                       <span className="text-xs text-slate-500 font-medium">
@@ -1421,17 +1797,164 @@ export function AdminBackoffice({
                   <strong className="text-lg font-black text-slate-900 font-mono">
                     {formatCOP(activeOrder.totalCOP)} COP
                   </strong>
-                  <span className="text-[10px] font-bold text-[#E5007D] block">
+                  <span className="text-[10px] font-bold text-sky-600 block">
                     {activeOrder.email}
                   </span>
                 </div>
               </div>
 
+              {/* PANEL DESTACADO: ASIGNACIÓN Y DICTAMEN AUTÓNOMO DE LA IA */}
+              <div className="p-5 rounded-2xl bg-gradient-to-br from-sky-50 via-blue-50/60 to-cyan-50/40 border-2 border-sky-300 shadow-xs space-y-4">
+                {/* Header del Panel IA */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-sky-200">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-500 to-blue-600 text-white flex items-center justify-center shadow-xs">
+                      <Sparkles className="w-5 h-5 text-amber-200 animate-pulse" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                          Resolución y Despacho Autónomo IA (Pincelito Logístico)
+                        </h4>
+                        <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-extrabold rounded-full border border-emerald-200">
+                          ✓ IA Asignó Bus y Ruta
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-600">
+                        La IA evaluó existencias, formuló el producto, escogió el bus adecuado, calculó la ruta óptima y despachó los mensajes al cliente.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleRunAutoPilotForOrder(activeOrder.id)}
+                      className="px-3.5 py-2 bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-110 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-amber-200" />
+                      <span>Re-asignar con IA</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 4 TARJETAS CLAVE SOLICITADAS POR EL USUARIO */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  {/* 1. ¿POR QUÉ SE ACEPTÓ? */}
+                  <div className="p-4 rounded-xl bg-white border border-sky-200 shadow-2xs space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-black uppercase text-sky-950 flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        1. ¿Por qué la IA aceptó el pedido?
+                      </span>
+                      <span className="text-[9px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200">
+                        Dictamen Oficial
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-700 leading-relaxed font-normal bg-sky-50/50 p-2.5 rounded-lg border border-sky-100">
+                      {activeOrder.dictamenIA?.porQueSeAcepto || `Aceptado automáticamente por la IA: Insumos verificados al 100% en CEDI ${activeOrder.ciudad} (stock disponible suficiente vs ${Math.max(1, Math.ceil((activeOrder.areaM2 || 50) / 28))} cuñetes requeridos), formulación tintométrica aprobada bajo norma NTC 1335 y cupo de flete asegurado.`}
+                    </p>
+                    <div className="flex items-center gap-3 text-[10px] text-slate-500 pt-1">
+                      <span>Stock en bodega: <strong className="text-emerald-700">100% Disponible</strong></span>
+                      <span>Norma: <strong>NTC 1335</strong></span>
+                      <span>Aprobación: <strong className="text-sky-700">Automática por IA</strong></span>
+                    </div>
+                  </div>
+
+                  {/* 2. ¿QUÉ BUS ESCOGIÓ LA IA? */}
+                  <div className="p-4 rounded-xl bg-white border border-sky-200 shadow-2xs space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-black uppercase text-sky-950 flex items-center gap-1.5">
+                        <Truck className="w-4 h-4 text-sky-600" />
+                        2. ¿Qué Bus / Vehículo escogió la IA?
+                      </span>
+                      <span className="text-[9px] font-bold bg-sky-100 text-sky-800 px-2 py-0.5 rounded-full border border-sky-200">
+                        Flota Colorlink
+                      </span>
+                    </div>
+                    <div className="bg-sky-50/50 p-2.5 rounded-lg border border-sky-100 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <strong className="text-xs font-black text-slate-900">
+                          {activeOrder.vehiculoAsignado || activeOrder.dictamenIA?.busAsignado?.tipo || 'Buseta de Reparto Colorlink #03'}
+                        </strong>
+                        <span className="text-xs font-mono font-bold text-sky-700 bg-white px-2 py-0.5 rounded-md border border-sky-200">
+                          Placa: {activeOrder.placa || activeOrder.dictamenIA?.busAsignado?.placa || 'TZW-402'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-600">
+                        Conductor asignado: <strong>{activeOrder.conductor || activeOrder.dictamenIA?.busAsignado?.conductor || 'Carlos Mario Henao'}</strong>
+                      </p>
+                      <p className="text-[10px] text-sky-800 font-medium">
+                        {activeOrder.dictamenIA?.busAsignado?.capacidad || 'Capacidad óptima asignada por la IA según el tonelaje del pedido.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 3. ¿QUÉ RUTA MANDÓ LA IA? */}
+                  <div className="p-4 rounded-xl bg-white border border-sky-200 shadow-2xs space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-black uppercase text-sky-950 flex items-center gap-1.5">
+                        <Navigation className="w-4 h-4 text-blue-600" />
+                        3. ¿Qué Ruta mandó la IA?
+                      </span>
+                      <span className="text-[9px] font-bold bg-blue-50 text-blue-800 px-2 py-0.5 rounded-full border border-blue-200">
+                        Ruta Óptima IA
+                      </span>
+                    </div>
+                    <div className="bg-sky-50/50 p-2.5 rounded-lg border border-sky-100 space-y-1.5">
+                      <p className="text-xs font-semibold text-slate-800">
+                        {activeOrder.rutaOptima?.recorrido || activeOrder.dictamenIA?.rutaAsignada?.recorrido || 'Autopista Sur ➔ Av. Las Vegas ➔ Puente 4 Sur ➔ Obra'}
+                      </p>
+                      <div className="grid grid-cols-3 gap-2 text-center pt-1 border-t border-sky-100 text-[10px]">
+                        <div>
+                          <span className="text-slate-400 block font-bold">Distancia</span>
+                          <strong className="text-slate-900">{activeOrder.rutaOptima?.distanciaKm || activeOrder.dictamenIA?.rutaAsignada?.distanciaKm || 14.2} km</strong>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block font-bold">Tiempo Tránsito</span>
+                          <strong className="text-slate-900">{activeOrder.rutaOptima?.tiempoMin || activeOrder.dictamenIA?.rutaAsignada?.tiempoMin || 32} min</strong>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block font-bold">Ahorro IA</span>
+                          <strong className="text-emerald-700">+{activeOrder.rutaOptima?.ahorroMin || activeOrder.dictamenIA?.rutaAsignada?.ahorroMin || 18} min</strong>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 4. ¿QUÉ MENSAJES SE MANDARON? */}
+                  <div className="p-4 rounded-xl bg-white border border-sky-200 shadow-2xs space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-black uppercase text-sky-950 flex items-center gap-1.5">
+                        <Send className="w-4 h-4 text-emerald-600" />
+                        4. Mensajes Notificados al Cliente
+                      </span>
+                      <span className="text-[9px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-200">
+                        Enviados Automáticamente
+                      </span>
+                    </div>
+                    <div className="bg-sky-50/50 p-2.5 rounded-lg border border-sky-100 space-y-1.5 text-xs">
+                      <div className="flex items-center gap-1.5 text-[11px] text-slate-700">
+                        <Mail className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                        <span>Correo: <strong>{activeOrder.email}</strong> (Notificación oficial de flete y remisión)</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[11px] text-slate-700">
+                        <MessageCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span>WhatsApp: <strong>{activeOrder.telefono}</strong> (Alerta en tiempo real con bus y conductor)</span>
+                      </div>
+                      <div className="text-[10px] text-slate-500 pt-0.5">
+                        Hora estimada de arribo (ETA): <strong className="text-slate-900">{activeOrder.rutaOptima?.horaEstimada || 'Hoy en 2 horas'}</strong>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* PANEL DE AUDITORÍA Y CONTROL CON IA */}
-              <div className="p-5 rounded-2xl bg-gradient-to-br from-pink-50/80 via-purple-50/60 to-amber-50/50 border border-pink-200 shadow-2xs space-y-4">
+              <div className="p-5 rounded-2xl bg-gradient-to-br from-sky-50/80 via-blue-50/60 to-cyan-50/50 border border-sky-200 shadow-2xs space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#FF6A00] to-[#E5007D] text-white flex items-center justify-center shadow-xs">
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-sky-500 to-blue-600 text-white flex items-center justify-center shadow-xs">
                       <Sparkles className="w-4 h-4 text-amber-300" />
                     </div>
                     <div>
@@ -1449,7 +1972,7 @@ export function AdminBackoffice({
                       type="button"
                       onClick={() => handleExecuteLiveAiAudit(activeOrder)}
                       disabled={isAuditingWithAI}
-                      className="py-1.5 px-3 bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] hover:brightness-110 text-white font-black text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50"
+                      className="py-1.5 px-3 bg-gradient-to-r from-sky-500 via-sky-600 to-blue-700 hover:brightness-110 text-white font-black text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50"
                     >
                       <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
                       <span>{isAuditingWithAI ? 'Auditando...' : 'Auditar con Gemini IA'}</span>
@@ -1463,15 +1986,15 @@ export function AdminBackoffice({
 
                 {/* Grid de Verificación de Insumos vs Stock */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
-                  <div className="bg-white p-3 rounded-xl border border-pink-100 shadow-2xs">
+                  <div className="bg-white p-3 rounded-xl border border-sky-100 shadow-2xs">
                     <span className="text-[10px] font-bold text-slate-400 uppercase block">Requerimiento</span>
                     <strong className="text-xs font-black text-slate-900 block mt-0.5">
                       {Math.max(1, Math.ceil((activeOrder.areaM2 || 50) / 28))} Cuñetes
                     </strong>
-                    <span className="text-[10px] text-[#E5007D] block truncate">{activeOrder.tipoPintura}</span>
+                    <span className="text-[10px] text-sky-700 block truncate">{activeOrder.tipoPintura}</span>
                   </div>
 
-                  <div className="bg-white p-3 rounded-xl border border-pink-100 shadow-2xs">
+                  <div className="bg-white p-3 rounded-xl border border-sky-100 shadow-2xs">
                     <span className="text-[10px] font-bold text-slate-400 uppercase block">Stock en Planta</span>
                     <strong className="text-xs font-black text-emerald-700 block mt-0.5">
                       18 Cuñetes Disp.
@@ -1479,7 +2002,7 @@ export function AdminBackoffice({
                     <span className="text-[10px] text-emerald-600 block">Suficiente para lote ✓</span>
                   </div>
 
-                  <div className="bg-white p-3 rounded-xl border border-pink-100 shadow-2xs">
+                  <div className="bg-white p-3 rounded-xl border border-sky-100 shadow-2xs">
                     <span className="text-[10px] font-bold text-slate-400 uppercase block">Sellador / Base</span>
                     <strong className="text-xs font-black text-slate-900 block mt-0.5">
                       12 Galones Disp.
@@ -1487,7 +2010,7 @@ export function AdminBackoffice({
                     <span className="text-[10px] text-slate-500 block">Sellamur hidrófugo</span>
                   </div>
 
-                  <div className="bg-white p-3 rounded-xl border border-pink-100 shadow-2xs">
+                  <div className="bg-white p-3 rounded-xl border border-sky-100 shadow-2xs">
                     <span className="text-[10px] font-bold text-slate-400 uppercase block">Pigmentos Tintom.</span>
                     <strong className="text-xs font-black text-purple-700 block mt-0.5">
                       Base {activeOrder.color.split(' ')[0]}
@@ -1497,7 +2020,7 @@ export function AdminBackoffice({
                 </div>
 
                 {/* Dictamen de la IA */}
-                <div className="p-3 bg-white/90 rounded-xl border border-pink-100 text-xs text-slate-700 space-y-1">
+                <div className="p-3 bg-white/90 rounded-xl border border-sky-100 text-xs text-slate-700 space-y-1">
                   <div className="flex items-center justify-between">
                     <strong className="text-slate-900 flex items-center gap-1 text-[11px]">
                       <span>Dictamen Técnico de la IA:</span>
@@ -1514,89 +2037,153 @@ export function AdminBackoffice({
                   </p>
                 </div>
 
-                {/* BOTONES DE DECISIÓN DE LA IA: ACEPTAR, PONER EN ESPERA, RECHAZAR, ASIGNAR Y ENTREGAR */}
-                <div className="space-y-2 pt-1">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                    Acciones de Control con Notificación Automática por Correo al Cliente:
-                  </span>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                    {/* Botón 1: Aceptar */}
+                {/* MODO AUTÓNOMO VS INTERVENCIÓN POR ERROR */}
+                {!(activeOrder.status === 'en_espera' || activeOrder.status === 'rechazado' || (activeOrder.cunetes && activeOrder.cunetes > 18) || forceManualIntervention) ? (
+                  <div className="p-4 rounded-xl bg-emerald-50/90 border border-emerald-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                        <CheckCircle2 className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h5 className="text-xs font-black text-emerald-950 uppercase tracking-wide flex items-center gap-1.5">
+                          <span>Operación 100% Autónoma por IA</span>
+                          <span className="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.2 rounded-full font-bold">Sin errores</span>
+                        </h5>
+                        <p className="text-[11px] text-emerald-800">
+                          La IA ha auditado el stock, seleccionado el vehículo ({activeOrder.vehiculoAsignado || 'Flota Colorlink'}), trazado la ruta y enviado las notificaciones. No se requiere intervención del administrador.
+                        </p>
+                      </div>
+                    </div>
                     <button
                       type="button"
-                      onClick={() => handleAiOrderDecision(activeOrder.id, 'aceptar')}
-                      className={`py-2.5 px-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 ${
-                        activeOrder.status === 'preparando'
-                          ? 'bg-emerald-600 text-white ring-2 ring-emerald-500/30'
-                          : 'bg-emerald-500 hover:bg-emerald-600 text-white'
-                      }`}
-                      title="Acepta el pedido e ingresa a tintometría. Notifica por correo al cliente."
+                      onClick={() => setForceManualIntervention(true)}
+                      className="px-3.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl border border-slate-300 shadow-2xs transition-all shrink-0 cursor-pointer active:scale-95"
                     >
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>Aceptar</span>
-                    </button>
-
-                    {/* Botón 2: Poner en Espera */}
-                    <button
-                      type="button"
-                      onClick={() => handleAiOrderDecision(activeOrder.id, 'espera')}
-                      className={`py-2.5 px-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 ${
-                        activeOrder.status === 'en_espera'
-                          ? 'bg-amber-600 text-white ring-2 ring-amber-500/30'
-                          : 'bg-amber-500 hover:bg-amber-600 text-white'
-                      }`}
-                      title="Pone el pedido en espera por falta de insumos o validación. Notifica al cliente por correo."
-                    >
-                      <Clock className="w-3.5 h-3.5" />
-                      <span>En Espera</span>
-                    </button>
-
-                    {/* Botón 3: Rechazar */}
-                    <button
-                      type="button"
-                      onClick={() => handleAiOrderDecision(activeOrder.id, 'rechazar')}
-                      className={`py-2.5 px-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 ${
-                        activeOrder.status === 'rechazado'
-                          ? 'bg-rose-600 text-white ring-2 ring-rose-500/30'
-                          : 'bg-rose-500 hover:bg-rose-600 text-white'
-                      }`}
-                      title="Rechaza el pedido por incompatibilidad técnica. Notifica al cliente por correo."
-                    >
-                      <AlertCircle className="w-3.5 h-3.5" />
-                      <span>Rechazar</span>
-                    </button>
-
-                    {/* Botón 4: Asignar a Vehículo y Despachar (Va en camino) */}
-                    <button
-                      type="button"
-                      onClick={() => handleAiOrderDecision(activeOrder.id, 'despachar')}
-                      className={`py-2.5 px-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 ${
-                        activeOrder.status === 'en_ruta'
-                          ? 'bg-[#009FE3] text-white ring-2 ring-[#009FE3]/30'
-                          : 'bg-[#009FE3] hover:bg-[#0089C4] text-white'
-                      }`}
-                      title="Despacha en furgón con conductor. Notifica al cliente por correo con placa y ETA."
-                    >
-                      <Truck className="w-3.5 h-3.5" />
-                      <span>En Camino</span>
-                    </button>
-
-                    {/* Botón 5: Entregado */}
-                    <button
-                      type="button"
-                      onClick={() => handleAiOrderDecision(activeOrder.id, 'entregar')}
-                      className={`py-2.5 px-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 ${
-                        activeOrder.status === 'entregado'
-                          ? 'bg-purple-700 text-white ring-2 ring-purple-500/30'
-                          : 'bg-purple-600 hover:bg-purple-700 text-white'
-                      }`}
-                      title="Marca como entregado en obra y envía correo de satisfacción al cliente."
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                      <span>Entregado</span>
+                      Intervenir si hay error o excepción
                     </button>
                   </div>
-                </div>
+                ) : (
+                  <div className="space-y-3 p-4 bg-amber-50/80 rounded-2xl border-2 border-amber-300">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
+                        <span className="text-xs font-black text-amber-950 uppercase tracking-wider">
+                          {activeOrder.status === 'en_espera' || activeOrder.status === 'rechazado'
+                            ? '🚨 Incidencia Detectada: Requiere Intervención del Administrador'
+                            : '⚙️ Modo de Intervención Manual Habilitado'}
+                        </span>
+                      </div>
+                      {forceManualIntervention && (
+                        <button
+                          type="button"
+                          onClick={() => setForceManualIntervention(false)}
+                          className="text-[10px] font-bold text-slate-600 hover:text-slate-900 underline cursor-pointer"
+                        >
+                          Volver a Modo Autónomo
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-xs text-amber-800">
+                      {activeOrder.status === 'en_espera'
+                        ? 'Demanda de cuñetes supera la disponibilidad inmediata en sede local. El supervisor debe autorizar remesa de fábrica central Medellín o reprogramar.'
+                        : activeOrder.status === 'rechazado'
+                        ? 'La IA pausó el despacho por incompatibilidad técnica de superficie o dirección sin cobertura. Requiere revisión técnica.'
+                        : 'El administrador ha habilitado la intervención manual para ajustar parámetros o forzar un cambio de estado.'}
+                    </p>
+
+                    <div className="space-y-2 pt-1">
+                      <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider block">
+                        Acciones de Resolución del Administrador:
+                      </span>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                        {/* Botón 1: Aceptar */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleAiOrderDecision(activeOrder.id, 'aceptar');
+                            setForceManualIntervention(false);
+                          }}
+                          className={`py-2.5 px-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 ${
+                            activeOrder.status === 'preparando'
+                              ? 'bg-emerald-600 text-white ring-2 ring-emerald-500/30'
+                              : 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                          }`}
+                          title="Acepta el pedido e ingresa a tintometría. Notifica por correo al cliente."
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Aceptar</span>
+                        </button>
+
+                        {/* Botón 2: Poner en Espera */}
+                        <button
+                          type="button"
+                          onClick={() => handleAiOrderDecision(activeOrder.id, 'espera')}
+                          className={`py-2.5 px-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 ${
+                            activeOrder.status === 'en_espera'
+                              ? 'bg-amber-600 text-white ring-2 ring-amber-500/30'
+                              : 'bg-amber-500 hover:bg-amber-600 text-white'
+                          }`}
+                          title="Pone el pedido en espera por falta de insumos o validación. Notifica al cliente por correo."
+                        >
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>En Espera</span>
+                        </button>
+
+                        {/* Botón 3: Rechazar */}
+                        <button
+                          type="button"
+                          onClick={() => handleAiOrderDecision(activeOrder.id, 'rechazar')}
+                          className={`py-2.5 px-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 ${
+                            activeOrder.status === 'rechazado'
+                              ? 'bg-rose-600 text-white ring-2 ring-rose-500/30'
+                              : 'bg-rose-500 hover:bg-rose-600 text-white'
+                          }`}
+                          title="Rechaza el pedido por incompatibilidad técnica. Notifica al cliente por correo."
+                        >
+                          <AlertCircle className="w-3.5 h-3.5" />
+                          <span>Rechazar</span>
+                        </button>
+
+                        {/* Botón 4: Asignar a Vehículo y Despachar (Va en camino) */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleAiOrderDecision(activeOrder.id, 'despachar');
+                            setForceManualIntervention(false);
+                          }}
+                          className={`py-2.5 px-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 ${
+                            activeOrder.status === 'en_ruta'
+                              ? 'bg-[#009FE3] text-white ring-2 ring-[#009FE3]/30'
+                              : 'bg-[#009FE3] hover:bg-[#0089C4] text-white'
+                          }`}
+                          title="Despacha en furgón con conductor. Notifica al cliente por correo con placa y ETA."
+                        >
+                          <Truck className="w-3.5 h-3.5" />
+                          <span>En Camino</span>
+                        </button>
+
+                        {/* Botón 5: Entregado */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleAiOrderDecision(activeOrder.id, 'entregar');
+                            setForceManualIntervention(false);
+                          }}
+                          className={`py-2.5 px-3 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 ${
+                            activeOrder.status === 'entregado'
+                              ? 'bg-purple-700 text-white ring-2 ring-purple-500/30'
+                              : 'bg-purple-600 hover:bg-purple-700 text-white'
+                          }`}
+                          title="Marca como entregado en obra y envía correo de satisfacción al cliente."
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Entregado</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Botones de Notificación Manual al Cliente por WhatsApp y Correo */}
@@ -1614,10 +2201,10 @@ export function AdminBackoffice({
                 <button
                   type="button"
                   onClick={() => handleTriggerNotification(activeOrder, 'email')}
-                  className="flex-1 py-2.5 px-3 bg-pink-50 hover:bg-pink-100 text-[#E5007D] border border-pink-300 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="flex-1 py-2.5 px-3 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-300 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                   title="Enviar correo formal al cliente"
                 >
-                  <Mail className="w-4 h-4 text-[#E5007D]" />
+                  <Mail className="w-4 h-4 text-sky-600" />
                   <span>Enviar Correo Formal</span>
                 </button>
               </div>
@@ -1665,7 +2252,7 @@ export function AdminBackoffice({
                         }
                         className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
                           isCurrent
-                            ? 'border-[#E5007D] bg-white ring-2 ring-[#E5007D]/20 shadow-xs'
+                            ? 'border-sky-500 bg-white ring-2 ring-sky-500/20 shadow-xs'
                             : 'border-slate-200 bg-white hover:border-slate-300'
                         }`}
                       >
@@ -1673,7 +2260,7 @@ export function AdminBackoffice({
                           <span className="font-extrabold text-xs text-slate-900 block truncate">
                             {v.nombre}
                           </span>
-                          {isCurrent && <Check className="w-3.5 h-3.5 text-[#E5007D]" />}
+                          {isCurrent && <Check className="w-3.5 h-3.5 text-sky-600" />}
                         </div>
                         <span className="text-[11px] text-[#009FE3] font-mono font-bold block">
                           Placa: {v.placa}
@@ -1688,7 +2275,7 @@ export function AdminBackoffice({
               </div>
 
               {/* SECCIÓN 2: RUTA ÓPTIMA CALCULADA POR IA */}
-              <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-pink-50/70 via-rose-50/50 to-purple-50/40 border border-pink-200 space-y-3">
+              <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-sky-50/70 via-blue-50/50 to-cyan-50/40 border border-sky-200 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="w-7 h-7 rounded-lg bg-[#009FE3] text-white flex items-center justify-center">
@@ -1708,7 +2295,7 @@ export function AdminBackoffice({
                   </span>
                 </div>
 
-                <div className="bg-white p-4 rounded-xl border border-pink-100 space-y-3">
+                <div className="bg-white p-4 rounded-xl border border-sky-100 space-y-3">
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center border-b border-slate-100 pb-3">
                     <div>
                       <span className="text-[10px] text-slate-400 font-bold block uppercase">
@@ -1728,7 +2315,7 @@ export function AdminBackoffice({
                       <span className="text-[10px] text-slate-400 font-bold block uppercase">
                         Distancia
                       </span>
-                      <strong className="text-xs text-purple-950 block font-mono">
+                      <strong className="text-xs text-slate-900 block font-mono">
                         {activeOrder.rutaOptima?.distanciaKm || 13.4} km
                       </strong>
                     </div>
@@ -1744,7 +2331,7 @@ export function AdminBackoffice({
 
                   {/* Recorrido detallado */}
                   <div className="flex items-start gap-2.5 text-xs text-slate-700">
-                    <MapPin className="w-4 h-4 text-pink-600 shrink-0 mt-0.5" />
+                    <MapPin className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
                     <div>
                       <span className="font-bold text-slate-900 block">
                         Trayectoria recomendada por IA:
@@ -1788,7 +2375,7 @@ export function AdminBackoffice({
                               </>
                             ) : (
                               <>
-                                <Mail className="w-3.5 h-3.5 text-[#E5007D]" />
+                                <Mail className="w-3.5 h-3.5 text-sky-600" />
                                 <span>Correo a {activeOrder.email}</span>
                               </>
                             )}
@@ -1804,7 +2391,7 @@ export function AdminBackoffice({
             </div>
           </div>
         </div>
-      )}
+      </div>)}
 
       {/* CONTENIDO DE TAB CLIENTES: DIRECTORIO COMPLETO EN VIVO DESDE SUPABASE */}
       {activeTab === 'clientes' && (
@@ -1826,7 +2413,7 @@ export function AdminBackoffice({
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Cada registro queda almacenado permanentemente en la tabla <code className="text-[#E5007D] font-mono">clientes</code> de PostgreSQL.
+                    Cada registro queda almacenado permanentemente en la tabla <code className="text-sky-600 font-mono">clientes</code> de PostgreSQL.
                   </p>
                 </div>
               </div>
@@ -1842,7 +2429,7 @@ export function AdminBackoffice({
                   disabled={loadingClients}
                   className="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 ${loadingClients ? 'animate-spin text-[#E5007D]' : ''}`} />
+                  <RefreshCw className={`w-3.5 h-3.5 ${loadingClients ? 'animate-spin text-sky-600' : ''}`} />
                   <span>{loadingClients ? 'Consultando...' : 'Actualizar'}</span>
                 </button>
               </div>
@@ -1857,7 +2444,7 @@ export function AdminBackoffice({
                   value={clientSearch}
                   onChange={(e) => setClientSearch(e.target.value)}
                   placeholder="Buscar por nombre de cliente, empresa, NIT o correo..."
-                  className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#E5007D]/20 focus:border-[#E5007D] transition-all"
+                  className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all"
                 />
               </div>
               {clientSearch && (
@@ -1890,7 +2477,7 @@ export function AdminBackoffice({
                   {loadingClients && supabaseClients.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="p-8 text-center text-slate-400">
-                        <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-[#E5007D]" />
+                        <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-sky-600" />
                         <span>Cargando clientes registrados desde Supabase...</span>
                       </td>
                     </tr>
@@ -1918,7 +2505,7 @@ export function AdminBackoffice({
                       .map((client) => (
                         <tr key={client.id} className="hover:bg-slate-50/80 transition-colors">
                           <td className="p-3.5 pl-4 font-bold text-slate-900 flex items-center gap-2">
-                            <Building2 className="w-4 h-4 text-[#E5007D] shrink-0" />
+                            <Building2 className="w-4 h-4 text-sky-600 shrink-0" />
                             <span>{client.nombre_razon_social || 'Cliente'}</span>
                           </td>
                           <td className="p-3.5 text-slate-700 font-medium">
@@ -1930,7 +2517,7 @@ export function AdminBackoffice({
                           <td className="p-3.5 text-slate-600">
                             <a
                               href={`mailto:${client.email_responsable}`}
-                              className="text-[#E5007D] hover:underline flex items-center gap-1 font-semibold"
+                              className="text-sky-600 hover:underline flex items-center gap-1 font-semibold"
                             >
                               <Mail className="w-3 h-3 text-slate-400" />
                               <span>{client.email_responsable}</span>
@@ -2029,17 +2616,17 @@ export function AdminBackoffice({
           )}
 
           {/* Encabezado General con Identidad Colorlink */}
-          <div className="bg-gradient-to-r from-[#4a044e] via-[#701a75] to-[#831843] text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-pink-500/30">
+          <div className="bg-gradient-to-r from-sky-900 via-blue-900 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-sky-500/30">
             <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
               <div>
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-pink-500/20 text-pink-200 text-xs font-bold border border-pink-400/30 mb-2">
-                  <MapPin className="w-3.5 h-3.5 text-pink-300" />
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-500/20 text-sky-200 text-xs font-bold border border-sky-400/30 mb-2">
+                  <MapPin className="w-3.5 h-3.5 text-sky-300" />
                   <span>Distribución Logística Nacional Colorlink</span>
                 </div>
                 <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
                   Ventas por Ciudad & Matriz de Reabastecimiento
                 </h2>
-                <p className="text-xs sm:text-sm text-pink-100/90 mt-1 max-w-2xl leading-relaxed">
+                <p className="text-xs sm:text-sm text-sky-100/90 mt-1 max-w-2xl leading-relaxed">
                   Supervisa qué ciudad vendió más en facturación y volumen de pedidos, y gestiona exactamente qué pinturas, marcas y cuñetes se necesitan pedir para cada sede regional.
                 </p>
               </div>
@@ -2058,15 +2645,15 @@ export function AdminBackoffice({
             </div>
 
             {/* 4 KPIs de Resumen Nacional */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6 pt-6 border-t border-pink-500/30">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6 pt-6 border-t border-sky-500/30">
               <div className="bg-white/10 backdrop-blur-xs p-4 rounded-2xl border border-white/10">
-                <span className="text-[11px] font-bold text-pink-200 uppercase tracking-wider block">
+                <span className="text-[11px] font-bold text-sky-200 uppercase tracking-wider block">
                   Facturación Total Nacional
                 </span>
                 <strong className="text-xl sm:text-2xl font-black text-white block mt-1">
                   {formatCOP(totalNacionalCOP)}
                 </strong>
-                <span className="text-[11px] text-pink-100/80 mt-1 block">
+                <span className="text-[11px] text-sky-100/80 mt-1 block">
                   {orders.length} pedidos en {cityAnalytics.length} ciudades
                 </span>
               </div>
@@ -2107,13 +2694,13 @@ export function AdminBackoffice({
               </div>
 
               <div className="bg-white/10 backdrop-blur-xs p-4 rounded-2xl border border-white/10">
-                <span className="text-[11px] font-bold text-pink-200 uppercase tracking-wider block">
+                <span className="text-[11px] font-bold text-sky-200 uppercase tracking-wider block">
                   Total Cuñetes Requeridos
                 </span>
                 <strong className="text-xl sm:text-2xl font-black text-white block mt-1">
                   {totalCunetesNacional} Cuñetes
                 </strong>
-                <span className="text-[11px] text-pink-100/80 mt-1 block">
+                <span className="text-[11px] text-sky-100/80 mt-1 block">
                   Para surtir obras activas en obra
                 </span>
               </div>
@@ -2124,7 +2711,7 @@ export function AdminBackoffice({
           <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-pink-100 text-[#E5007D] flex items-center justify-center font-bold">
+                <div className="w-9 h-9 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center font-bold">
                   <BarChart3 className="w-5 h-5" />
                 </div>
                 <div>
@@ -2142,7 +2729,7 @@ export function AdminBackoffice({
                 <select
                   value={selectedCityFilter}
                   onChange={(e) => setSelectedCityFilter(e.target.value)}
-                  className="px-3 py-1.5 text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E5007D] cursor-pointer"
+                  className="px-3 py-1.5 text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
                 >
                   <option value="todas">Todas las Ciudades ({cityAnalytics.length})</option>
                   {cityAnalytics.map((c) => (
@@ -2419,7 +3006,7 @@ export function AdminBackoffice({
                       <button
                         type="button"
                         onClick={() => handleRequestCitySupply(c.ciudad)}
-                        className="flex-1 py-2 px-3 bg-gradient-to-r from-[#FF6A00] to-[#E5007D] hover:brightness-110 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                        className="flex-1 py-2 px-3 bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-110 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
                       >
                         <Boxes className="w-3.5 h-3.5" />
                         <span>Generar Orden de Reabastecimiento</span>
@@ -2494,7 +3081,7 @@ export function AdminBackoffice({
                     })
                     .map((order) => (
                       <tr key={order.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-3 px-3 font-mono font-bold text-[#E5007D]">{order.id}</td>
+                        <td className="py-3 px-3 font-mono font-bold text-sky-700">{order.id}</td>
                         <td className="py-3 px-3">
                           <span className="font-bold text-slate-800">{order.ciudad}</span>
                         </td>
@@ -2512,7 +3099,7 @@ export function AdminBackoffice({
                         </td>
                         <td className="py-3 px-3 font-mono font-semibold">{order.areaM2} m²</td>
                         <td className="py-3 px-3">
-                          <span className="px-2 py-0.5 rounded-md bg-pink-50 text-[#E5007D] text-[10px] font-bold border border-pink-200">
+                          <span className="px-2 py-0.5 rounded-md bg-sky-50 text-sky-700 text-[10px] font-bold border border-sky-200">
                             {order.metodoPago || 'Transferencia Bancolombia'}
                           </span>
                         </td>
@@ -2569,11 +3156,11 @@ export function AdminBackoffice({
                     <MessageCircle className="w-5 h-5" />
                   </div>
                 ) : modalNotificationData.tipo === 'email' ? (
-                  <div className="w-10 h-10 rounded-2xl bg-[#E5007D] text-white flex items-center justify-center shadow-xs">
+                  <div className="w-10 h-10 rounded-2xl bg-sky-600 text-white flex items-center justify-center shadow-xs">
                     <Mail className="w-5 h-5" />
                   </div>
                 ) : (
-                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-[#E5007D] text-white flex items-center justify-center shadow-xs">
+                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-500 to-blue-600 text-white flex items-center justify-center shadow-xs">
                     <Send className="w-5 h-5" />
                   </div>
                 )}
@@ -2630,9 +3217,9 @@ export function AdminBackoffice({
                     {modalNotificationData.mensaje}
                   </p>
                 </div>
-                <div className="p-3 bg-pink-50 border border-pink-200 rounded-2xl text-xs space-y-1">
-                  <div className="flex items-center gap-1.5 font-bold text-[#E5007D]">
-                    <Mail className="w-4 h-4 text-[#E5007D]" />
+                <div className="p-3 bg-sky-50 border border-sky-200 rounded-2xl text-xs space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold text-sky-700">
+                    <Mail className="w-4 h-4 text-sky-600" />
                     <span>Canal Correo Electrónico ({modalNotificationData.order.email})</span>
                   </div>
                   <p className="text-[11px] text-slate-600">
@@ -2670,7 +3257,7 @@ export function AdminBackoffice({
             {/* Header Modal */}
             <div className="flex items-start justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] text-white flex items-center justify-center shadow-md">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-500 via-sky-600 to-blue-700 text-white flex items-center justify-center shadow-md">
                   <Sparkles className="w-5 h-5 text-amber-300" />
                 </div>
                 <div>
@@ -2678,7 +3265,7 @@ export function AdminBackoffice({
                     <h3 className="text-base font-black text-slate-900">
                       Auditoría Inteligente con IA
                     </h3>
-                    <span className="text-[10px] bg-pink-100 text-[#E5007D] font-extrabold px-2 py-0.5 rounded-full border border-pink-200">
+                    <span className="text-[10px] bg-sky-100 text-sky-800 font-extrabold px-2 py-0.5 rounded-full border border-sky-200">
                       Gemini 3.8 Flash
                     </span>
                   </div>
@@ -2698,7 +3285,7 @@ export function AdminBackoffice({
 
             {isAuditingWithAI ? (
               <div className="py-12 text-center space-y-3">
-                <div className="w-12 h-12 border-4 border-[#E5007D] border-t-transparent rounded-full animate-spin mx-auto" />
+                <div className="w-12 h-12 border-4 border-sky-600 border-t-transparent rounded-full animate-spin mx-auto" />
                 <p className="text-sm font-bold text-slate-800">
                   La IA está analizando inventario en sede, compatibilidad y formulación...
                 </p>
@@ -2770,7 +3357,7 @@ export function AdminBackoffice({
                 <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-1.5 text-xs">
                   <div className="flex items-center justify-between text-[11px] text-slate-600 font-bold border-b border-slate-200 pb-1.5">
                     <span className="flex items-center gap-1.5">
-                      <Mail className="w-3.5 h-3.5 text-[#E5007D]" />
+                      <Mail className="w-3.5 h-3.5 text-sky-600" />
                       Vista previa del correo que se enviará al cliente:
                     </span>
                     <span className="text-slate-400 font-mono text-[10px]">

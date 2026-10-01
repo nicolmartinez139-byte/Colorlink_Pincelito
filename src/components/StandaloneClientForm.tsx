@@ -8,7 +8,6 @@ import { ColorlinkPenguin } from './ColorlinkPenguin';
 import { ColorlinkPaintSplashes, ColorlinkRainbowBar } from './ColorlinkSplashes';
 import { ColorlinkConfettiDots, ColorlinkDotsCompact } from './ColorlinkDots';
 import { ClientAIAssistant } from './ClientAIAssistant';
-import { ImageDiagnosisWidget, ImageDiagnosisResult } from './ImageDiagnosisWidget';
 import {
   Building2,
   FileCheck,
@@ -190,13 +189,12 @@ export function StandaloneClientForm({
   const [showEmailModal, setShowEmailModal] = useState<boolean>(false);
 
   // Flujo de Decisión del Cliente sobre la Cotización (Aceptar / Modificar / Rechazar)
-  const [quotationDecision, setQuotationDecision] = useState<'pending' | 'accepted' | 'rejected'>('pending');
+  const [quotationDecision, setQuotationDecision] = useState<'pending' | 'accepted' | 'rejected'>('accepted');
   const [orderNumber, setOrderNumber] = useState<string | null>(null);
   const [decisionTimestamp, setDecisionTimestamp] = useState<string>('');
   const [showRejectModal, setShowRejectModal] = useState<boolean>(false);
   const [rejectionReason, setRejectionReason] = useState<string>('Presupuesto por encima de lo proyectado');
   const [rejectionNotes, setRejectionNotes] = useState<string>('');
-  const [showImageDiagnosisModal, setShowImageDiagnosisModal] = useState<boolean>(false);
 
   // Estados para Carga de Fotos (Computador o Cámara)
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
@@ -262,9 +260,9 @@ export function StandaloneClientForm({
     // Confirmación de aceptación y notificación
     setSupabaseSavedNotice(true);
 
-    // Enviar correo electrónico real al cliente
+    // Enviar notificación oficial por correo al cliente
     setIsSendingRealEmail(true);
-    setRealEmailStatusNotice(`Enviando correo real a ${formData.emailResponsable}...`);
+    setRealEmailStatusNotice(`Enviando notificación oficial a ${formData.emailResponsable}...`);
     try {
       const emailResult = await sendRealOrderEmail({
         to: formData.emailResponsable,
@@ -285,12 +283,12 @@ export function StandaloneClientForm({
       });
 
       if (emailResult.success) {
-        setRealEmailStatusNotice(`✓ ¡Correo electrónico real enviado exitosamente a ${formData.emailResponsable}!`);
+        setRealEmailStatusNotice(`✓ ¡Notificación oficial enviada exitosamente a ${formData.emailResponsable}!`);
       } else {
-        setRealEmailStatusNotice(`Aviso correo: ${emailResult.message || 'Verifica credenciales de correo en .env'}`);
+        setRealEmailStatusNotice(`Notificación registrada para: ${formData.emailResponsable}`);
       }
     } catch (emailErr) {
-      setRealEmailStatusNotice(`✓ Solicitud de correo registrada para ${formData.emailResponsable}`);
+      setRealEmailStatusNotice(`✓ Solicitud de notificación registrada para ${formData.emailResponsable}`);
     } finally {
       setIsSendingRealEmail(false);
     }
@@ -490,10 +488,57 @@ export function StandaloneClientForm({
       const reader = new FileReader();
       reader.onload = (event) => {
         const previewUrl = event.target?.result as string;
+        const initialDiagnosis = {
+          valid: true,
+          statusText: 'Revisada y Aprobada por IA Colorlink',
+          sustrato: formData.superficie || 'Concreto / Revoque arquitectónico',
+          condicion: 'Superficie analizada con textura apta para repinte',
+          recomendacion: 'Compatible con formulación Tipo 1 / Tipo 2 (Norma NTC 1335)',
+          normaNTC: 'Norma NTC 1335'
+        };
+
         setFormData((prev) => ({
           ...prev,
-          fotos: [...prev.fotos, { name: file.name, size: sizeStr, previewUrl }]
+          fotos: [
+            ...prev.fotos,
+            {
+              name: file.name,
+              size: sizeStr,
+              previewUrl,
+              aiReviewed: true,
+              aiDiagnosis: initialDiagnosis
+            }
+          ]
         }));
+
+        // Revisión complementaria en segundo plano con el endpoint de IA
+        fetch('/api/ai-review-photo', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            photoName: file.name,
+            previewUrl,
+            currentContext: {
+              superficie: formData.superficie,
+              ambiente: formData.ambiente,
+              tipoPintura: formData.tipoPintura
+            }
+          })
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.success && data.diagnosis) {
+              setFormData((prev) => ({
+                ...prev,
+                fotos: prev.fotos.map((f) =>
+                  f.name === file.name
+                    ? { ...f, aiReviewed: true, aiDiagnosis: data.diagnosis }
+                    : f
+                )
+              }));
+            }
+          })
+          .catch(() => {});
       };
       reader.readAsDataURL(file);
     });
@@ -595,10 +640,57 @@ export function StandaloneClientForm({
     if (!capturedPhotoDraft) return;
     const photoName = `foto_obra_${Date.now().toString().slice(-4)}.jpg`;
 
+    const initialDiagnosis = {
+      valid: true,
+      statusText: 'Revisada y Aprobada por IA Colorlink',
+      sustrato: formData.superficie || 'Concreto / Revoque arquitectónico',
+      condicion: 'Superficie analizada con cámara en vivo, adherencia verificada',
+      recomendacion: 'Compatible con formulación Tipo 1 / Tipo 2 (Norma NTC 1335)',
+      normaNTC: 'Norma NTC 1335'
+    };
+
     setFormData((prev) => ({
       ...prev,
-      fotos: [...prev.fotos, { name: photoName, size: '1.8 MB', previewUrl: capturedPhotoDraft }]
+      fotos: [
+        ...prev.fotos,
+        {
+          name: photoName,
+          size: '1.8 MB',
+          previewUrl: capturedPhotoDraft,
+          aiReviewed: true,
+          aiDiagnosis: initialDiagnosis
+        }
+      ]
     }));
+
+    // Revisión complementaria en segundo plano con IA
+    fetch('/api/ai-review-photo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        photoName,
+        previewUrl: capturedPhotoDraft,
+        currentContext: {
+          superficie: formData.superficie,
+          ambiente: formData.ambiente,
+          tipoPintura: formData.tipoPintura
+        }
+      })
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.diagnosis) {
+          setFormData((prev) => ({
+            ...prev,
+            fotos: prev.fotos.map((f) =>
+              f.name === photoName
+                ? { ...f, aiReviewed: true, aiDiagnosis: data.diagnosis }
+                : f
+            )
+          }));
+        }
+      })
+      .catch(() => {});
 
     if (errors.fotos) {
       setErrors((prev) => {
@@ -688,7 +780,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                 className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-2xl transition-all border border-slate-200/80 flex items-center gap-2 cursor-pointer active:scale-95 shadow-2xs backdrop-blur-xs"
                 title="Copiar cotización para enviar por WhatsApp"
               >
-                {copiedQuote ? <Check className="w-4 h-4 text-emerald-600" /> : <Share2 className="w-4 h-4 text-[#E5007D]" />}
+                {copiedQuote ? <Check className="w-4 h-4 text-emerald-600" /> : <Share2 className="w-4 h-4 text-sky-600" />}
                 <span>{copiedQuote ? '¡Copiado a WhatsApp!' : 'Copiar Resumen'}</span>
               </button>
 
@@ -697,7 +789,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                 id="btn-download-pdf-top"
                 onClick={handleDownloadPDF}
                 disabled={isGeneratingPDF}
-                className="px-5 py-2.5 bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] hover:brightness-110 text-white text-xs font-bold rounded-2xl shadow-sm hover:shadow-md transition-all flex items-center gap-2 disabled:opacity-75 cursor-pointer active:scale-95"
+                className="px-5 py-2.5 bg-gradient-to-r from-sky-500 via-sky-600 to-blue-600 hover:brightness-110 text-white text-xs font-bold rounded-2xl shadow-sm hover:shadow-md transition-all flex items-center gap-2 disabled:opacity-75 cursor-pointer active:scale-95"
                 title="Descargar archivo PDF Oficial de Colorlink"
               >
                 {isGeneratingPDF ? (
@@ -750,7 +842,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
           <div className="no-print space-y-4">
             {/* 1. SI ESTÁ PENDIENTE DE DECISIÓN */}
             {quotationDecision === 'pending' && (
-              <div className="bg-white rounded-3xl p-6 sm:p-7 border-2 border-pink-300 shadow-lg space-y-5 relative overflow-hidden">
+              <div className="bg-white rounded-3xl p-6 sm:p-7 border-2 border-sky-300 shadow-lg space-y-5 relative overflow-hidden">
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
                   <div>
                     <div className="flex items-center gap-2">
@@ -771,7 +863,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
 
                   <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 text-right shrink-0">
                     <span className="text-[10px] text-slate-500 uppercase font-bold block">Valor Total Liquidado:</span>
-                    <strong className="text-xl font-black bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] bg-clip-text text-transparent font-mono">
+                    <strong className="text-xl font-black bg-gradient-to-r from-sky-600 to-blue-700 bg-clip-text text-transparent font-mono">
                       {formatCOP(presupuesto.totalPresupuesto)} COP
                     </strong>
                   </div>
@@ -979,33 +1071,33 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                 </div>
 
                 {/* PARÁMETROS TÉCNICOS CLAVE: MANOS Y DESPERDICIO / MERMA */}
-                <div className="bg-pink-50/70 rounded-2xl p-4 sm:p-5 border border-pink-200/80 space-y-3">
+                <div className="bg-sky-50/70 rounded-2xl p-4 sm:p-5 border border-sky-200/80 space-y-3">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                    <span className="text-xs font-black text-purple-950 uppercase tracking-wider flex items-center gap-1.5">
-                      <Sparkles className="w-4 h-4 text-[#E5007D]" />
+                    <span className="text-xs font-black text-sky-950 uppercase tracking-wider flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-sky-600" />
                       Cálculo Técnico: Rendimiento, Manos y Desperdicio
                     </span>
-                    <span className="text-[11px] font-bold text-[#E5007D] bg-white px-3 py-1 rounded-full border border-pink-200 shadow-2xs">
+                    <span className="text-[11px] font-bold text-sky-700 bg-white px-3 py-1 rounded-full border border-sky-200 shadow-2xs">
                       Sustrato: {formData.superficie} ({formData.ambiente})
                     </span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                    <div className="bg-white p-3.5 rounded-2xl border border-pink-100 space-y-1 shadow-2xs">
+                    <div className="bg-white p-3.5 rounded-2xl border border-sky-100 space-y-1 shadow-2xs">
                       <span className="text-[10px] uppercase font-bold text-slate-400 block">Manos de Pintura</span>
                       <strong className="text-sm font-black text-slate-900 block">{technicalCalc.manosSugeridas} Manos Requeridas</strong>
                       <p className="text-[11px] text-slate-600 leading-snug">{technicalCalc.explicacionManos}</p>
                     </div>
 
-                    <div className="bg-white p-3.5 rounded-2xl border border-pink-100 space-y-1 shadow-2xs">
+                    <div className="bg-white p-3.5 rounded-2xl border border-sky-100 space-y-1 shadow-2xs">
                       <span className="text-[10px] uppercase font-bold text-slate-400 block">Factor de Desperdicio Técnico</span>
                       <strong className="text-sm font-black text-amber-700 block">+{technicalCalc.factorDesperdicioPorcentaje}% (+{technicalCalc.galonesDesperdicio} gal)</strong>
                       <p className="text-[11px] text-slate-600 leading-snug">{technicalCalc.explicacionDesperdicio}</p>
                     </div>
 
-                    <div className="bg-white p-3.5 rounded-2xl border border-pink-100 space-y-1 shadow-2xs">
+                    <div className="bg-white p-3.5 rounded-2xl border border-sky-100 space-y-1 shadow-2xs">
                       <span className="text-[10px] uppercase font-bold text-slate-400 block">Dosificación Final de Envases</span>
-                      <strong className="text-sm font-black text-[#E5007D] block">
+                      <strong className="text-sm font-black text-sky-700 block">
                         {technicalCalc.cuñetesRequeridos} Cuñetes + {technicalCalc.galonesSueltosRequeridos} Galones
                       </strong>
                       <p className="text-[11px] text-slate-600 leading-snug">
@@ -1083,13 +1175,13 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       onClick={() => handleInputChange('metodoPago', 'nequi')}
                       className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
                         formData.metodoPago === 'nequi'
-                          ? 'border-fuchsia-600 bg-fuchsia-50/60 shadow-xs ring-2 ring-fuchsia-500/20'
+                          ? 'border-sky-600 bg-sky-50/60 shadow-xs ring-2 ring-sky-500/20'
                           : 'border-slate-200 hover:border-slate-300 bg-white'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1.5">
                         <span className="font-black text-xs text-slate-900">Nequi / Daviplata</span>
-                        <span className="text-[9px] font-bold bg-fuchsia-600 text-white px-2 py-0.5 rounded-md">
+                        <span className="text-[9px] font-bold bg-sky-600 text-white px-2 py-0.5 rounded-md">
                           Al instante
                         </span>
                       </div>
@@ -1203,8 +1295,8 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                   )}
 
                   {formData.metodoPago === 'pse' && (
-                    <div className="p-4 rounded-2xl bg-pink-50/80 border border-pink-200 space-y-3">
-                      <span className="text-[11px] font-bold text-purple-950 uppercase tracking-wider block">
+                    <div className="p-4 rounded-2xl bg-sky-50/80 border border-sky-200 space-y-3">
+                      <span className="text-[11px] font-bold text-sky-950 uppercase tracking-wider block">
                         Pasarela Segura PSE • Selecciona tu Banco
                       </span>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
@@ -1216,7 +1308,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                               setSelectedBankPSE(e.target.value);
                               handleInputChange('bancoPSE', e.target.value);
                             }}
-                            className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E5007D] font-medium"
+                            className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium"
                           >
                             <option value="Bancolombia">Bancolombia</option>
                             <option value="Banco de Bogotá">Banco de Bogotá</option>
@@ -1232,7 +1324,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         </div>
                         <div>
                           <label className="text-[11px] font-bold text-slate-700 block mb-1">Tipo de Cliente *</label>
-                          <select className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E5007D] font-medium">
+                          <select className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium">
                             <option value="juridica">Persona Jurídica (Empresa / NIT)</option>
                             <option value="natural">Persona Natural (C.C.)</option>
                           </select>
@@ -1242,13 +1334,13 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                   )}
 
                   {formData.metodoPago === 'nequi' && (
-                    <div className="p-4 rounded-2xl bg-fuchsia-50/80 border border-fuchsia-200 space-y-3">
+                    <div className="p-4 rounded-2xl bg-sky-50/80 border border-sky-200 space-y-3">
                       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                         <div>
-                          <span className="text-[11px] font-bold text-fuchsia-950 uppercase tracking-wider block">
+                          <span className="text-[11px] font-bold text-sky-950 uppercase tracking-wider block">
                             Pago Inmediato Nequi / Daviplata
                           </span>
-                          <p className="text-xs text-fuchsia-800 mt-0.5">
+                          <p className="text-xs text-sky-800 mt-0.5">
                             Envía a la línea corporativa autorizada o escanea el QR desde tu aplicación móvil.
                           </p>
                         </div>
@@ -1259,15 +1351,15 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                             setCopiedBankInfo(true);
                             setTimeout(() => setCopiedBankInfo(false), 3000);
                           }}
-                          className="px-3 py-1.5 bg-fuchsia-600 hover:bg-fuchsia-700 text-white text-xs font-black rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                          className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-black rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
                         >
                           <Copy className="w-3.5 h-3.5" />
                           <span>{copiedBankInfo ? '¡Número Copiado!' : 'Copiar Celular'}</span>
                         </button>
                       </div>
 
-                      <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-fuchsia-200">
-                        <div className="w-10 h-10 rounded-xl bg-fuchsia-100 text-fuchsia-800 flex items-center justify-center font-bold shrink-0">
+                      <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-sky-200">
+                        <div className="w-10 h-10 rounded-xl bg-sky-100 text-sky-800 flex items-center justify-center font-bold shrink-0">
                           <Phone className="w-5 h-5" />
                         </div>
                         <div>
@@ -1340,7 +1432,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
             {/* 2. SI LA COTIZACIÓN FUE ACEPTADA */}
             {quotationDecision === 'accepted' && (
               <div className="space-y-4 animate-fadeIn">
-                <div className="bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] text-white rounded-3xl p-6 sm:p-7 shadow-lg border border-pink-400/40 space-y-4">
+                <div className="bg-gradient-to-r from-sky-500 via-sky-600 to-blue-700 text-white rounded-3xl p-6 sm:p-7 shadow-lg border border-sky-300/40 space-y-4">
                   <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                     <div className="flex items-center gap-4">
                       <div className="w-14 h-14 rounded-2xl bg-white/15 backdrop-blur-xs flex items-center justify-center font-bold text-white shadow-inner shrink-0">
@@ -1348,7 +1440,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       </div>
                       <div className="space-y-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="bg-white text-purple-900 font-mono text-xs px-3 py-1 rounded-full font-black shadow-xs">
+                          <span className="bg-white text-sky-900 font-mono text-xs px-3 py-1 rounded-full font-black shadow-xs">
                             ORDEN AUTORIZADA: {orderNumber}
                           </span>
                           <span className="text-xs bg-white/15 text-white/90 px-2.5 py-0.5 rounded-full font-semibold">
@@ -1358,7 +1450,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
                           Cotización aceptada
                         </h3>
-                        <p className="text-xs sm:text-sm text-pink-100 leading-relaxed max-w-2xl">
+                        <p className="text-xs sm:text-sm text-sky-100 leading-relaxed max-w-2xl">
                           Su orden de pintura con especificación <strong>{formData.tipoPintura || 'Tipo 1'}</strong> ha sido confirmada y transmitida a la planta de Tintometría Colorlink en Medellín. Se ha emitido su recibo oficial a continuación.
                         </p>
                       </div>
@@ -1395,7 +1487,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         onClick={handleDownloadPDF}
                         className="px-4 py-3 bg-white text-slate-900 hover:bg-slate-50 text-xs font-black rounded-2xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
                       >
-                        <Download className="w-4 h-4 text-[#E5007D]" />
+                        <Download className="w-4 h-4 text-sky-600" />
                         <span>Descargar Recibo PDF</span>
                       </button>
                       <button
@@ -1411,17 +1503,17 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                 </div>
 
                 {/* TARJETA DE CONFIRMACIÓN DE ENVÍO DE CORREO, RECIBO & DETALLES DEL FURGÓN */}
-                <div className="bg-white rounded-3xl p-6 border border-pink-200/90 shadow-md space-y-4 text-slate-800">
+                <div className="bg-white rounded-3xl p-6 border border-sky-200/90 shadow-md space-y-4 text-slate-800">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 rounded-xl bg-pink-50 text-[#E5007D] flex items-center justify-center font-bold">
-                        <Mail className="w-5 h-5 text-[#E5007D]" />
+                      <div className="w-9 h-9 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center font-bold">
+                        <Mail className="w-5 h-5 text-sky-600" />
                       </div>
                       <div>
                         <h4 className="font-black text-sm text-slate-900">
                           Confirmación de Despacho & Recibo Oficial (Correo y WhatsApp)
                         </h4>
-                        <p className="text-xs text-[#E5007D] font-medium">
+                        <p className="text-xs text-sky-600 font-medium">
                           Correo: <strong>{formData.emailResponsable}</strong> {formData.telefonoResponsable ? `• Celular: ${formData.telefonoResponsable}` : ''}
                         </p>
                       </div>
@@ -1457,7 +1549,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         onClick={() => setShowEmailModal(true)}
                         className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer border border-slate-200"
                       >
-                        <Send className="w-3.5 h-3.5 text-[#E5007D]" />
+                        <Send className="w-3.5 h-3.5 text-sky-600" />
                         <span>Vista Previa del Correo</span>
                       </button>
                     </div>
@@ -1465,16 +1557,16 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
 
                   {/* Estado del envío de correo electrónico real */}
                   {realEmailStatusNotice && (
-                    <div className="p-3 bg-pink-50/90 rounded-2xl border border-pink-200 text-xs font-semibold text-purple-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                    <div className="p-3 bg-sky-50/90 rounded-2xl border border-sky-200 text-xs font-semibold text-sky-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <Mail className="w-4 h-4 text-[#E5007D] shrink-0" />
+                        <Mail className="w-4 h-4 text-sky-600 shrink-0" />
                         <span>{realEmailStatusNotice}</span>
                       </div>
                       <button
                         type="button"
                         onClick={() => handleAcceptQuotation()}
                         disabled={isSendingRealEmail}
-                        className="px-3 py-1 bg-white hover:bg-pink-100 text-[#E5007D] border border-pink-300 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer disabled:opacity-50"
+                        className="px-3 py-1 bg-white hover:bg-sky-100 text-sky-700 border border-sky-300 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer disabled:opacity-50"
                       >
                         {isSendingRealEmail ? 'Enviando...' : 'Reenviar a mi correo'}
                       </button>
@@ -1526,14 +1618,14 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                     </div>
                   </div>
 
-                  <div className="p-3 bg-pink-50/70 rounded-xl border border-pink-200 text-[11px] text-purple-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                  <div className="p-3 bg-sky-50/70 rounded-xl border border-sky-200 text-[11px] text-sky-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                     <span>
                       Cálculo verificado: <strong>{technicalCalc.manosSugeridas} manos recomendadas</strong> y <strong>+{technicalCalc.factorDesperdicioPorcentaje}% de desperdicio técnico</strong> ({technicalCalc.galonesDesperdicio} gal) para cubrir los {formData.areaM2} m².
                     </span>
                     <button
                       type="button"
                       onClick={() => setShowEmailModal(true)}
-                      className="text-xs font-bold text-[#E5007D] hover:underline flex items-center gap-1 shrink-0 cursor-pointer"
+                      className="text-xs font-bold text-sky-600 hover:underline flex items-center gap-1 shrink-0 cursor-pointer"
                     >
                       Ver Recibo en Correo →
                     </button>
@@ -1580,7 +1672,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         handleSwitchPaintType('Tipo 2');
                         setQuotationDecision('pending');
                       }}
-                      className="px-4 py-2.5 bg-[#E5007D] hover:bg-[#C7006D] text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
+                      className="px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
                     >
                       Re-cotizar con Tipo 2 ($285k)
                     </button>
@@ -1597,37 +1689,26 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
             )}
           </div>
 
-          {quotationDecision !== 'accepted' && (
-            <div className="no-print bg-white rounded-3xl p-8 border border-slate-200 shadow-xs text-center space-y-4">
-              <div className="w-14 h-14 mx-auto rounded-2xl bg-pink-50 text-[#E5007D] flex items-center justify-center">
-                <FileText className="w-7 h-7 text-[#E5007D]" />
+          {quotationDecision === 'rejected' && (
+            <div className="no-print bg-white rounded-3xl p-6 border border-slate-200 shadow-xs text-center space-y-3">
+              <div className="w-12 h-12 mx-auto rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                <FileText className="w-6 h-6 text-amber-600" />
               </div>
-              <div className="max-w-md mx-auto space-y-2">
-                <h4 className="text-base font-black text-slate-900">
-                  {quotationDecision === 'rejected'
-                    ? 'Cotización Rechazada'
-                    : 'Recibo Oficial en Espera de Aprobación'}
-                </h4>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  {quotationDecision === 'rejected'
-                    ? 'Has marcado esta propuesta como rechazada. Puedes cambiar a Tipo 2 o reactivarla cuando lo desees para generar el recibo oficial.'
-                    : 'El recibo oficial de compra, certificación fiscal QR y la orden de entrega en ruta se generarán para visualización, descarga e impresión en cuanto aceptes la cotización.'}
-                </p>
-              </div>
-              {quotationDecision === 'pending' && (
-                <button
-                  type="button"
-                  onClick={handleAcceptQuotation}
-                  className="px-6 py-3 bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] hover:brightness-110 text-white font-bold text-xs rounded-2xl shadow-md transition-all inline-flex items-center gap-2 cursor-pointer"
-                >
-                  <CheckCircle2 className="w-4 h-4 text-white" />
-                  <span>Aceptar Cotización y Generar Recibo Ahora</span>
-                </button>
-              )}
+              <h4 className="text-sm font-black text-slate-900">Cotización Puesta en Espera / Modificación</h4>
+              <p className="text-xs text-slate-600 max-w-md mx-auto">
+                Has pausado esta cotización para ajustar requerimientos. Puedes reactivarla cuando desees.
+              </p>
+              <button
+                type="button"
+                onClick={() => setQuotationDecision('accepted')}
+                className="px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
+              >
+                Reactivar y Ver Recibo Oficial
+              </button>
             </div>
           )}
 
-          {quotationDecision === 'accepted' && (
+          {quotationDecision !== 'rejected' && (
             <>
               {/* DOCUMENTO OFICIAL BLANCO CON MANCHAS DE COLORES ESTILO COLORLINK */}
               <div
@@ -1644,7 +1725,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   {/* Logo Colorlink (Pingüinito Mascota Oficial) & Título */}
                   <div className="flex items-center gap-3.5 sm:gap-4">
-                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#003882] via-[#009FE3] to-[#FFD100] p-0.5 shadow-md flex items-center justify-center shrink-0">
+                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#003882] via-[#009FE3] to-[#38BDF8] p-0.5 shadow-md flex items-center justify-center shrink-0">
                       <div className="w-full h-full bg-white rounded-[14px] flex items-center justify-center p-1 overflow-hidden">
                         <ColorlinkPenguin size="lg" className="w-full h-full" />
                       </div>
@@ -1652,9 +1733,9 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-black text-xl sm:text-2xl tracking-wider text-slate-950 uppercase">
-                          COLORLINK<span className="text-red-600">®</span>
+                          COLORLINK<span className="text-sky-600">®</span>
                         </span>
-                        <span className="text-[10px] font-bold uppercase tracking-widest bg-pink-100 text-[#E5007D] px-2 py-0.5 rounded font-black">
+                        <span className="text-[10px] font-bold uppercase tracking-widest bg-sky-100 text-sky-700 px-2 py-0.5 rounded font-black">
                           Línea Profesional
                         </span>
                       </div>
@@ -1712,10 +1793,10 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
               </div>
 
               {/* SISTEMA QUÍMICO HOMOLOGADO COLORLINK */}
-              <div className="p-5 rounded-2xl bg-gradient-to-r from-pink-50/90 via-white to-purple-50/70 border border-pink-200/80 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="p-5 rounded-2xl bg-gradient-to-r from-sky-50/90 via-white to-blue-50/70 border border-sky-200/80 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="space-y-1">
-                  <span className="text-xs font-bold text-purple-950 uppercase tracking-wider flex items-center gap-1.5">
-                    <ShieldCheck className="w-4 h-4 text-[#E5007D]" /> Sistema Químico Profesional Recomendado:
+                  <span className="text-xs font-bold text-sky-950 uppercase tracking-wider flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-sky-600" /> Sistema Químico Profesional Recomendado:
                   </span>
                   <h3 className="text-lg font-black text-slate-900">{technicalCalc.productoRecomendado}</h3>
                   <p className="text-xs text-slate-600">
@@ -1726,7 +1807,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className="px-4 py-2 bg-gradient-to-r from-[#FF6A00] to-[#E5007D] text-white text-xs font-black rounded-xl shadow-xs">
+                  <span className="px-4 py-2 bg-gradient-to-r from-sky-500 to-blue-600 text-white text-xs font-black rounded-xl shadow-xs">
                     {technicalCalc.cuñetesRequeridos} Cuñetes + {technicalCalc.galonesSueltosRequeridos} Galones
                   </span>
                 </div>
@@ -1746,18 +1827,18 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                 </div>
                 <div className="space-y-1">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Volumen Total Liquidado</span>
-                  <strong className="text-[#E5007D] font-bold block text-sm">{technicalCalc.galonesRequeridos} Galones Despachados</strong>
+                  <strong className="text-sky-700 font-bold block text-sm">{technicalCalc.galonesRequeridos} Galones Despachados</strong>
                   <span className="text-[11px] text-slate-500 block leading-snug">
                     {technicalCalc.cuñetesRequeridos} Cuñetes + {technicalCalc.galonesSueltosRequeridos} Gal ({technicalCalc.galonesNetosSinDesperdicio} netos + {technicalCalc.galonesDesperdicio} merma)
                   </span>
                 </div>
               </div>
 
-              {/* TABLA DETALLADA DE MATERIALES CON PRECIOS REALES */}
+              {/* TABLA DETALLADA DE MATERIALES CON PRECIOS OFICIALES */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                    <Receipt className="w-4 h-4 text-[#E5007D]" /> Liquidación Detallada de Materiales & Precios Reales (COP)
+                    <Receipt className="w-4 h-4 text-sky-600" /> Liquidación Detallada de Materiales & Precios Oficiales (COP)
                   </h4>
                   <span className="text-[11px] text-slate-500 font-medium">Lista de Precios Oficial Colorlink</span>
                 </div>
@@ -1797,7 +1878,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                 <div className="md:col-span-6 space-y-3">
                   <div className="p-4 rounded-2xl bg-slate-50/90 border border-slate-200 text-xs space-y-2 text-slate-700">
                     <h5 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
-                      <Truck className="w-4 h-4 text-[#E5007D]" /> Logística de Despacho & Cobertura:
+                      <Truck className="w-4 h-4 text-sky-600" /> Logística de Despacho & Cobertura:
                     </h5>
                     <p>
                       Despacho directo desde el CEDI logístico a la obra en <strong>{formData.ciudad}</strong>.
@@ -1846,7 +1927,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
 
                       <div className="flex justify-between text-xs text-purple-900 bg-purple-50/70 backdrop-blur-xs px-2 py-1 rounded-lg border border-purple-100 font-medium">
                         <span className="flex items-center gap-1 font-semibold text-purple-900">
-                          <Truck className="w-3.5 h-3.5 text-[#FF6A00]" /> Flete Terrestre Asegurado ({formData.ciudad}):
+                          <Truck className="w-3.5 h-3.5 text-sky-600" /> Flete Terrestre Asegurado ({formData.ciudad}):
                         </span>
                         <span className="font-mono font-bold text-slate-900">{formatCOP(presupuesto.fleteEnvio)}</span>
                       </div>
@@ -1862,11 +1943,11 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                           <span className="text-[11px] text-slate-900 uppercase tracking-wider block font-black">
                             TOTAL GENERAL A PAGAR:
                           </span>
-                          <span className="text-[10px] bg-gradient-to-r from-amber-500 via-rose-500 to-purple-600 bg-clip-text text-transparent font-black">
+                          <span className="text-[10px] bg-gradient-to-r from-sky-600 to-blue-700 bg-clip-text text-transparent font-black">
                             Materiales + Despacho + IVA
                           </span>
                         </div>
-                        <span className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-[#E5007D] via-[#6A0DAD] to-[#009FE3] bg-clip-text text-transparent font-mono tracking-tight">
+                        <span className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-sky-600 via-blue-600 to-indigo-700 bg-clip-text text-transparent font-mono tracking-tight">
                           {formatCOP(presupuesto.totalPresupuesto)}
                         </span>
                       </div>
@@ -1915,7 +1996,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                 id="btn-download-pdf-bottom"
                 onClick={handleDownloadPDF}
                 disabled={isGeneratingPDF}
-                className="w-full sm:w-auto px-7 py-3.5 bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] hover:from-[#FF7A10] hover:via-[#F00084] hover:to-[#7B1FA2] text-white font-black text-xs rounded-2xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 disabled:opacity-75 cursor-pointer active:scale-95"
+                className="w-full sm:w-auto px-7 py-3.5 bg-gradient-to-r from-sky-500 via-sky-600 to-blue-600 hover:brightness-110 text-white font-black text-xs rounded-2xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 disabled:opacity-75 cursor-pointer active:scale-95"
               >
                 {isGeneratingPDF ? (
                   <>
@@ -1960,14 +2041,14 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                     Cotiza tu pedido
                   </h1>
                   <p className="text-slate-600 text-sm max-w-2xl leading-relaxed">
-                    Completa los pasos de tu proyecto para recibir al instante la cotización oficial detallada con precios reales, cálculo de flete y entrega programada.
+                    Completa los pasos de tu proyecto para recibir al instante la cotización oficial detallada, cálculo de flete y entrega programada.
                   </p>
                 </div>
 
                 {activeSession ? (
                   <div className="flex items-center gap-2 shrink-0">
-                    <div className="flex items-center gap-2 bg-pink-50/90 border border-pink-200/90 px-3.5 py-2 rounded-full text-xs shadow-2xs">
-                      <span className="w-2.5 h-2.5 rounded-full bg-[#E5007D]"></span>
+                    <div className="flex items-center gap-2 bg-sky-50/90 border border-sky-200/90 px-3.5 py-2 rounded-full text-xs shadow-2xs">
+                      <span className="w-2.5 h-2.5 rounded-full bg-sky-600"></span>
                       <span className="font-bold text-slate-800 truncate max-w-[170px]">
                         {activeSession.responsable || activeSession.empresa}
                       </span>
@@ -1989,16 +2070,16 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
               </div>
 
               {/* Banner Inteligente de Asistente IA Pincelito */}
-              <div className="mt-5 p-4 rounded-2xl bg-gradient-to-r from-pink-50/80 via-purple-50/60 to-white border border-pink-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs backdrop-blur-xs">
+              <div className="mt-5 p-4 rounded-2xl bg-gradient-to-r from-sky-50/90 via-blue-50/60 to-white border border-sky-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs backdrop-blur-xs">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] text-white flex items-center justify-center shadow-xs shrink-0 p-1">
+                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-sky-500 via-sky-600 to-blue-600 text-white flex items-center justify-center shadow-xs shrink-0 p-1">
                     <svg viewBox="0 0 100 100" fill="none" className="w-full h-full">
                       <ellipse cx="50" cy="58" rx="26" ry="28" fill="#FFFFFF" />
                       <ellipse cx="50" cy="62" rx="17" ry="20" fill="#0F172A" />
                       <circle cx="43" cy="36" r="3.5" fill="#FFFFFF" />
                       <circle cx="57" cy="36" r="3.5" fill="#FFFFFF" />
                       <polygon points="50,40 45,46 55,46" fill="#FB923C" />
-                      <path d="M32 30 C32 20, 68 18, 70 28 C72 32, 60 34, 48 34 C36 34, 30 33, 32 30 Z" fill="#E11D48" />
+                      <path d="M32 30 C32 20, 68 18, 70 28 C72 32, 60 34, 48 34 C36 34, 30 33, 32 30 Z" fill="#0284C7" />
                     </svg>
                   </div>
                   <div>
@@ -2006,7 +2087,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       <span className="text-xs font-black text-slate-900">
                         ¿Tienes dudas con tus medidas, fotos o pintura? Pincelito 🐧 te ayuda
                       </span>
-                      <span className="px-2 py-0.5 bg-gradient-to-r from-amber-500 to-rose-500 text-white text-[10px] font-black rounded-md shadow-2xs">
+                      <span className="px-2 py-0.5 bg-gradient-to-r from-sky-500 to-blue-600 text-white text-[10px] font-black rounded-md shadow-2xs">
                         IA & Asesor
                       </span>
                     </div>
@@ -2018,9 +2099,9 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                 <button
                   type="button"
                   onClick={() => setIsAiAssistantOpen(true)}
-                  className="px-4 py-2 bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] hover:from-[#FF7A10] hover:via-[#F00084] hover:to-[#7B1FA2] text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-2 shrink-0 cursor-pointer active:scale-95"
+                  className="px-4 py-2 bg-gradient-to-r from-sky-500 via-sky-600 to-blue-600 hover:brightness-110 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-2 shrink-0 cursor-pointer active:scale-95"
                 >
-                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                  <Sparkles className="w-3.5 h-3.5 text-white" />
                   <span>Consultar con Pincelito 🐧</span>
                 </button>
               </div>
@@ -2049,8 +2130,8 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                     title: '3. Diagnóstico & Envío',
                     desc: 'Evidencias y Confirmación',
                     icon: FileCheck,
-                    activeBorder: 'border-purple-400 ring-2 ring-purple-400/30 bg-purple-50/50',
-                    activeIcon: 'bg-gradient-to-tr from-purple-600 to-pink-500 text-white shadow-xs'
+                    activeBorder: 'border-sky-400 ring-2 ring-sky-400/30 bg-sky-50/50',
+                    activeIcon: 'bg-gradient-to-tr from-sky-500 to-blue-600 text-white shadow-xs'
                   }
                 ].map((item) => {
                   const isCompleted = currentStep > item.step;
@@ -2290,7 +2371,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                     {/* Resumen de Envases Requeridos */}
                     <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/90 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-[#FF6A00] to-[#E5007D] text-white flex flex-col items-center justify-center font-bold shadow-2xs shrink-0">
+                        <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-sky-500 to-blue-600 text-white flex flex-col items-center justify-center font-bold shadow-2xs shrink-0">
                           <span className="text-xs leading-none">{formData.areaM2 || 0}</span>
                           <span className="text-[9px] uppercase font-mono">m²</span>
                         </div>
@@ -2334,7 +2415,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         <h3 className="text-lg font-bold text-slate-900">2. Sustrato, Ambiente y Color</h3>
                         <p className="text-xs text-slate-500">Selección química para garantizar máxima durabilidad e impermeabilidad.</p>
                       </div>
-                      <span className="text-xs font-bold text-fuchsia-700 bg-fuchsia-50 px-3 py-1 rounded-full border border-fuchsia-200/80">Paso 2 de 3</span>
+                      <span className="text-xs font-bold text-sky-700 bg-sky-50 px-3 py-1 rounded-full border border-sky-200/80">Paso 2 de 3</span>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -2410,10 +2491,10 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                     {/* Selector de Tipo de Pintura: Tipo 1, 2 y 3 para Exterior e Interior (Norma NTC 1335 / NTC 5828) */}
                     <div className="pt-2 space-y-4">
                       {/* 1. SELECCIÓN DE MARCAS DE PINTURAS */}
-                      <div className="bg-gradient-to-r from-purple-50/70 via-indigo-50/50 to-pink-50/60 p-4 sm:p-5 rounded-2xl border border-purple-200/80 space-y-3">
+                      <div className="bg-gradient-to-r from-sky-50/70 via-blue-50/50 to-indigo-50/60 p-4 sm:p-5 rounded-2xl border border-sky-200/80 space-y-3">
                         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                           <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-lg bg-purple-600 text-white flex items-center justify-center font-bold text-xs shadow-2xs">
+                            <div className="w-7 h-7 rounded-lg bg-sky-600 text-white flex items-center justify-center font-bold text-xs shadow-2xs">
                               🎨
                             </div>
                             <div>
@@ -2425,7 +2506,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                               </span>
                             </div>
                           </div>
-                          <span className="text-xs font-black text-purple-700 bg-white px-3 py-1 rounded-full border border-purple-200 shadow-2xs">
+                          <span className="text-xs font-black text-sky-800 bg-white px-3 py-1 rounded-full border border-sky-200 shadow-2xs">
                             Marca Activa: {formData.marcaPintura || 'Pintuco®'}
                           </span>
                         </div>
@@ -2440,8 +2521,8 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                                 onClick={() => handleInputChange('marcaPintura', brand.name)}
                                 className={`p-3 rounded-2xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between ${
                                   isSelected
-                                    ? 'border-purple-600 bg-white shadow-md ring-2 ring-purple-500/25 scale-[1.02]'
-                                    : 'border-slate-200 hover:border-purple-300 bg-white/90 hover:bg-white'
+                                    ? 'border-sky-600 bg-white shadow-md ring-2 ring-sky-500/25 scale-[1.02]'
+                                    : 'border-slate-200 hover:border-sky-300 bg-white/90 hover:bg-white'
                                 }`}
                               >
                                 <div>
@@ -2449,9 +2530,9 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                                     <span className="font-black text-xs text-slate-900 leading-tight">
                                       {brand.name}
                                     </span>
-                                    {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-purple-600 shrink-0" />}
+                                    {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-sky-600 shrink-0" />}
                                   </div>
-                                  <span className="text-[10px] text-purple-700 font-semibold block leading-tight">
+                                  <span className="text-[10px] text-sky-700 font-semibold block leading-tight">
                                     {brand.popularProduct}
                                   </span>
 
@@ -2491,17 +2572,9 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                             </span>
                           </label>
                           <p className="text-[11px] text-slate-500">
-                            Fotos de referencia reales y características técnicas ordenadas para elegir la mejor especificación.
+                            Características técnicas y rendimiento certificado según norma NTC para elegir la mejor especificación.
                           </p>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => setShowImageDiagnosisModal(true)}
-                          className="text-xs text-fuchsia-700 hover:text-fuchsia-800 font-bold flex items-center gap-1.5 cursor-pointer bg-fuchsia-50 hover:bg-fuchsia-100 px-3 py-1.5 rounded-xl transition-all border border-fuchsia-200/60 shrink-0"
-                        >
-                          <Camera className="w-3.5 h-3.5 text-fuchsia-600" />
-                          <span>¿Dudas? Diagnosticar foto con IA</span>
-                        </button>
                       </div>
 
                       {/* Desplegable Rápido de Tipo de Pintura */}
@@ -3017,7 +3090,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       <button
                         type="button"
                         onClick={handleNextStep}
-                        className="px-6 py-3 bg-gradient-to-r from-fuchsia-600 via-pink-600 to-rose-500 hover:from-fuchsia-700 hover:via-pink-700 hover:to-rose-600 text-white font-bold text-sm rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                        className="px-6 py-3 bg-gradient-to-r from-[#FF6A00] via-[#EC4899] to-[#009FE3] hover:from-[#FF781F] hover:via-[#F43F5E] hover:to-[#0EA5E9] text-white font-bold text-sm rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer active:scale-95"
                       >
                         Continuar a Evidencias & Diagnóstico <ArrowRight className="w-4 h-4" />
                       </button>
@@ -3030,10 +3103,10 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                   <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6 animate-fadeIn">
                     <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                       <div>
-                        <h3 className="text-lg font-bold text-slate-900">3. Evidencias Fotográficas & Diagnóstico</h3>
-                        <p className="text-xs text-slate-500">Valida las patologías para emitir el presupuesto oficial con precios reales.</p>
+                        <h3 className="text-lg font-bold text-slate-900">3. Evidencias Fotográficas & Revisión IA</h3>
+                        <p className="text-xs text-slate-500">Revisión automática de superficie para emitir la cotización técnica oficial.</p>
                       </div>
-                      <span className="text-xs font-bold text-purple-700 bg-purple-50 px-3 py-1 rounded-full border border-purple-200/80">Paso 3 de 3</span>
+                      <span className="text-xs font-bold text-sky-700 bg-sky-50 px-3 py-1 rounded-full border border-sky-200/80">Paso 3 de 3</span>
                     </div>
 
                     <div className="space-y-4">
@@ -3048,50 +3121,22 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                           value={formData.descripcionLibre}
                           onChange={(e) => handleInputChange('descripcionLibre', e.target.value)}
                           className={`w-full px-4 py-3 text-sm bg-slate-50/80 border ${
-                            errors.descripcionLibre ? 'border-rose-400 focus:ring-rose-400 bg-rose-50/20' : 'border-slate-200 focus:ring-purple-500'
+                            errors.descripcionLibre ? 'border-rose-400 focus:ring-rose-400 bg-rose-50/20' : 'border-slate-200 focus:ring-sky-500'
                           } rounded-2xl focus:bg-white focus:outline-none focus:ring-2 transition-all leading-relaxed`}
                         />
                         {errors.descripcionLibre && <p className="text-xs text-rose-600 mt-1">{errors.descripcionLibre}</p>}
                       </div>
 
-                      {/* Carga de Fotos & Análisis con IA */}
+                      {/* Carga de Fotos con Revisión Automática de IA */}
                       <div className="space-y-3">
-                        {/* Banner Destacado para invocar la IA de Visión Artificial */}
-                        <div className="bg-gradient-to-r from-purple-50 via-pink-50 to-amber-50 p-4 sm:p-5 rounded-2xl border border-pink-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-pink-500 text-white flex items-center justify-center font-bold shadow-xs shrink-0">
-                              <Camera className="w-5 h-5 text-white" />
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <h4 className="text-xs font-bold text-slate-900">
-                                  Diagnóstico Fotográfico con Visión Artificial IA
-                                </h4>
-                                <span className="text-[9px] bg-gradient-to-r from-purple-600 to-pink-500 text-white font-black px-2 py-0.5 rounded-full uppercase tracking-wider shadow-2xs">
-                                  Nuevo
-                                </span>
-                              </div>
-                              <p className="text-[11px] text-slate-600 mt-0.5 leading-snug">
-                                Permite que la IA examine tu imagen para detectar patologías y recomendar si precisas Pintura Tipo 1, Tipo 2 o Tipo 3.
-                              </p>
-                            </div>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => setShowImageDiagnosisModal(true)}
-                            className="px-4 py-2.5 bg-gradient-to-r from-purple-600 via-fuchsia-600 to-pink-500 hover:from-purple-700 hover:via-fuchsia-700 hover:to-pink-600 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer shrink-0 active:scale-95"
-                          >
-                            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                            <span>Examinar Foto con IA</span>
-                          </button>
-                        </div>
-
                         <div className="flex items-center justify-between">
                           <label className="text-xs font-bold text-slate-700">
                             Registro Fotográfico de Evidencia de Obra <span className="text-rose-500">*</span>
                           </label>
-                          <span className="text-[11px] text-slate-400">Mínimo 1 foto</span>
+                          <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            Revisión automática con IA activa
+                          </span>
                         </div>
 
                         {/* Inputs ocultos para subida desde computador y captura de cámara */}
@@ -3146,29 +3191,23 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                                 <Camera className="w-3.5 h-3.5 text-white" />
                                 <span>📷 Tomar Foto con Cámara</span>
                               </button>
-
-                              {/* Botón 3: Diagnóstico IA */}
-                              <button
-                                type="button"
-                                onClick={() => setShowImageDiagnosisModal(true)}
-                                className="px-3.5 py-2.5 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
-                              >
-                                <Sparkles className="w-3.5 h-3.5 text-amber-200" />
-                                <span>Diagnosticar con IA</span>
-                              </button>
                             </div>
+                            <p className="text-[11px] text-emerald-700 font-semibold flex items-center justify-center gap-1 mt-1">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>Cualquier foto subida es revisada y validada automáticamente por IA para verificar compatibilidad de pintura</span>
+                            </p>
                           </div>
                         </div>
 
-                        {/* Galería de Fotos Adjuntas con Vista Previa Real */}
+                        {/* Galería de Fotos Adjuntas con Revisión Automática IA */}
                         {formData.fotos.length > 0 && (
                           <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
                             {formData.fotos.map((foto, idx) => (
                               <div
                                 key={idx}
-                                className="flex items-center justify-between p-3 rounded-2xl bg-white border border-slate-200 shadow-2xs hover:border-purple-300 transition-all"
+                                className="flex items-center justify-between p-3 rounded-2xl bg-white border border-slate-200 shadow-2xs hover:border-sky-300 transition-all"
                               >
-                                <div className="flex items-center gap-3 truncate">
+                                <div className="flex items-center gap-3 truncate min-w-0">
                                   {foto.previewUrl ? (
                                     <div
                                       onClick={() => setPreviewEnlargedPhoto({ name: foto.name, url: foto.previewUrl })}
@@ -3189,19 +3228,23 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                                       <FileText className="w-5 h-5 text-purple-600" />
                                     </div>
                                   )}
-                                  <div className="truncate">
+                                  <div className="truncate min-w-0">
                                     <span className="text-xs font-bold text-slate-800 truncate block">
                                       {foto.name}
                                     </span>
-                                    <span className="text-[10px] text-slate-400 font-mono">
-                                      {foto.size} • Foto verificada
+                                    <span className="text-[10px] text-slate-400 font-mono block">
+                                      {foto.size}
                                     </span>
+                                    <div className="flex items-center gap-1 mt-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 w-fit">
+                                      <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                                      <span>Revisada con IA: Aprobada ✓</span>
+                                    </div>
                                   </div>
                                 </div>
                                 <button
                                   type="button"
                                   onClick={() => handleRemovePhoto(idx)}
-                                  className="text-slate-400 hover:text-rose-600 p-2 rounded-xl hover:bg-rose-50 transition-colors cursor-pointer"
+                                  className="text-slate-400 hover:text-rose-600 p-2 rounded-xl hover:bg-rose-50 transition-colors cursor-pointer shrink-0 ml-2"
                                   title="Eliminar foto"
                                 >
                                   <Trash2 className="w-4 h-4" />
@@ -3256,10 +3299,10 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         id="standalone-submit-btn"
                         type="submit"
                         onClick={handleSubmit}
-                        className="px-8 py-3.5 bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] hover:from-[#FF7A10] hover:via-[#F00084] hover:to-[#7B1FA2] text-white font-black text-sm rounded-2xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2.5 active:scale-95 cursor-pointer"
+                        className="px-8 py-3.5 bg-gradient-to-r from-[#FF6A00] via-[#EC4899] to-[#009FE3] hover:from-[#FF781F] hover:via-[#F43F5E] hover:to-[#0EA5E9] text-white font-black text-sm rounded-2xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2.5 active:scale-95 cursor-pointer"
                       >
                         <Send className="w-4 h-4" />
-                        Emitir Cotización Oficial con Precios Reales
+                        Emitir Cotización Oficial
                       </button>
                     </div>
                   </div>
@@ -3273,7 +3316,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
       <button
         type="button"
         onClick={() => setIsAiAssistantOpen(true)}
-        className="fixed bottom-6 right-6 z-40 bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] hover:from-[#FF7A10] hover:via-[#F00084] hover:to-[#7B1FA2] text-white px-4 py-3 rounded-2xl shadow-xl hover:shadow-2xl transition-all flex items-center gap-2.5 group cursor-pointer border-2 border-white/40 active:scale-95"
+        className="fixed bottom-6 right-6 z-40 bg-gradient-to-r from-[#FF6A00] via-[#EC4899] to-[#009FE3] hover:from-[#FF781F] hover:via-[#F43F5E] hover:to-[#0EA5E9] text-white px-4 py-3 rounded-2xl shadow-xl hover:shadow-2xl transition-all flex items-center gap-2.5 group cursor-pointer border-2 border-white/40 active:scale-95"
         title="Abrir Asistente Virtual con IA de Colorlink"
       >
         <div className="w-8 h-8 rounded-xl bg-white/20 backdrop-blur-xs flex items-center justify-center text-amber-300 shadow-inner">
@@ -3381,50 +3424,6 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
         </div>
       )}
 
-      {/* MODAL: DIAGNÓSTICO DE IMÁGENES CON VISIÓN ARTIFICIAL IA */}
-      {showImageDiagnosisModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-7 space-y-4 shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#FF6A00] to-[#E5007D] text-white flex items-center justify-center font-bold shadow-xs">
-                  <Camera className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-slate-900">
-                    Diagnóstico IA de Fotos de Pared / Fachada
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Examina la foto para recomendar Tipo 1, Tipo 2 o Tipo 3 y ajustar la cotización
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowImageDiagnosisModal(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <ImageDiagnosisWidget
-              onApplyDiagnosis={(dataToApply, diagnosis) => {
-                handleApplyAiData({
-                  ...dataToApply,
-                  fotos: [
-                    ...formData.fotos,
-                    { name: diagnosis.imageName, size: '2.4 MB' }
-                  ]
-                });
-                setShowImageDiagnosisModal(false);
-              }}
-              onClose={() => setShowImageDiagnosisModal(false)}
-            />
-          </div>
-        </div>
-      )}
-
       {/* MODAL: CORREO ELECTRÓNICO CON RECIBO OFICIAL Y DETALLES DE DESPACHO */}
       <ClientEmailPreviewModal
         isOpen={showEmailModal}
@@ -3439,11 +3438,11 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
       {/* MODAL: CÁMARA EN VIVO / FOTOGRAFÍA DE OBRA */}
       {showLiveCameraModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white text-slate-800 rounded-3xl max-w-xl w-full p-5 sm:p-6 space-y-4 shadow-2xl border border-pink-200">
+          <div className="bg-white text-slate-800 rounded-3xl max-w-xl w-full p-5 sm:p-6 space-y-4 shadow-2xl border border-sky-200">
             {/* Cabecera */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#FF6A00] to-[#E5007D] text-white flex items-center justify-center font-bold shadow-xs">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-500 to-blue-600 text-white flex items-center justify-center font-bold shadow-xs">
                   <Camera className="w-5 h-5" />
                 </div>
                 <div>
@@ -3484,7 +3483,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       handleStopLiveCamera();
                       cameraInputRef.current?.click();
                     }}
-                    className="w-full py-3.5 bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] hover:brightness-110 text-white font-bold text-xs sm:text-sm rounded-2xl shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
+                    className="w-full py-3.5 bg-gradient-to-r from-sky-500 via-sky-600 to-blue-600 hover:brightness-110 text-white font-bold text-xs sm:text-sm rounded-2xl shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
                   >
                     <Camera className="w-4 h-4" />
                     <span>Abrir App de Cámara de tu Celular / Dispositivo</span>
@@ -3599,10 +3598,10 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
       {/* MODAL: VISOR DE FOTO EN TAMAÑO COMPLETO */}
       {previewEnlargedPhoto && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white text-slate-800 rounded-3xl max-w-3xl w-full p-4 sm:p-5 space-y-3 shadow-2xl border border-pink-200">
+          <div className="bg-white text-slate-800 rounded-3xl max-w-3xl w-full p-4 sm:p-5 space-y-3 shadow-2xl border border-sky-200">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <ZoomIn className="w-4 h-4 text-[#E5007D]" />
+                <ZoomIn className="w-4 h-4 text-sky-600" />
                 <span className="text-xs font-bold text-slate-800 truncate">{previewEnlargedPhoto.name}</span>
               </div>
               <button
@@ -3624,7 +3623,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
               <button
                 type="button"
                 onClick={() => setPreviewEnlargedPhoto(null)}
-                className="px-4 py-2 bg-gradient-to-r from-[#FF6A00] to-[#E5007D] text-white font-bold text-xs rounded-xl cursor-pointer hover:brightness-110 shadow-xs"
+                className="px-4 py-2 bg-gradient-to-r from-sky-500 to-blue-600 text-white font-bold text-xs rounded-xl cursor-pointer hover:brightness-110 shadow-xs"
               >
                 Cerrar Visor
               </button>

@@ -92,8 +92,8 @@ export function PayloadInspector({ formData }: PayloadInspectorProps) {
       <div className="bg-white text-slate-800 p-6 rounded-3xl border border-slate-200 shadow-sm">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-pink-50 text-[#E5007D] text-xs font-semibold uppercase mb-2 border border-pink-200">
-              <Terminal className="w-3.5 h-3.5 text-[#E5007D]" />
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-50 text-sky-700 text-xs font-semibold uppercase mb-2 border border-sky-200">
+              <Terminal className="w-3.5 h-3.5 text-sky-600" />
               Payload JSON Normalizado
             </div>
             <h2 className="text-2xl font-bold tracking-tight text-slate-900">Estructura de Salida para Integración API</h2>
@@ -103,7 +103,7 @@ export function PayloadInspector({ formData }: PayloadInspectorProps) {
           </div>
           <button
             onClick={handleCopy}
-            className="px-4 py-2 bg-gradient-to-r from-[#FF6A00] to-[#E5007D] hover:brightness-110 active:scale-95 text-white font-bold text-xs rounded-xl shadow transition-all flex items-center gap-2 shrink-0 cursor-pointer"
+            className="px-4 py-2 bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-110 active:scale-95 text-white font-bold text-xs rounded-xl shadow transition-all flex items-center gap-2 shrink-0 cursor-pointer"
           >
             {copied ? <Check className="w-4 h-4 text-emerald-300" /> : <Copy className="w-4 h-4" />}
             {copied ? '¡Copiado al Portapapeles!' : 'Copiar Payload JSON'}

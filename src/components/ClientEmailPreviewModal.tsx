@@ -66,7 +66,7 @@ export function ClientEmailPreviewModal({
         <ColorlinkRainbowBar className="h-1.5 w-full shrink-0" />
 
         {/* Cabecera del Cliente de Correo */}
-        <div className="bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] text-white p-4 sm:p-5 flex items-center justify-between border-b border-purple-900/30">
+        <div className="bg-gradient-to-r from-sky-600 via-sky-700 to-blue-800 text-white p-4 sm:p-5 flex items-center justify-between border-b border-sky-900/30">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-white/15 text-white border border-white/20 flex items-center justify-center shrink-0 shadow-2xs">
               <Mail className="w-5 h-5" />
@@ -158,7 +158,7 @@ export function ClientEmailPreviewModal({
               <button
                 type="button"
                 onClick={onDownloadPDF}
-                className="px-4 py-2 bg-gradient-to-r from-[#FF6A00] to-[#E5007D] hover:from-[#FF7A10] hover:to-[#F00084] text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+                className="px-4 py-2 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>Descargar Recibo PDF</span>
@@ -188,7 +188,7 @@ export function ClientEmailPreviewModal({
 
             <div className="text-right pt-1">
               <span className="text-xs text-slate-700 font-medium">Total liquidado a pagar: </span>
-              <strong className="text-sm font-black bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] bg-clip-text text-transparent font-mono">
+              <strong className="text-sm font-black bg-gradient-to-r from-sky-600 to-blue-700 bg-clip-text text-transparent font-mono">
                 {formatCOP(presupuesto.totalPresupuesto)} COP
               </strong>
             </div>
@@ -265,7 +265,7 @@ export function ClientEmailPreviewModal({
 
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pt-1.5 border-t border-slate-100">
                 <span className="text-slate-600 flex items-center gap-1.5 font-medium">
-                  <MapPin className="w-3.5 h-3.5 text-rose-500" />
+                  <MapPin className="w-3.5 h-3.5 text-sky-600" />
                   <strong>Destino de entrega:</strong>
                 </span>
                 <span className="text-slate-900 font-medium">
@@ -294,7 +294,7 @@ export function ClientEmailPreviewModal({
           <button
             type="button"
             onClick={onDownloadPDF}
-            className="px-5 py-2.5 bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] hover:from-[#FF7A10] hover:via-[#F00084] hover:to-[#7B1FA2] text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center gap-2 cursor-pointer active:scale-95"
+            className="px-5 py-2.5 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center gap-2 cursor-pointer active:scale-95"
           >
             <Download className="w-3.5 h-3.5" />
             <span>Descargar Recibo en PDF</span>

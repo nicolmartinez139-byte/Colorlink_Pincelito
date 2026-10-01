@@ -6,8 +6,8 @@ export function RelationalModelView() {
       name: 'CLIENTE',
       sqlName: 'tbl_cliente',
       description: 'Datos maestros de la entidad jurídica o persona solicitante.',
-      color: 'border-pink-500 bg-pink-50/50',
-      badgeColor: 'bg-pink-100 text-[#E5007D]',
+      color: 'border-sky-500 bg-sky-50/50',
+      badgeColor: 'bg-sky-100 text-sky-700',
       columns: [
         { name: 'cliente_id', type: 'UUID / INT', key: 'PK', desc: 'Identificador único del cliente' },
         { name: 'nombre_razon_social', type: 'VARCHAR(150)', key: null, desc: 'Nombre comercial o razón social' },
@@ -150,7 +150,7 @@ export function RelationalModelView() {
       {/* Explicación de Ventajas Analíticas */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
-          <div className="w-8 h-8 rounded-xl bg-pink-100 text-[#E5007D] flex items-center justify-center font-bold text-sm">
+          <div className="w-8 h-8 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center font-bold text-sm">
             1
           </div>
           <h4 className="font-bold text-sm text-slate-900">Menos Duplicidad</h4>

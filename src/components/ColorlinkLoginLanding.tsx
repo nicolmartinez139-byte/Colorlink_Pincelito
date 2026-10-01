@@ -5,7 +5,8 @@ import { UserProfile } from '../types/form';
 import { supabase } from '../lib/supabase';
 import { sendRegistrationWelcomeEmail } from '../utils/emailService';
 import { sendWhatsAppNotification, getWhatsAppRegistrationUrl } from '../utils/whatsappService';
-import paintSplatterBg from '../assets/images/paint_splatter_bg_1788742862980.jpg';
+import paintSplatterBg from '../assets/images/vibrant_paint_splatter_bg_1790852399963.jpg';
+import { ColorlinkConfettiDots } from './ColorlinkDots';
 
 interface ColorlinkLoginLandingProps {
   onLoginSuccess: (user: UserProfile, isSimulation?: boolean) => void;
@@ -251,19 +252,19 @@ export function ColorlinkLoginLanding({
   };
 
   return (
-    <div className="relative min-h-screen w-full flex flex-col items-center justify-center p-4 sm:p-6 overflow-x-hidden bg-gradient-to-br from-slate-100 via-sky-50 to-pink-50">
-      {/* IMAGEN Y MANCHAS DE PINTURA ARTÍSTICAS DE FONDO */}
+    <div className="relative min-h-screen w-full flex flex-col items-center justify-center p-4 sm:p-6 overflow-x-hidden bg-gradient-to-br from-amber-50/30 via-white to-sky-50/40">
+      {/* IMAGEN Y MANCHAS DE PINTURA ARTÍSTICAS DE FONDO CON COLORES VARIADOS */}
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none select-none">
-        {/* Imagen de fondo generada con manchas y salpicaduras de pintura multicolor */}
+        {/* Imagen de fondo generada con manchas y salpicaduras de pintura multicolor viva */}
         <img
           src={paintSplatterBg}
-          alt="Paint Splatter Background"
-          className="w-full h-full object-cover opacity-60 scale-105"
+          alt="Colorlink Paint Splatter Background"
+          className="w-full h-full object-cover opacity-85 scale-105"
           referrerPolicy="no-referrer"
         />
 
-        {/* Gradiente suave para asegurar legibilidad de la tarjeta */}
-        <div className="absolute inset-0 bg-white/40 backdrop-blur-[1px]" />
+        {/* Gradiente sutil para garantizar legibilidad óptima */}
+        <div className="absolute inset-0 bg-white/25 backdrop-blur-[0.5px]" />
 
         {/* Mancha de pintura 1: Cyan / Turquesa Eléctrico Superior Izquierda */}
         <svg
@@ -274,13 +275,13 @@ export function ColorlinkLoginLanding({
         >
           <path
             d="M45,85 C20,55 60,25 95,35 C130,45 155,20 180,50 C205,80 180,120 190,150 C200,180 160,200 125,180 C90,160 55,190 35,155 C15,120 70,115 45,85 Z"
-            fill="#00d2ff"
+            fill="#009FE3"
           />
-          <circle cx="25" cy="40" r="10" fill="#00d2ff" />
-          <circle cx="55" cy="18" r="6" fill="#00b4d8" />
-          <circle cx="10" cy="115" r="7.5" fill="#00d2ff" />
-          <circle cx="210" cy="65" r="5" fill="#0077b6" />
-          <circle cx="110" cy="195" r="6" fill="#00b4d8" />
+          <circle cx="25" cy="40" r="10" fill="#009FE3" />
+          <circle cx="55" cy="18" r="6" fill="#38BDF8" />
+          <circle cx="10" cy="115" r="7.5" fill="#0077B6" />
+          <circle cx="210" cy="65" r="5" fill="#0284C7" />
+          <circle cx="110" cy="195" r="6" fill="#009FE3" />
         </svg>
 
         {/* Mancha de pintura 2: Magenta / Fucsia Vibrante Superior Derecha */}
@@ -292,13 +293,13 @@ export function ColorlinkLoginLanding({
         >
           <path
             d="M135,40 C165,20 195,50 185,85 C175,120 205,150 170,175 C135,200 100,175 70,185 C40,195 20,155 35,120 C50,85 30,55 65,35 C100,15 105,60 135,40 Z"
-            fill="#ec4899"
+            fill="#EC4899"
           />
-          <circle cx="195" cy="35" r="8" fill="#ec4899" />
-          <circle cx="165" cy="15" r="5" fill="#f43f5e" />
-          <circle cx="205" cy="95" r="6" fill="#ec4899" />
-          <circle cx="45" cy="190" r="7" fill="#f43f5e" />
-          <circle cx="25" cy="165" r="4.5" fill="#ec4899" />
+          <circle cx="195" cy="35" r="8" fill="#F43F5E" />
+          <circle cx="165" cy="15" r="5" fill="#FB7185" />
+          <circle cx="205" cy="95" r="6" fill="#E11D48" />
+          <circle cx="45" cy="190" r="7" fill="#F472B6" />
+          <circle cx="25" cy="165" r="4.5" fill="#EC4899" />
         </svg>
 
         {/* Mancha de pintura 3: Amarillo Sol / Naranja en la parte inferior izquierda */}
@@ -310,13 +311,13 @@ export function ColorlinkLoginLanding({
         >
           <path
             d="M50,110 C30,70 75,40 110,50 C145,60 170,30 190,70 C210,110 180,140 170,175 C160,210 115,195 85,185 C55,175 25,190 20,150 C15,110 70,150 50,110 Z"
-            fill="#f59e0b"
+            fill="#FF6A00"
           />
-          <circle cx="15" cy="90" r="9" fill="#fbbf24" />
-          <circle cx="35" cy="60" r="6" fill="#f59e0b" />
-          <circle cx="195" cy="180" r="7" fill="#f97316" />
-          <circle cx="175" cy="205" r="4" fill="#fbbf24" />
-          <circle cx="75" cy="205" r="6" fill="#f59e0b" />
+          <circle cx="15" cy="90" r="9" fill="#FFD100" />
+          <circle cx="35" cy="60" r="6" fill="#F59E0B" />
+          <circle cx="195" cy="180" r="7" fill="#FF6A00" />
+          <circle cx="175" cy="205" r="4" fill="#FBBF24" />
+          <circle cx="75" cy="205" r="6" fill="#F97316" />
         </svg>
 
         {/* Mancha de pintura 4: Púrpura / Violeta Intenso en la parte inferior derecha */}
@@ -328,29 +329,31 @@ export function ColorlinkLoginLanding({
         >
           <path
             d="M115,165 C145,180 180,150 170,115 C160,80 190,50 155,25 C120,0 85,30 55,20 C25,10 5,50 25,85 C45,120 20,150 55,170 C90,190 85,150 115,165 Z"
-            fill="#8b5cf6"
+            fill="#8B5CF6"
           />
-          <circle cx="180" cy="130" r="8" fill="#8b5cf6" />
-          <circle cx="195" cy="100" r="5" fill="#a855f7" />
-          <circle cx="15" cy="70" r="6" fill="#7c3aed" />
-          <circle cx="130" cy="195" r="7" fill="#8b5cf6" />
+          <circle cx="180" cy="130" r="8" fill="#8B5CF6" />
+          <circle cx="195" cy="100" r="5" fill="#A855F7" />
+          <circle cx="15" cy="70" r="6" fill="#7C3AED" />
+          <circle cx="130" cy="195" r="7" fill="#8B5CF6" />
         </svg>
 
-        {/* Salpicaduras y gotas de pintura flotantes centrales */}
-        <div className="absolute top-1/4 left-1/5 w-4 h-4 rounded-full bg-yellow-400 shadow-sm opacity-90" />
-        <div className="absolute top-1/3 right-1/4 w-3.5 h-3.5 rounded-full bg-cyan-400 shadow-sm opacity-85" />
-        <div className="absolute bottom-1/3 left-1/6 w-5 h-5 rounded-full bg-pink-500 shadow-sm opacity-80" />
-        <div className="absolute bottom-1/4 right-1/5 w-3 h-3 rounded-full bg-emerald-400 shadow-sm opacity-85" />
-        <div className="absolute top-2/3 right-1/3 w-4 h-4 rounded-full bg-amber-400 shadow-sm opacity-75" />
+        {/* Salpicaduras y gotas de pintura flotantes con colores variados */}
+        <div className="absolute top-1/4 left-1/5 w-4 h-4 rounded-full bg-[#FFD100] shadow-sm opacity-90" />
+        <div className="absolute top-1/3 right-1/4 w-3.5 h-3.5 rounded-full bg-[#009FE3] shadow-sm opacity-85" />
+        <div className="absolute bottom-1/3 left-1/6 w-5 h-5 rounded-full bg-[#EC4899] shadow-sm opacity-85" />
+        <div className="absolute bottom-1/4 right-1/5 w-3 h-3 rounded-full bg-[#00A651] shadow-sm opacity-85" />
+        <div className="absolute top-2/3 right-1/3 w-4 h-4 rounded-full bg-[#FF6A00] shadow-sm opacity-80" />
+        <div className="absolute top-1/5 right-1/6 w-3 h-3 rounded-full bg-[#8B5CF6] shadow-sm opacity-80" />
+        <div className="absolute bottom-1/5 left-1/4 w-3 h-3 rounded-full bg-[#10B981] shadow-sm opacity-85" />
       </div>
 
       {/* CABECERA DE MARCA SUPERIOR: COLORLINK ® Pinturas & Tintometría */}
       <div className="relative z-10 mb-6 sm:mb-8 text-center flex flex-col items-center">
-        <div className="inline-flex items-center gap-2 bg-white/90 backdrop-blur-md px-5 py-2 rounded-full shadow-lg border border-white/40 mb-2">
-          <span className="font-black text-xl sm:text-2xl tracking-tight bg-gradient-to-r from-blue-700 via-indigo-600 to-pink-600 bg-clip-text text-transparent">
+        <div className="inline-flex items-center gap-2 bg-white/95 backdrop-blur-md px-5 py-2 rounded-full shadow-lg border border-white/60 mb-2">
+          <span className="font-black text-xl sm:text-2xl tracking-tight bg-gradient-to-r from-[#FF6A00] via-[#009FE3] to-[#003882] bg-clip-text text-transparent">
             COLORLINK
           </span>
-          <span className="text-[11px] font-black text-pink-500 bg-pink-50 px-1.5 py-0.5 rounded-md border border-pink-200">
+          <span className="text-[11px] font-black text-sky-600 bg-sky-50 px-1.5 py-0.5 rounded-md border border-sky-200">
             ®
           </span>
           <span className="text-slate-300 font-light">|</span>
@@ -361,11 +364,21 @@ export function ColorlinkLoginLanding({
         </div>
       </div>
 
-      {/* TARJETA FLOTANTE BLANCA CON ESQUINAS REDONDEADAS (Estilo Imagen 1) */}
-      <div className="relative z-10 w-full max-w-[430px] bg-white rounded-[36px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.4)] px-6 sm:px-9 pb-8 pt-14 sm:pt-16 border border-white/80 transition-all">
-        {/* BADGE CIRCULAR SUPERPUESTO CON EL PINGÜINITO TIERNO (Imagen 2) */}
-        <div className="absolute -top-12 left-1/2 -translate-x-1/2 flex items-center justify-center">
-          <div className="p-1.5 rounded-full bg-gradient-to-tr from-[#FFD100] via-[#FF6A00] via-[#E5007D] via-[#6A0DAD] to-[#009FE3] shadow-xl">
+      {/* TARJETA FLOTANTE BLANCA CON ESQUINAS REDONDEADAS Y PUNTITOS DE COLORES */}
+      <div className="relative z-10 w-full max-w-[430px] bg-white rounded-[36px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.35)] px-6 sm:px-9 pb-8 pt-14 sm:pt-16 border border-white/80 transition-all overflow-hidden">
+        {/* Puntitos de colores variados característicos dentro de la tarjeta */}
+        <ColorlinkConfettiDots className="absolute inset-0 z-0 opacity-75" />
+
+        {/* PUNTOS VIVOS DESTACADOS JUSTO ALREDEDOR DEL BADGE Y TÍTULO (Exactos a la imagen de referencia) */}
+        <div className="absolute top-4 left-10 w-3 h-3 rounded-full bg-[#8E89A1] opacity-90 shadow-2xs z-10" />
+        <div className="absolute top-3.5 right-14 w-3.5 h-3.5 rounded-full bg-[#48C78E] opacity-95 shadow-xs z-10" />
+        <div className="absolute top-5 right-5 w-3 h-3 rounded-full bg-[#FACC15] opacity-95 shadow-xs z-10" />
+        <div className="absolute top-11 left-16 w-2.5 h-2.5 rounded-full bg-[#D77E63] opacity-85 z-10" />
+        <div className="absolute top-12 right-28 w-2 h-2 rounded-full bg-[#009FE3] opacity-90 z-10" />
+
+        {/* BADGE CIRCULAR SUPERPUESTO CON EL ARO EN DEGRADADO ROSA/CORAL VIBRANTE (Exacto a la imagen de referencia) */}
+        <div className="absolute -top-12 left-1/2 -translate-x-1/2 flex items-center justify-center z-10">
+          <div className="p-1.5 rounded-full bg-gradient-to-tr from-[#FF5E62] via-[#FF416C] to-[#EC4899] shadow-[0_10px_35px_-5px_rgba(255,75,110,0.55)]">
             <div className="w-20 h-20 sm:w-22 sm:h-22 rounded-full bg-white flex items-center justify-center p-1.5 overflow-hidden border-2 border-white shadow-inner">
               {/* Mascota Pingüino Colorlink */}
               <ColorlinkPenguin size="xl" className="transform hover:scale-105 transition-transform" />
@@ -373,9 +386,9 @@ export function ColorlinkLoginLanding({
           </div>
         </div>
 
-        {/* TÍTULO PRINCIPAL CON DEGRADADO VIBRANTE COLORIDO */}
-        <div className="text-center mb-6">
-          <h1 className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] bg-clip-text text-transparent tracking-tight">
+        {/* TÍTULO PRINCIPAL CON DEGRADADO VIBRANTE COLORIDO (Exacto a 'Inicia sesión ahora' de la imagen) */}
+        <div className="relative z-10 text-center mb-6">
+          <h1 className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-[#D77E63] via-[#8E89A1] via-[#009FE3] to-[#0052CC] bg-clip-text text-transparent tracking-tight">
             {mode === 'login' ? 'Inicia sesión ahora' : 'Crear cuenta nueva'}
           </h1>
           <p className="text-xs text-slate-500 mt-1 font-semibold">
@@ -412,7 +425,7 @@ export function ColorlinkLoginLanding({
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="Enter your Username (ej: Constructora Horizonte)"
-                  className="w-full bg-[#f8fafc] hover:bg-slate-100 focus:bg-white text-slate-800 placeholder:text-slate-400 text-sm font-medium px-5 py-3.5 rounded-full border border-slate-200 focus:border-[#E5007D] focus:ring-2 focus:ring-[#E5007D]/30 transition-all outline-none"
+                  className="w-full bg-[#f8fafc] hover:bg-slate-100 focus:bg-white text-slate-800 placeholder:text-slate-400 text-sm font-medium px-5 py-3.5 rounded-full border border-slate-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 transition-all outline-none"
                 />
               </div>
             </div>
@@ -428,7 +441,7 @@ export function ColorlinkLoginLanding({
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your Password"
-                  className="w-full bg-[#f8fafc] hover:bg-slate-100 focus:bg-white text-slate-800 placeholder:text-slate-400 text-sm font-medium px-5 py-3.5 pr-11 rounded-full border border-slate-200 focus:border-[#E5007D] focus:ring-2 focus:ring-[#E5007D]/30 transition-all outline-none"
+                  className="w-full bg-[#f8fafc] hover:bg-slate-100 focus:bg-white text-slate-800 placeholder:text-slate-400 text-sm font-medium px-5 py-3.5 pr-11 rounded-full border border-slate-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 transition-all outline-none"
                 />
                 <button
                   type="button"
@@ -448,7 +461,7 @@ export function ColorlinkLoginLanding({
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  className="w-4 h-4 text-[#E5007D] rounded border-slate-300 focus:ring-[#E5007D] cursor-pointer"
+                  className="w-4 h-4 text-sky-600 rounded border-slate-300 focus:ring-sky-500 cursor-pointer"
                 />
                 <span>Remember me</span>
               </label>
@@ -458,7 +471,7 @@ export function ColorlinkLoginLanding({
             <button
               type="submit"
               disabled={loading}
-              className="w-full mt-2 bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] hover:from-[#FF7A10] hover:via-[#F00084] hover:to-[#7B1FA2] text-white font-black text-sm tracking-widest uppercase py-3.5 sm:py-4 rounded-full shadow-[0_10px_25px_-5px_rgba(229,0,125,0.5)] hover:shadow-[0_15px_30px_-5px_rgba(229,0,125,0.6)] transition-all active:scale-[0.98] cursor-pointer"
+              className="w-full mt-2 bg-gradient-to-r from-[#FF6A00] via-[#EC4899] to-[#009FE3] hover:from-[#FF781F] hover:via-[#F43F5E] hover:to-[#0EA5E9] text-white font-black text-sm tracking-widest uppercase py-3.5 sm:py-4 rounded-full shadow-[0_12px_28px_-6px_rgba(236,72,153,0.45)] hover:shadow-[0_16px_34px_-6px_rgba(236,72,153,0.55)] transition-all active:scale-[0.98] cursor-pointer"
             >
               {loading ? 'ACCEDIENDO...' : 'ACCESO'}
             </button>
@@ -468,18 +481,18 @@ export function ColorlinkLoginLanding({
               <button
                 type="button"
                 onClick={handleGuestEntry}
-                className="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-full transition-all border border-slate-200 shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
+                className="w-full py-2.5 px-4 bg-gradient-to-r from-amber-500/10 via-rose-500/10 to-sky-500/10 hover:from-amber-500/20 hover:via-rose-500/20 hover:to-sky-500/20 text-slate-800 font-bold text-xs rounded-full transition-all border border-rose-200/60 shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <span>Cotizar directamente sin iniciar sesión</span>
-                <ArrowRight className="w-3.5 h-3.5 text-[#009FE3]" />
+                <ArrowRight className="w-3.5 h-3.5 text-rose-600" />
               </button>
 
               <button
                 type="button"
                 onClick={onOpenAdvisorModal}
-                className="w-full py-2.5 px-4 bg-gradient-to-r from-pink-50 to-purple-50 hover:from-pink-100 hover:to-purple-100 text-[#E5007D] font-bold text-xs rounded-full transition-all border border-pink-200/90 shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
+                className="w-full py-2.5 px-4 bg-gradient-to-r from-sky-50 to-blue-50 hover:from-sky-100 hover:to-blue-100 text-sky-800 font-bold text-xs rounded-full transition-all border border-sky-300 shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                <UserCheck className="w-3.5 h-3.5 text-[#E5007D]" />
+                <UserCheck className="w-3.5 h-3.5 text-[#009FE3]" />
                 <span>¿Eres Asesor Comercial? Ingresa aquí</span>
               </button>
             </div>
@@ -492,7 +505,7 @@ export function ColorlinkLoginLanding({
                   setMode('register');
                   setErrorMessage(null);
                 }}
-                className="text-[#E5007D] hover:text-[#FF6A00] hover:underline cursor-pointer transition-colors"
+                className="text-sky-600 hover:text-sky-700 hover:underline cursor-pointer transition-colors"
               >
                 ¿No tienes una cuenta?
               </button>
@@ -510,7 +523,7 @@ export function ColorlinkLoginLanding({
                 <button
                   type="button"
                   onClick={handleTriggerSimulation}
-                  className="w-3 h-3 rounded-full bg-gradient-to-r from-amber-400 via-rose-500 to-violet-500 hover:scale-150 transition-all cursor-pointer shadow-xs focus:outline-none"
+                  className="w-3 h-3 rounded-full bg-gradient-to-r from-[#FF6A00] via-[#EC4899] to-[#009FE3] hover:scale-150 transition-all cursor-pointer shadow-xs focus:outline-none"
                   title="Simulación"
                   aria-label="Simulación"
                 />
@@ -612,7 +625,7 @@ export function ColorlinkLoginLanding({
             <button
               type="submit"
               disabled={loading}
-              className="w-full mt-3 bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] hover:from-[#FF7A10] hover:via-[#F00084] hover:to-[#7B1FA2] text-white font-black text-sm tracking-wider uppercase py-3.5 rounded-full shadow-[0_10px_25px_-5px_rgba(229,0,125,0.5)] hover:shadow-[0_15px_30px_-5px_rgba(229,0,125,0.6)] transition-all active:scale-[0.98] cursor-pointer"
+              className="w-full mt-3 bg-gradient-to-r from-[#FF6A00] via-[#EC4899] to-[#009FE3] hover:from-[#FF781F] hover:via-[#F43F5E] hover:to-[#0EA5E9] text-white font-black text-sm tracking-wider uppercase py-3.5 rounded-full shadow-[0_12px_28px_-6px_rgba(236,72,153,0.45)] hover:shadow-[0_16px_34px_-6px_rgba(236,72,153,0.55)] transition-all active:scale-[0.98] cursor-pointer"
             >
               {loading ? 'REGISTRANDO...' : 'REGISTRARME Y ENTRAR'}
             </button>
@@ -624,7 +637,7 @@ export function ColorlinkLoginLanding({
                   setMode('login');
                   setErrorMessage(null);
                 }}
-                className="text-xs font-bold text-[#E5007D] hover:text-[#FF6A00] hover:underline cursor-pointer transition-colors"
+                className="text-xs font-bold text-sky-600 hover:text-sky-700 hover:underline cursor-pointer transition-colors"
               >
                 ¿Ya tienes una cuenta? Inicia sesión
               </button>
@@ -636,7 +649,7 @@ export function ColorlinkLoginLanding({
         <button
           type="button"
           onClick={handleTriggerSimulation}
-          className="absolute bottom-3.5 right-4 w-3 h-3 rounded-full bg-gradient-to-r from-amber-400 via-rose-500 to-violet-500 hover:scale-150 transition-all cursor-pointer shadow-xs focus:outline-none"
+          className="absolute bottom-3.5 right-4 w-3 h-3 rounded-full bg-gradient-to-r from-[#FF6A00] via-[#EC4899] to-[#009FE3] hover:scale-150 transition-all cursor-pointer shadow-xs focus:outline-none"
           title="Simulación rápida"
           aria-label="Simulación"
         />
@@ -649,10 +662,10 @@ export function ColorlinkLoginLanding({
           <button
             type="button"
             onClick={onOpenAdvisorModal}
-            className="flex items-center gap-1.5 text-[#E5007D] hover:text-[#C7006D] bg-white/90 hover:bg-white px-2.5 py-1.5 rounded-xl border border-pink-200/90 shadow-2xs backdrop-blur-xs transition-colors cursor-pointer font-bold"
+            className="flex items-center gap-1.5 text-sky-700 hover:text-sky-900 bg-white/90 hover:bg-white px-2.5 py-1.5 rounded-xl border border-sky-200/90 shadow-2xs backdrop-blur-xs transition-colors cursor-pointer font-bold"
             title="Ingreso para Asesores Comerciales y Técnicos"
           >
-            <UserCheck className="w-3.5 h-3.5 text-[#E5007D]" />
+            <UserCheck className="w-3.5 h-3.5 text-sky-600" />
             <span>Asesores</span>
           </button>
           <button
@@ -708,7 +721,7 @@ export function ColorlinkLoginLanding({
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-slate-500">Correo Electrónico:</span>
-                <span className="font-bold text-[#E5007D] truncate max-w-[180px]">{registeredSuccessData.userProfile.email}</span>
+                <span className="font-bold text-sky-700 truncate max-w-[180px]">{registeredSuccessData.userProfile.email}</span>
               </div>
             </div>
 
@@ -733,7 +746,7 @@ export function ColorlinkLoginLanding({
               <button
                 type="button"
                 onClick={() => onLoginSuccess(registeredSuccessData.userProfile, false)}
-                className="w-full bg-gradient-to-r from-[#FF6A00] via-[#E5007D] to-[#6A0DAD] hover:brightness-110 text-white font-bold text-xs py-3 px-4 rounded-2xl flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md"
+                className="w-full bg-gradient-to-r from-sky-500 via-sky-600 to-blue-700 hover:brightness-110 text-white font-bold text-xs py-3 px-4 rounded-2xl flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md"
               >
                 <span>Continuar al Cotizador y Dosificación</span>
                 <ArrowRight className="w-4 h-4" />

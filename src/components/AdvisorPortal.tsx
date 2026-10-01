@@ -26,6 +26,7 @@ import {
 import { formatCOP } from '../utils/calculator';
 import { PenguinLogo } from './PenguinLogo';
 import { formatWhatsAppPhone } from '../utils/whatsappService';
+import { getStoredAdvisorConversations } from '../utils/advisorService';
 
 export interface ClientConversation {
   id: string;
@@ -240,14 +241,43 @@ const INITIAL_CONVERSATIONS: Record<string, ClientConversation[]> = {
 };
 
 export function AdvisorPortal({ currentAdvisor, onLogout, onSwitchAdvisor }: AdvisorPortalProps) {
-  const [conversations, setConversations] = useState<ClientConversation[]>(
-    INITIAL_CONVERSATIONS[currentAdvisor.id] || INITIAL_CONVERSATIONS.sofia_martinez
-  );
+  const getMergedConversations = () => {
+    const stored = getStoredAdvisorConversations();
+    const storedForAdvisor = stored[currentAdvisor.id] || [];
+    const initialList = INITIAL_CONVERSATIONS[currentAdvisor.id] || INITIAL_CONVERSATIONS.sofia_martinez;
+    // Evitar duplicados por id
+    const existingIds = new Set(storedForAdvisor.map((c: any) => c.id));
+    const combined = [...storedForAdvisor, ...initialList.filter((c: any) => !existingIds.has(c.id))];
+    return combined;
+  };
+
+  const [conversations, setConversations] = useState<ClientConversation[]>(getMergedConversations());
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('todos');
   const [selectedConversation, setSelectedConversation] = useState<ClientConversation | null>(
     conversations[0] || null
   );
+
+  React.useEffect(() => {
+    const handleLeadAdded = () => {
+      const updated = getMergedConversations();
+      setConversations(updated);
+      if (updated.length > 0) {
+        setSelectedConversation(updated[0]);
+      }
+    };
+
+    window.addEventListener('colorlink_advisor_lead_added', handleLeadAdded);
+    return () => {
+      window.removeEventListener('colorlink_advisor_lead_added', handleLeadAdded);
+    };
+  }, [currentAdvisor.id]);
+
+  React.useEffect(() => {
+    const updated = getMergedConversations();
+    setConversations(updated);
+    setSelectedConversation(updated[0] || null);
+  }, [currentAdvisor.id]);
 
   // Modal para registrar nueva conversación
   const [showNewConversationModal, setShowNewConversationModal] = useState(false);
@@ -315,8 +345,8 @@ export function AdvisorPortal({ currentAdvisor, onLogout, onSwitchAdvisor }: Adv
   return (
     <div className="space-y-6 animate-fadeIn pb-16">
       {/* HEADER DE BIENVENIDA DEL ASESOR */}
-      <div className="bg-gradient-to-r from-[#4a044e] via-[#701a75] to-[#831843] rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden border border-pink-500/30">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-pink-500/15 rounded-full blur-3xl pointer-events-none" />
+      <div className="bg-gradient-to-r from-sky-900 via-blue-900 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden border border-sky-500/30">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-sky-500/15 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="flex items-center gap-4">
@@ -608,9 +638,9 @@ export function AdvisorPortal({ currentAdvisor, onLogout, onSwitchAdvisor }: Adv
                   href={`mailto:${selectedConversation.email}?subject=${encodeURIComponent(
                     `Seguimiento Técnico Colorlink® • Obra ${selectedConversation.obra}`
                   )}`}
-                  className="py-3 px-4 bg-pink-50 hover:bg-pink-100 text-[#E5007D] border border-pink-200 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
+                  className="py-3 px-4 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
                 >
-                  <Mail className="w-4 h-4 text-[#E5007D]" />
+                  <Mail className="w-4 h-4 text-sky-600" />
                   <span>Correo</span>
                 </a>
               </div>
@@ -648,13 +678,13 @@ export function AdvisorPortal({ currentAdvisor, onLogout, onSwitchAdvisor }: Adv
               </div>
 
               {/* TARJETA 3: BRIEFING DE LA IA DE PLANTA PARA ESTA OBRA */}
-              <div className="p-4 rounded-2xl bg-gradient-to-r from-pink-50 to-purple-50 border border-pink-200 space-y-2">
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-sky-50 to-blue-50 border border-sky-200 space-y-2">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-xs font-black text-purple-900">
-                    <Sparkles className="w-4 h-4 text-amber-500" />
+                  <div className="flex items-center gap-1.5 text-xs font-black text-slate-900">
+                    <Sparkles className="w-4 h-4 text-sky-600" />
                     <span>Recomendación Técnica de la IA (Pincelito)</span>
                   </div>
-                  <span className="text-[10px] text-[#E5007D] font-bold bg-white px-2 py-0.5 rounded-full border border-pink-200">
+                  <span className="text-[10px] text-sky-700 font-bold bg-white px-2 py-0.5 rounded-full border border-sky-200">
                     NTC 1335
                   </span>
                 </div>
