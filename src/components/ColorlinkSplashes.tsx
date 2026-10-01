@@ -45,7 +45,7 @@ export function ColorlinkPaintSplashes({ className = '' }: { className?: string 
         <circle cx="95" cy="185" r="5" fill="#0077B6" />
       </svg>
 
-      {/* Mancha 3: Esquina Inferior Derecha - Magenta / Fucsia Colorlink */}
+      {/* Mancha 3: Esquina Inferior Derecha - Azul Cielo Luminoso */}
       <svg
         className="absolute -bottom-10 -right-8 w-52 h-52 opacity-40"
         viewBox="0 0 200 200"
@@ -54,12 +54,12 @@ export function ColorlinkPaintSplashes({ className = '' }: { className?: string 
       >
         <path
           d="M120,160 C145,175 175,145 165,115 C155,85 180,60 150,35 C120,10 90,35 65,25 C40,15 20,50 35,80 C50,110 30,135 60,155 C90,175 95,140 120,160 Z"
-          fill="#EC4899"
+          fill="#38BDF8"
         />
-        <circle cx="180" cy="165" r="8" fill="#EC4899" />
-        <circle cx="150" cy="190" r="5" fill="#F43F5E" />
-        <circle cx="195" cy="115" r="6" fill="#FB7185" />
-        <circle cx="40" cy="30" r="5.5" fill="#F472B6" />
+        <circle cx="180" cy="165" r="8" fill="#38BDF8" />
+        <circle cx="150" cy="190" r="5" fill="#0284C7" />
+        <circle cx="195" cy="115" r="6" fill="#0EA5E9" />
+        <circle cx="40" cy="30" r="5.5" fill="#7DD3FC" />
       </svg>
 
       {/* Mancha 4: Lateral Inferior Izquierdo - Verde Esmeralda */}
@@ -94,13 +94,15 @@ export function ColorlinkPaintSplashes({ className = '' }: { className?: string 
 export function ColorlinkRainbowBar({ className = 'h-2' }: { className?: string }) {
   return (
     <div className={`w-full flex ${className} rounded-full overflow-hidden shadow-xs`}>
-      <div className="flex-1 bg-[#FF6A00]" title="Naranja Cálido" />
-      <div className="flex-1 bg-[#FFD100]" title="Amarillo Sol" />
-      <div className="flex-1 bg-[#00A651]" title="Verde Esmeralda" />
-      <div className="flex-1 bg-[#009FE3]" title="Cian Colorlink" />
+      <div className="flex-1 bg-[#0284C7]" title="Azul Océano" />
+      <div className="flex-1 bg-[#0EA5E9]" title="Azul Cielo" />
+      <div className="flex-1 bg-[#38BDF8]" title="Azul Claro" />
+      <div className="flex-1 bg-[#7DD3FC]" title="Celeste" />
+      <div className="flex-1 bg-[#0284C7]" title="Azul Colorlink" />
       <div className="flex-1 bg-[#003882]" title="Azul Real" />
-      <div className="flex-1 bg-[#8B5CF6]" title="Violeta" />
-      <div className="flex-1 bg-[#EC4899]" title="Magenta / Fucsia" />
+      <div className="flex-1 bg-[#009FE3]" title="Cian" />
+      <div className="flex-1 bg-[#00A651]" title="Verde Esmeralda" />
+      <div className="flex-1 bg-[#78BE20]" title="Verde Lima" />
     </div>
   );
 }
