@@ -20,6 +20,20 @@ export interface RedundantFieldEliminated {
   alternative: string;
 }
 
+export interface ToolItemSelection {
+  id: string;
+  nombre: string;
+  categoria: 'brochas' | 'rodillos' | 'preparacion' | 'proteccion';
+  precioCOP: number;
+  cantidad: number;
+  subtotalCOP: number;
+  sku: string;
+  unidad: string;
+  stock: number;
+  icono?: string;
+  descripcion?: string;
+}
+
 export interface ProjectFormData {
   // Identificación y Registro Fácil
   cliente: string;
@@ -28,10 +42,15 @@ export interface ProjectFormData {
   responsable: string;
   emailResponsable: string;
   telefonoResponsable: string;
-  canalEntrada: 'App Web' | 'WhatsApp / Call Center' | 'Fuerza Comercial' | 'Punto de Venta' | 'Portal Clientes';
+  canalEntrada: 'App Web' | 'Llamada / PBX' | 'Fuerza Comercial' | 'Punto de Venta' | 'Portal Clientes';
 
-  // Proyecto
+  // Proyecto & Despacho
   ciudad: string;
+  direccionEntrega?: string; // Dirección exacta de donde se quiere que llegue el pedido
+  puntoReferencia?: string; // Nombre del edificio, obra, conjunto o punto de referencia
+  contactoObra?: string; // Nombre de la persona que recibe en la dirección de entrega
+  telefonoObra?: string; // Teléfono de contacto en la dirección de entrega
+  indicacionesEntrega?: string; // Indicaciones para el furgón repartidor (portería, horario, etc.)
   tipoObra: 'Fachada Edificio' | 'Muros Interiores' | 'Pisos Industriales' | 'Estructura Metálica' | 'Cielorrasos' | 'Institucional / Hospitalario';
   areaM2: number;
   fechaRequerida: string;
@@ -46,6 +65,9 @@ export interface ProjectFormData {
   metodoPago?: 'bancolombia' | 'pse' | 'nequi' | 'contraentrega' | 'credito' | 'tarjeta';
   comprobantePagoUrl?: string;
   bancoPSE?: string;
+
+  // Herramientas y Accesorios de Pintor seleccionados (Brochas, Rodillos, etc.)
+  herramientasSeleccionadas?: ToolItemSelection[];
 
   // Evidencia
   descripcionLibre: string;

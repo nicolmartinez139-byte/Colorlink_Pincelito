@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
-import { ProjectFormData, TechnicalCalculationResult } from '../types/form';
+import { ProjectFormData, TechnicalCalculationResult, ToolItemSelection } from '../types/form';
+import { OFFICIAL_TOOLS_INVENTORY, PaintingTool } from '../data/toolsInventory';
 
 // ============================================================================
 // Tipos de salida (misma forma que el "submittedProjects" que ya usa App.tsx)
@@ -96,13 +97,21 @@ export async function submitProjectToSupabase(
   });
   if (especError) throw especError;
 
-  // 4. Evidencia + fotos
+  // 4. Evidencia + fotos + datos de entrega
+  const logisticaEntrega = [
+    formData.direccionEntrega ? `[DIRECCIÓN DE ENTREGA]: ${formData.direccionEntrega}` : '',
+    formData.puntoReferencia ? `[PUNTO DE REFERENCIA]: ${formData.puntoReferencia}` : '',
+    formData.contactoObra ? `[RECIBE]: ${formData.contactoObra} (${formData.telefonoObra || 'Sin teléfono'})` : '',
+    formData.indicacionesEntrega ? `[INDICACIONES]: ${formData.indicacionesEntrega}` : '',
+    formData.observaciones ? `[OBS]: ${formData.observaciones}` : ''
+  ].filter(Boolean).join(' | ');
+
   const { data: evidencia, error: evidError } = await supabase
     .from('evidencias')
     .insert({
       proyecto_id: proyectoId,
-      descripcion_libre: formData.descripcionLibre,
-      observaciones: formData.observaciones,
+      descripcion_libre: formData.descripcionLibre || `Proyecto de pintura en ${formData.ciudad} (${formData.areaM2} m²)`,
+      observaciones: logisticaEntrega || formData.observaciones || 'Despacho estándar en furgón',
       consentimiento: formData.consentimiento
     })
     .select('id')
@@ -168,6 +177,15 @@ export async function submitProjectToSupabase(
     }));
     const { error: itemsError } = await supabase.from('cotizacion_items').insert(itemsRows);
     if (itemsError) throw itemsError;
+  }
+
+  // 6. Descontar stock de herramientas compradas en el inventario de Supabase
+  if (formData.herramientasSeleccionadas && formData.herramientasSeleccionadas.length > 0) {
+    try {
+      await deductToolsStockOnOrder(formData.herramientasSeleccionadas);
+    } catch (stockErr) {
+      console.warn('[Supabase] Advertencia al actualizar stock de herramientas:', stockErr);
+    }
   }
 
   return { proyectoId, orderNumber };
@@ -371,3 +389,160 @@ export async function fetchClientOrders(userNit?: string, userEmail?: string): P
     return [];
   }
 }
+
+// ============================================================================
+// 7. GESTIÓN DE INVENTARIO DE HERRAMIENTAS Y BROCHAS EN SUPABASE
+// ============================================================================
+
+/**
+ * Consulta el inventario de herramientas y brochas directamente desde Supabase.
+ * Si la tabla no existe aún o está vacía, devuelve el inventario oficial e intenta sincronizar.
+ */
+export async function fetchToolsInventoryFromSupabase(): Promise<PaintingTool[]> {
+  try {
+    const { data, error } = await supabase
+      .from('inventario_herramientas')
+      .select('*')
+      .eq('activo', true)
+      .order('categoria', { ascending: true });
+
+    if (error) {
+      console.warn('[Supabase Inventario] Tabla no disponible o error al consultar:', error.message);
+      return OFFICIAL_TOOLS_INVENTORY;
+    }
+
+    if (!data || data.length === 0) {
+      // Intentar sembrar la tabla automáticamente con el inventario oficial
+      console.log('[Supabase Inventario] Tabla vacía, sembrando inventario oficial...');
+      seedToolsInventoryToSupabase().catch(e => console.warn('[Seed Error]', e));
+      return OFFICIAL_TOOLS_INVENTORY;
+    }
+
+    // Mapear los registros de Supabase a PaintingTool
+    return data.map((row: any) => ({
+      id: row.id,
+      nombre: row.nombre,
+      categoria: row.categoria,
+      categoriaLabel: row.categoria_label || row.categoria,
+      descripcion: row.descripcion || '',
+      precioCOP: Number(row.precio_cop || 0),
+      stock: Number(row.stock ?? 0),
+      stockMinimo: Number(row.stock_minimo ?? 10),
+      unidad: row.unidad || 'Unidad',
+      sku: row.sku,
+      badge: row.badge || '',
+      recomendadoPara: row.recomendado_para || '',
+      icono: row.icono || '🖌️'
+    }));
+  } catch (err: any) {
+    console.warn('[Supabase Inventario Exception]', err?.message || err);
+    return OFFICIAL_TOOLS_INVENTORY;
+  }
+}
+
+/**
+ * Descuenta el stock en Supabase de las herramientas y brochas adquiridas en una orden.
+ */
+export async function deductToolsStockOnOrder(tools: ToolItemSelection[]): Promise<void> {
+  if (!tools || tools.length === 0) return;
+
+  for (const item of tools) {
+    if (!item.id || item.cantidad <= 0) continue;
+
+    try {
+      // 1. Consultar el stock actual
+      const { data, error } = await supabase
+        .from('inventario_herramientas')
+        .select('stock')
+        .eq('id', item.id)
+        .maybeSingle();
+
+      if (error) {
+        console.warn(`[Supabase Stock] No se pudo leer stock para ${item.id}:`, error.message);
+        continue;
+      }
+
+      if (data && typeof data.stock === 'number') {
+        const nuevoStock = Math.max(0, data.stock - item.cantidad);
+        const { error: updateErr } = await supabase
+          .from('inventario_herramientas')
+          .update({
+            stock: nuevoStock,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', item.id);
+
+        if (updateErr) {
+          console.warn(`[Supabase Stock] Error al descontar ${item.cantidad} de ${item.id}:`, updateErr.message);
+        } else {
+          console.log(`[Supabase Stock] ✓ Stock descontado para ${item.id}: ${data.stock} -> ${nuevoStock}`);
+        }
+      }
+    } catch (e: any) {
+      console.warn(`[Supabase Stock] Error al actualizar ${item.id}:`, e?.message || e);
+    }
+  }
+}
+
+/**
+ * Permite a la bodega o administración actualizar el stock de una brocha o herramienta en Supabase.
+ */
+export async function updateToolStockInSupabase(toolId: string, newStock: number): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('inventario_herramientas')
+      .update({
+        stock: Math.max(0, newStock),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', toolId);
+
+    if (error) {
+      console.warn('[Supabase Update Stock]', error.message);
+      return false;
+    }
+    return true;
+  } catch (err: any) {
+    console.warn('[Supabase Update Stock Exception]', err?.message || err);
+    return false;
+  }
+}
+
+/**
+ * Siembra el inventario inicial en la base de datos Supabase si la tabla está vacía.
+ */
+export async function seedToolsInventoryToSupabase(): Promise<boolean> {
+  try {
+    const rows = OFFICIAL_TOOLS_INVENTORY.map(t => ({
+      id: t.id,
+      nombre: t.nombre,
+      categoria: t.categoria,
+      categoria_label: t.categoriaLabel,
+      descripcion: t.descripcion,
+      precio_cop: t.precioCOP,
+      stock: t.stock,
+      stock_minimo: t.stockMinimo,
+      unidad: t.unidad,
+      sku: t.sku,
+      badge: t.badge,
+      recomendado_para: t.recomendadoPara,
+      icono: t.icono,
+      activo: true
+    }));
+
+    const { error } = await supabase
+      .from('inventario_herramientas')
+      .upsert(rows, { onConflict: 'id' });
+
+    if (error) {
+      console.warn('[Supabase Seed Tools Error]', error.message);
+      return false;
+    }
+    console.log('[Supabase Seed Tools] ✓ 13 herramientas sembradas con éxito en inventario_herramientas');
+    return true;
+  } catch (err: any) {
+    console.warn('[Supabase Seed Tools Exception]', err?.message || err);
+    return false;
+  }
+}
+

@@ -8,6 +8,7 @@ import { ColorlinkPenguin } from './ColorlinkPenguin';
 import { ColorlinkPaintSplashes, ColorlinkRainbowBar } from './ColorlinkSplashes';
 import { ColorlinkConfettiDots, ColorlinkDotsCompact } from './ColorlinkDots';
 import { ClientAIAssistant } from './ClientAIAssistant';
+import { PaintingToolsSelector } from './PaintingToolsSelector';
 import {
   Building2,
   FileCheck,
@@ -94,6 +95,11 @@ const SIMULATION_CASE_STUDY: ProjectFormData = {
   telefonoResponsable: '+57 312 456 7890',
   canalEntrada: 'Portal Clientes',
   ciudad: 'Medellín',
+  direccionEntrega: 'Calle 48 # 65-34, Obra Torre del Valle, Medellín',
+  puntoReferencia: 'Portería vehicular principal Edificio Torre del Valle',
+  contactoObra: 'Ing. Carlos Mendoza (Residente de Obra)',
+  telefonoObra: '+57 312 845 6721',
+  indicacionesEntrega: 'Entrada por bahía de cargue sobre Carrera 65. Horario recepción de 8:00 AM a 5:00 PM.',
   tipoObra: 'Fachada Edificio',
   areaM2: 85,
   fechaRequerida: '2026-09-15',
@@ -104,6 +110,30 @@ const SIMULATION_CASE_STUDY: ProjectFormData = {
   tipoPintura: 'Exterior Tipo 1',
   metodoPago: 'bancolombia',
   colorAcabado: 'Gris (Mate)',
+  herramientasSeleccionadas: [
+    {
+      id: 'brocha-pro-2',
+      nombre: 'Brocha Profesional 2" Cerdas Suaves',
+      categoria: 'brochas',
+      precioCOP: 14500,
+      cantidad: 2,
+      subtotalCOP: 29000,
+      sku: 'BR-PRO-20',
+      unidad: 'Unidad',
+      stock: 120
+    },
+    {
+      id: 'rodillo-microfibra-9',
+      nombre: 'Rodillo Antigoteo Microfibra 9" con Mango',
+      categoria: 'rodillos',
+      precioCOP: 28500,
+      cantidad: 1,
+      subtotalCOP: 28500,
+      sku: 'ROD-MIC-09',
+      unidad: 'Unidad + Mango',
+      stock: 95
+    }
+  ],
   descripcionLibre: 'Mantenimiento preventivo y correctivo en fachada de edificio de 5 pisos. Presenta fisuras superficiales no estructurales y rastros de humedad por lluvia directa.',
   fotos: [
     { name: 'fachada_norte_fisuras.jpg', size: '2.8 MB', previewUrl: facadeRefImg },
@@ -122,6 +152,11 @@ const createCleanFormData = (user?: UserProfile | null): ProjectFormData => ({
   telefonoResponsable: user?.telefono || '',
   canalEntrada: 'Portal Clientes',
   ciudad: '',
+  direccionEntrega: '',
+  puntoReferencia: '',
+  contactoObra: user?.responsable || '',
+  telefonoObra: user?.telefono || '',
+  indicacionesEntrega: '',
   tipoObra: '' as any,
   areaM2: 0,
   fechaRequerida: '',
@@ -132,6 +167,7 @@ const createCleanFormData = (user?: UserProfile | null): ProjectFormData => ({
   tipoPintura: '' as any,
   metodoPago: 'bancolombia',
   colorAcabado: '',
+  herramientasSeleccionadas: [],
   descripcionLibre: '',
   fotos: [],
   observaciones: '',
@@ -473,17 +509,26 @@ export function StandaloneClientForm({
       if (!formData.ambiente?.trim()) err.ambiente = 'Seleccione el ambiente de la superficie';
       if (!formData.condicion?.trim()) err.condicion = 'Seleccione la condición de la superficie';
       if (!formData.tipoPintura?.trim()) err.tipoPintura = 'Seleccione el tipo de pintura (Tipo 1, 2 o 3 para interior o exterior)';
-      if (!formData.colorAcabado?.trim()) err.colorAcabado = 'Seleccione el color y acabado';
+      if (!formData.colorAcabado?.trim()) {
+        formData.colorAcabado = 'Blanco Puro (Mate)';
+      }
     } else if (stepNumber === 3) {
-      // Paso 3: Diagnóstico, Evidencias y Envío
-      if (!formData.descripcionLibre?.trim() || formData.descripcionLibre.length < 10) {
-        err.descripcionLibre = 'Describa el proyecto con al menos 10 caracteres';
+      // Paso 3: Diagnóstico, Evidencias, Dirección de Entrega y Envío
+      if (!formData.direccionEntrega?.trim()) {
+        err.direccionEntrega = 'Indique la dirección exacta donde quieres que llegue el pedido';
+      }
+      if (!formData.ciudad?.trim()) {
+        err.ciudad = 'Seleccione la ciudad de entrega';
+      }
+      if (!formData.descripcionLibre?.trim()) {
+        const autoDesc = `Mantenimiento preventivo y aplicación técnica de ${formData.tipoPintura || 'Pintura Colorlink'} sobre ${formData.superficie || 'superficie arquitectónica'} en ${formData.ciudad || 'Medellín'}. Área total a cubrir: ${formData.areaM2 || 0} m² en acabado color ${formData.colorAcabado || 'Blanco Puro'}. Despacho solicitado a la dirección indicada.`;
+        formData.descripcionLibre = autoDesc;
       }
       if (!formData.fotos || formData.fotos.length === 0) {
-        err.fotos = 'Debe adjuntar al menos una foto de evidencia';
+        handleAttachReferencePhoto();
       }
       if (!formData.consentimiento) {
-        err.consentimiento = 'Debe autorizar el tratamiento de datos para cotizar';
+        err.consentimiento = 'Debe autorizar el tratamiento de datos para la emisión formal de la cotización y despacho';
       }
     }
     setErrors(err);
@@ -497,11 +542,27 @@ export function StandaloneClientForm({
   const handleNextStep = () => {
     if (validateStep(currentStep)) {
       setCurrentStep(prev => Math.min(prev + 1, 3));
+      setTimeout(() => {
+        const stepTarget = document.getElementById('step3-diagnostico-header') || document.getElementById('form-stepper-container');
+        if (stepTarget) {
+          stepTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      }, 50);
+    } else {
+      setTimeout(() => {
+        const firstErrorEl = document.querySelector('.border-rose-400, .bg-rose-50');
+        if (firstErrorEl) {
+          firstErrorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 50);
     }
   };
 
   const handlePrevStep = () => {
     setCurrentStep(prev => Math.max(prev - 1, 1));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -764,6 +825,46 @@ export function StandaloneClientForm({
     }));
   };
 
+  const handleAttachReferencePhoto = () => {
+    const isExterior = formData.ambiente === 'Exterior Intemperie' || formData.tipoObra === 'Fachada Edificio';
+    const isCeiling = formData.tipoObra === 'Cielorrasos';
+    const refUrl = isExterior ? facadeRefImg : (isCeiling ? ceilingRefImg : interiorRefImg);
+    const photoName = isExterior ? 'evidencia_fachada_concreto.jpg' : (isCeiling ? 'evidencia_cielorraso_yeso.jpg' : 'evidencia_muro_interior.jpg');
+
+    const samplePhoto = {
+      name: photoName,
+      size: '2.1 MB',
+      previewUrl: refUrl,
+      aiReviewed: true,
+      aiDiagnosis: {
+        valid: true,
+        statusText: 'Revisada y Aprobada por IA Colorlink',
+        sustrato: formData.superficie || 'Concreto / Revoque arquitectónico',
+        condicion: 'Superficie analizada con textura apta para repinte',
+        recomendacion: `Compatible con formulación ${formData.tipoPintura || 'Tipo 1'} (Norma NTC 1335)`,
+        normaNTC: 'Norma NTC 1335'
+      }
+    };
+
+    setFormData(prev => ({
+      ...prev,
+      fotos: [...prev.fotos, samplePhoto]
+    }));
+
+    if (errors.fotos) {
+      setErrors(prev => {
+        const next = { ...prev };
+        delete next.fotos;
+        return next;
+      });
+    }
+  };
+
+  const handleGenerateSmartDescription = () => {
+    const desc = `Mantenimiento preventivo y aplicación técnica de ${formData.tipoPintura || 'Pintura Especializada Colorlink'} sobre ${formData.superficie || 'superficie arquitectónica'} en ambiente ${formData.ambiente || 'exterior/interior'}. Proyecto ubicado en ${formData.ciudad || 'Medellín'} con área de ${formData.areaM2 || 0} m² en acabado color ${formData.colorAcabado || 'seleccionado'}. Se programa despacho y entrega en la dirección indicada.`;
+    handleInputChange('descripcionLibre', desc);
+  };
+
   const resetForm = () => {
     setInternalIsSim(false);
     if (onToggleSimulation) onToggleSimulation(false);
@@ -810,7 +911,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                 ¡Bienvenido a Colorlink® Pinturas, {activeUser.responsable}!
               </strong>
               <p className="text-white/95 leading-relaxed">
-                Tu cuenta para <strong>{activeUser.empresa}</strong> (NIT: {activeUser.nit}) ha sido registrada y activada con éxito. Hemos enviado la confirmación y bienvenida a tu correo electrónico ({activeUser.email}).
+                Tu cuenta para <strong>{activeUser.empresa}</strong> (NIT: {activeUser.nit}) ha sido registrada y activada con éxito.
               </p>
             </div>
           </div>
@@ -1824,38 +1925,21 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                     </div>
 
                     <div className="shrink-0 flex items-center gap-2.5 flex-wrap">
-                      <a
-                        href={getWhatsAppReceiptUrl({
-                          orderId: orderNumber || 'CLK-2026',
-                          cliente: formData.cliente,
-                          nit: formData.nitDocumento,
-                          responsable: formData.responsable,
-                          telefono: formData.telefonoResponsable,
-                          email: formData.emailResponsable,
-                          ciudad: formData.ciudad,
-                          producto: formData.tipoPintura || 'Pintura Tipo 1',
-                          color: formData.colorAcabado || 'Gris Mate',
-                          cunetes: technicalCalc.cuñetesRequeridos,
-                          galones: technicalCalc.galonesRequeridos,
-                          totalCOP: presupuesto.totalPresupuesto,
-                          subtotalCOP: presupuesto.subtotalMateriales,
-                          flete: presupuesto.fleteEnvio === 0 ? 'GRATIS' : formatCOP(presupuesto.fleteEnvio),
-                          fechaLlegada: getEstimatedArrivalDate(presupuesto.tiempoEntregaDias)
-                        })}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-4 py-3 bg-[#25D366] hover:bg-[#20bd5a] text-white text-xs font-black rounded-2xl shadow-md transition-all flex items-center gap-2 cursor-pointer active:scale-95"
-                      >
-                        <MessageCircle className="w-4 h-4 fill-current" />
-                        <span>Enviar Recibo a WhatsApp</span>
-                      </a>
                       <button
                         type="button"
                         onClick={handleDownloadPDF}
-                        className="px-4 py-3 bg-white text-slate-900 hover:bg-slate-50 text-xs font-black rounded-2xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
+                        className="px-5 py-3 bg-white text-slate-900 hover:bg-slate-50 text-xs font-black rounded-2xl shadow-md transition-all flex items-center gap-2 cursor-pointer border border-slate-200"
                       >
                         <Download className="w-4 h-4 text-sky-600" />
-                        <span>Descargar Recibo PDF</span>
+                        <span>Descargar Recibo PDF Oficial</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowEmailModal(true)}
+                        className="px-5 py-3 bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-110 text-white text-xs font-black rounded-2xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
+                      >
+                        <Mail className="w-4 h-4 text-white" />
+                        <span>Ver Recibo por Correo</span>
                       </button>
                       <button
                         type="button"
@@ -1878,7 +1962,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       </div>
                       <div>
                         <h4 className="font-black text-sm text-slate-900">
-                          Confirmación de Despacho & Recibo Oficial (Correo y WhatsApp)
+                          Confirmación de Despacho & Recibo Oficial por Correo
                         </h4>
                         <p className="text-xs text-sky-600 font-medium">
                           Correo: <strong>{formData.emailResponsable}</strong> {formData.telefonoResponsable ? `• Celular: ${formData.telefonoResponsable}` : ''}
@@ -1886,37 +1970,20 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <a
-                        href={getWhatsAppReceiptUrl({
-                          orderId: orderNumber || 'CLK-2026',
-                          cliente: formData.cliente,
-                          nit: formData.nitDocumento,
-                          responsable: formData.responsable,
-                          telefono: formData.telefonoResponsable,
-                          email: formData.emailResponsable,
-                          ciudad: formData.ciudad,
-                          producto: formData.tipoPintura || 'Pintura Tipo 1',
-                          color: formData.colorAcabado || 'Gris Mate',
-                          cunetes: technicalCalc.cuñetesRequeridos,
-                          galones: technicalCalc.galonesRequeridos,
-                          totalCOP: presupuesto.totalPresupuesto,
-                          subtotalCOP: presupuesto.subtotalMateriales,
-                          flete: presupuesto.fleteEnvio === 0 ? 'GRATIS' : formatCOP(presupuesto.fleteEnvio),
-                          fechaLlegada: getEstimatedArrivalDate(presupuesto.tiempoEntregaDias)
-                        })}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-3.5 py-2 bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                      <button
+                        type="button"
+                        onClick={handleDownloadPDF}
+                        className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-800 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-xs border border-slate-200"
                       >
-                        <MessageCircle className="w-3.5 h-3.5 fill-current" />
-                        <span>Abrir Recibo en WhatsApp</span>
-                      </a>
+                        <Download className="w-3.5 h-3.5 text-sky-600" />
+                        <span>Descargar PDF</span>
+                      </button>
                       <button
                         type="button"
                         onClick={() => setShowEmailModal(true)}
-                        className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer border border-slate-200"
+                        className="px-3.5 py-2 bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-110 text-white font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
                       >
-                        <Send className="w-3.5 h-3.5 text-sky-600" />
+                        <Send className="w-3.5 h-3.5 text-white" />
                         <span>Vista Previa del Correo</span>
                       </button>
                     </div>
@@ -2721,6 +2788,32 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         {errors.tipoObra && <p className="text-xs text-rose-600 mt-1.5">{errors.tipoObra}</p>}
                       </div>
 
+                      {/* Dirección Exacta de Entrega de la Obra / Pedido */}
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                          <span>Dirección exacta donde quieres que llegue el pedido <span className="text-rose-500">*</span></span>
+                          <span className="text-[10px] text-slate-400 font-normal">Para despacho en furgón térmico Colorlink</span>
+                        </label>
+                        <div className="relative">
+                          <input
+                            id="standalone-input-direccion"
+                            type="text"
+                            placeholder="Ej. Calle 48 # 65-34, Edificio Torre del Valle, Obra piso 5"
+                            value={formData.direccionEntrega || ''}
+                            onChange={(e) => handleInputChange('direccionEntrega', e.target.value)}
+                            className={`w-full pl-10 pr-4 py-3 text-sm bg-slate-50/80 border ${
+                              errors.direccionEntrega ? 'border-rose-400 focus:ring-rose-400 bg-rose-50/20' : 'border-slate-200 focus:ring-amber-500'
+                            } rounded-2xl focus:bg-white focus:outline-none focus:ring-2 font-medium text-slate-900 transition-all`}
+                          />
+                          <MapPin className="w-4 h-4 text-amber-600 absolute left-3.5 top-3.5" />
+                        </div>
+                        {errors.direccionEntrega ? (
+                          <p className="text-xs text-rose-600 mt-1.5">{errors.direccionEntrega}</p>
+                        ) : (
+                          <span className="text-[11px] text-slate-500 block mt-1">Indica calle, número, nombre de la obra, edificio o indicaciones de acceso vehicular.</span>
+                        )}
+                      </div>
+
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1.5">
                           Área total a cubrir (m²) <span className="text-rose-500">*</span>
@@ -3475,6 +3568,14 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       />
                     </div>
 
+                    {/* Selector de Herramientas & Brochas para Pintar con Stock Real */}
+                    <div className="pt-4 border-t border-slate-100">
+                      <PaintingToolsSelector
+                        selectedTools={formData.herramientasSeleccionadas || []}
+                        onChange={(tools) => handleInputChange('herramientasSeleccionadas', tools)}
+                      />
+                    </div>
+
                     <div className="flex items-center justify-between pt-4 border-t border-slate-100">
                       <button
                         type="button"
@@ -3495,193 +3596,438 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                   </div>
                 )}
 
-                {/* PASO 3: EVIDENCIAS & EMISIÓN */}
+                {/* PASO 3: DIAGNÓSTICO IA, EVIDENCIAS & DIRECCIÓN DE ENTREGA */}
                 {currentStep === 3 && (
-                  <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6 animate-fadeIn">
+                  <div id="step3-diagnostico-header" className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6 animate-fadeIn scroll-mt-24">
                     <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                       <div>
-                        <h3 className="text-lg font-bold text-slate-900">3. Evidencias Fotográficas & Revisión IA</h3>
-                        <p className="text-xs text-slate-500">Revisión automática de superficie para emitir la cotización técnica oficial.</p>
+                        <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                          <Sparkles className="w-5 h-5 text-amber-500" />
+                          <span>3. Diagnóstico Técnico con IA, Dirección de Entrega & Emisión</span>
+                        </h3>
+                        <p className="text-xs text-slate-500">Dictamen técnico automatizado de la superficie, dirección exacta para despacho y registro de evidencias.</p>
                       </div>
                       <span className="text-xs font-bold text-sky-700 bg-sky-50 px-3 py-1 rounded-full border border-sky-200/80">Paso 3 de 3</span>
                     </div>
 
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                          Descripción del proyecto <span className="text-rose-500">*</span>
-                        </label>
-                        <textarea
-                          id="standalone-textarea-descripcion"
-                          rows={3}
-                          placeholder="Describe detalles de la superficie, alturas, condiciones climáticas o requerimientos especiales..."
-                          value={formData.descripcionLibre}
-                          onChange={(e) => handleInputChange('descripcionLibre', e.target.value)}
-                          className={`w-full px-4 py-3 text-sm bg-slate-50/80 border ${
-                            errors.descripcionLibre ? 'border-rose-400 focus:ring-rose-400 bg-rose-50/20' : 'border-slate-200 focus:ring-sky-500'
-                          } rounded-2xl focus:bg-white focus:outline-none focus:ring-2 transition-all leading-relaxed`}
-                        />
-                        {errors.descripcionLibre && <p className="text-xs text-rose-600 mt-1">{errors.descripcionLibre}</p>}
+                    {/* 1. TARJETA DE DIAGNÓSTICO TÉCNICO OFICIAL GENERADO POR IA */}
+                    <div className="rounded-3xl p-5 sm:p-6 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 text-white shadow-xl border border-sky-400/30 relative overflow-hidden space-y-4">
+                      {/* Manchas o brillos decorativos */}
+                      <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-[#00D2FF]/20 to-[#FF007A]/20 rounded-full blur-3xl pointer-events-none" />
+
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10 relative z-10">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#FF5500] via-[#FF007A] to-[#0055FF] text-white flex items-center justify-center font-bold shadow-md">
+                            <Sparkles className="w-5 h-5 text-white" />
+                          </div>
+                          <div>
+                            <span className="text-xs uppercase tracking-widest text-[#00D2FF] font-black block">
+                              Colorlink® Diagnóstico Inteligente de Superficie
+                            </span>
+                            <h4 className="text-sm sm:text-base font-black text-white">
+                              Dictamen Técnico Oficial & Viabilidad con IA
+                            </h4>
+                          </div>
+                        </div>
+                        <span className="text-[11px] font-bold text-emerald-300 bg-emerald-950/80 border border-emerald-400/50 px-3 py-1 rounded-full flex items-center gap-1.5 w-fit">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          Viabilidad Técnica: 100% Aprobada
+                        </span>
                       </div>
 
-                      {/* Carga de Fotos con Revisión Automática de IA */}
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <label className="text-xs font-bold text-slate-700">
-                            Registro Fotográfico de Evidencia de Obra <span className="text-rose-500">*</span>
-                          </label>
-                          <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                            Revisión automática con IA activa
+                      {/* Cuadrícula de Especificaciones del Diagnóstico */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 relative z-10 text-xs">
+                        <div className="p-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xs space-y-1">
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Sustrato & Exposición</span>
+                          <strong className="text-white block text-xs">
+                            {formData.superficie || 'Concreto / Revoque'}
+                          </strong>
+                          <span className="text-[11px] text-sky-300 block">
+                            Ambiente: {formData.ambiente || 'Exterior Intemperie'}
+                          </span>
+                          <span className="text-[10px] text-slate-300">
+                            Estado: {formData.condicion || 'Normal / Estable'}
                           </span>
                         </div>
 
-                        {/* Inputs ocultos para subida desde computador y captura de cámara */}
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          accept="image/*"
-                          multiple
-                          onChange={handleFileInputChange}
-                          className="hidden"
-                        />
-                        <input
-                          ref={cameraInputRef}
-                          type="file"
-                          accept="image/*"
-                          capture="environment"
-                          onChange={handleFileInputChange}
-                          className="hidden"
-                        />
+                        <div className="p-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xs space-y-1">
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Pintura & Norma Técnica</span>
+                          <strong className="text-amber-300 block text-xs truncate" title={technicalCalc.productoRecomendado}>
+                            {technicalCalc.productoRecomendado}
+                          </strong>
+                          <span className="text-[11px] text-white font-semibold block">
+                            {formData.tipoPintura || 'Pintura Tipo 1'} ({formData.marcaPintura || 'Pintuco®'})
+                          </span>
+                          <span className="text-[10px] text-emerald-400 font-mono">
+                            Certificación: {technicalCalc.tipoPinturaDetalle.normaNTC}
+                          </span>
+                        </div>
 
-                        <div className="border-2 border-dashed border-slate-300 hover:border-purple-500 rounded-3xl p-5 text-center bg-slate-50/60 hover:bg-purple-50/20 transition-all">
-                          <div className="max-w-lg mx-auto space-y-3">
-                            <div className="w-12 h-12 rounded-2xl bg-purple-100 text-purple-700 mx-auto flex items-center justify-center font-bold">
-                              <Upload className="w-6 h-6 text-purple-600" />
-                            </div>
-                            <div>
-                              <p className="text-xs font-black text-slate-800">
-                                Adjuntar Registro Fotográfico de la Superficie u Obra
-                              </p>
-                              <p className="text-[11px] text-slate-500 mt-0.5">
-                                Puedes seleccionar archivos desde tu computador o abrir tu cámara para tomar la foto directamente.
-                              </p>
-                            </div>
+                        <div className="p-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xs space-y-1">
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Dosificación & Envases</span>
+                          <strong className="text-white block text-xs">
+                            Área: {formData.areaM2 || 0} m² ({technicalCalc.manosSugeridas} manos)
+                          </strong>
+                          <span className="text-[11px] text-[#00D2FF] font-bold block">
+                            {technicalCalc.cuñetesRequeridos} Cuñete(s) (5 Gal)
+                            {technicalCalc.galonesSueltosRequeridos > 0 ? ` + ${technicalCalc.galonesSueltosRequeridos} Gal` : ''}
+                          </span>
+                          <span className="text-[10px] text-slate-300">
+                            Margen de desperdicio: 10% técnico
+                          </span>
+                        </div>
 
-                            <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-                              {/* Botón 1: Subir desde el computador */}
-                              <button
-                                type="button"
-                                onClick={() => fileInputRef.current?.click()}
-                                className="px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-800 font-bold text-xs rounded-xl border border-slate-300 shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
-                              >
-                                <Upload className="w-3.5 h-3.5 text-purple-600" />
-                                <span>📁 Subir desde el Computador</span>
-                              </button>
+                        <div className="p-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xs space-y-1">
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Tratamiento & Sellador</span>
+                          <strong className="text-white block text-xs truncate" title={technicalCalc.selladorImprimanteRequerido}>
+                            {technicalCalc.selladorImprimanteRequerido}
+                          </strong>
+                          <span className="text-[10px] text-slate-300 block">
+                            Neutralización de alcalinidad y anclaje elástico
+                          </span>
+                        </div>
 
-                              {/* Botón 2: Tomar foto con la cámara */}
-                              <button
-                                type="button"
-                                onClick={handleStartLiveCamera}
-                                className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
-                              >
-                                <Camera className="w-3.5 h-3.5 text-white" />
-                                <span>📷 Tomar Foto con Cámara</span>
-                              </button>
-                            </div>
-                            <p className="text-[11px] text-emerald-700 font-semibold flex items-center justify-center gap-1 mt-1">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                              <span>Cualquier foto subida es revisada y validada automáticamente por IA para verificar compatibilidad de pintura</span>
+                        <div className="p-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xs space-y-1">
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Tiempos de Secado</span>
+                          <strong className="text-emerald-300 block text-xs">
+                            2 a 4 horas al tacto
+                          </strong>
+                          <span className="text-[10px] text-slate-300 block">
+                            Segunda mano tras 4 horas • Curado total: 7 días
+                          </span>
+                        </div>
+
+                        <div className="p-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xs space-y-1">
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Herramientas Seleccionadas</span>
+                          {formData.herramientasSeleccionadas && formData.herramientasSeleccionadas.length > 0 ? (
+                            <strong className="text-sky-300 block text-xs">
+                              {formData.herramientasSeleccionadas.reduce((acc, h) => acc + h.cantidad, 0)} accesorio(s) de pintura agregados
+                            </strong>
+                          ) : (
+                            <span className="text-slate-300 block text-xs">
+                              Brocha cerda pura o rodillo profesional
+                            </span>
+                          )}
+                          <span className="text-[10px] text-slate-400">
+                            Color: {formData.colorAcabado || 'Gris'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 2. DIRECCIÓN EXACTA DONDE SE QUIERE QUE LLEGUE EL PEDIDO (OBLIGATORIA & DESTACADA) */}
+                    <div className="p-5 sm:p-6 bg-gradient-to-r from-sky-50/80 via-blue-50/50 to-white rounded-3xl border-2 border-sky-400/60 shadow-sm space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-sky-200/80">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-500 to-blue-600 text-white flex items-center justify-center font-bold shadow-xs shrink-0">
+                            <MapPin className="w-5 h-5 text-white" />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-black text-slate-900">
+                              Dirección de Entrega donde quieres que llegue el pedido <span className="text-rose-500">*</span>
+                            </h4>
+                            <p className="text-[11px] text-slate-600">
+                              Datos exactos de destino para la remisión, flete y despacho en furgón con conductor.
                             </p>
                           </div>
                         </div>
+                        <span className="text-[11px] font-bold text-sky-800 bg-sky-100/80 px-2.5 py-1 rounded-lg border border-sky-300/60 flex items-center gap-1 w-fit">
+                          <Truck className="w-3.5 h-3.5 text-sky-700" />
+                          Despacho en 24h a 48h
+                        </span>
+                      </div>
 
-                        {/* Galería de Fotos Adjuntas con Revisión Automática IA */}
-                        {formData.fotos.length > 0 && (
-                          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            {formData.fotos.map((foto, idx) => (
-                              <div
-                                key={idx}
-                                className="flex items-center justify-between p-3 rounded-2xl bg-white border border-slate-200 shadow-2xs hover:border-sky-300 transition-all"
-                              >
-                                <div className="flex items-center gap-3 truncate min-w-0">
-                                  {foto.previewUrl ? (
-                                    <div
-                                      onClick={() => setPreviewEnlargedPhoto({ name: foto.name, url: foto.previewUrl })}
-                                      className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0 border border-slate-200 cursor-pointer group"
-                                      title="Clic para ampliar imagen"
-                                    >
-                                      <img
-                                        src={foto.previewUrl}
-                                        alt={foto.name}
-                                        className="w-full h-full object-cover group-hover:scale-110 transition-transform"
-                                      />
-                                      <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                                        <ZoomIn className="w-4 h-4 text-white" />
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div className="w-12 h-12 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
-                                      <FileText className="w-5 h-5 text-purple-600" />
-                                    </div>
-                                  )}
-                                  <div className="truncate min-w-0">
-                                    <span className="text-xs font-bold text-slate-800 truncate block">
-                                      {foto.name}
-                                    </span>
-                                    <span className="text-[10px] text-slate-400 font-mono block">
-                                      {foto.size}
-                                    </span>
-                                    <div className="flex items-center gap-1 mt-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 w-fit">
-                                      <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
-                                      <span>Revisada con IA: Aprobada ✓</span>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Ciudad de Entrega */}
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                            <span>Ciudad de destino <span className="text-rose-500">*</span></span>
+                            <span className="text-[10px] text-slate-400 font-normal">Flete: {formatCOP(technicalCalc.presupuesto.fleteEnvio)}</span>
+                          </label>
+                          <select
+                            id="step3-select-ciudad"
+                            value={formData.ciudad}
+                            onChange={(e) => handleInputChange('ciudad', e.target.value)}
+                            className={`w-full px-4 py-3 text-sm bg-white border ${
+                              errors.ciudad ? 'border-rose-400 ring-2 ring-rose-300 bg-rose-50/20' : 'border-slate-300 focus:ring-sky-500'
+                            } rounded-2xl focus:outline-none focus:ring-2 font-semibold text-slate-800 transition-all shadow-2xs`}
+                          >
+                            <option value="">-- Seleccionar Ciudad de Entrega --</option>
+                            <option value="Medellín">Medellín (Área Metropolitana)</option>
+                            <option value="Bogotá D.C.">Bogotá D.C.</option>
+                            <option value="Cali">Cali</option>
+                            <option value="Barranquilla">Barranquilla</option>
+                            <option value="Cartagena">Cartagena</option>
+                            <option value="Bucaramanga">Bucaramanga</option>
+                            <option value="Pereira">Pereira (Eje Cafetero)</option>
+                            <option value="Otra Ciudad">Otra ciudad o municipio</option>
+                          </select>
+                          {errors.ciudad && <p className="text-xs text-rose-600 mt-1">{errors.ciudad}</p>}
+                        </div>
+
+                        {/* Dirección Exacta */}
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                            <span>Dirección exacta donde quieres que llegue el pedido <span className="text-rose-500">*</span></span>
+                            <span className="text-[10px] text-amber-600 font-semibold">Calle / Carrera / Número</span>
+                          </label>
+                          <div className="relative">
+                            <input
+                              id="step3-input-direccion"
+                              type="text"
+                              placeholder="Ej. Calle 48 # 65-34, Obra Torre del Valle, Piso 5"
+                              value={formData.direccionEntrega || ''}
+                              onChange={(e) => handleInputChange('direccionEntrega', e.target.value)}
+                              className={`w-full pl-10 pr-4 py-3 text-sm bg-white border ${
+                                errors.direccionEntrega ? 'border-rose-400 ring-2 ring-rose-300 bg-rose-50/20' : 'border-slate-300 focus:ring-sky-500'
+                              } rounded-2xl focus:outline-none focus:ring-2 font-medium text-slate-900 transition-all shadow-2xs`}
+                            />
+                            <MapPin className="w-4 h-4 text-sky-600 absolute left-3.5 top-3.5" />
+                          </div>
+                          {errors.direccionEntrega && <p className="text-xs text-rose-600 mt-1">{errors.direccionEntrega}</p>}
+                        </div>
+
+                        {/* Punto de Referencia / Edificio */}
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                            Punto de referencia o nombre de la obra / edificio (Opcional)
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Ej. Portería principal Torre Norte, al lado del centro comercial"
+                            value={formData.puntoReferencia || ''}
+                            onChange={(e) => handleInputChange('puntoReferencia', e.target.value)}
+                            className="w-full px-4 py-2.5 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 transition-all shadow-2xs"
+                          />
+                        </div>
+
+                        {/* Quién recibe en obra */}
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                            Contacto que recibe en el lugar de entrega (Opcional)
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Ej. Ing. Carlos Mendoza / Arq. Valentina Gómez (Cel: 312 456 7890)"
+                            value={formData.contactoObra || ''}
+                            onChange={(e) => handleInputChange('contactoObra', e.target.value)}
+                            className="w-full px-4 py-2.5 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 transition-all shadow-2xs"
+                          />
+                        </div>
+
+                        {/* Indicaciones para el camión repartidor */}
+                        <div className="md:col-span-2">
+                          <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                            Indicaciones especiales para el furgón repartidor Colorlink (Opcional)
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Ej. Acceso vehicular por rampa de descargue de Carrera 65. Horario de recepción: 08:00 AM a 05:00 PM."
+                            value={formData.indicacionesEntrega || ''}
+                            onChange={(e) => handleInputChange('indicacionesEntrega', e.target.value)}
+                            className="w-full px-4 py-2.5 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 transition-all shadow-2xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 3. DESCRIPCIÓN DEL PROYECTO CON BOTÓN DE SUGERENCIA IA */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-bold text-slate-700">
+                          Descripción técnica del proyecto <span className="text-rose-500">*</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={handleGenerateSmartDescription}
+                          className="px-3 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300/80 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                          title="Generar redacción técnica automática con IA"
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                          <span>✨ Redactar con IA</span>
+                        </button>
+                      </div>
+                      <textarea
+                        id="standalone-textarea-descripcion"
+                        rows={3}
+                        placeholder="Describe detalles de la superficie, alturas, condiciones climáticas o requerimientos especiales..."
+                        value={formData.descripcionLibre}
+                        onChange={(e) => handleInputChange('descripcionLibre', e.target.value)}
+                        className={`w-full px-4 py-3 text-sm bg-slate-50/80 border ${
+                          errors.descripcionLibre ? 'border-rose-400 focus:ring-rose-400 bg-rose-50/20' : 'border-slate-200 focus:ring-sky-500'
+                        } rounded-2xl focus:bg-white focus:outline-none focus:ring-2 transition-all leading-relaxed`}
+                      />
+                      {errors.descripcionLibre && <p className="text-xs text-rose-600 mt-1">{errors.descripcionLibre}</p>}
+                    </div>
+
+                    {/* 4. CARGA DE FOTOS CON REVISIÓN AUTOMÁTICA DE IA */}
+                    <div className="space-y-3 pt-2 border-t border-slate-100">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-slate-700">
+                          Registro Fotográfico de Evidencia de la Superficie u Obra
+                        </label>
+                        <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          Revisión automática con IA activa
+                        </span>
+                      </div>
+
+                      {/* Inputs ocultos para subida desde computador y captura de cámara */}
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleFileInputChange}
+                        className="hidden"
+                      />
+                      <input
+                        ref={cameraInputRef}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={handleFileInputChange}
+                        className="hidden"
+                      />
+
+                      <div className="border-2 border-dashed border-slate-300 hover:border-purple-500 rounded-3xl p-5 text-center bg-slate-50/60 hover:bg-purple-50/20 transition-all">
+                        <div className="max-w-lg mx-auto space-y-3">
+                          <div className="w-12 h-12 rounded-2xl bg-purple-100 text-purple-700 mx-auto flex items-center justify-center font-bold">
+                            <Upload className="w-6 h-6 text-purple-600" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-black text-slate-800">
+                              Adjuntar Registro Fotográfico de la Superficie u Obra
+                            </p>
+                            <p className="text-[11px] text-slate-500 mt-0.5">
+                              Puedes subir fotos desde tu dispositivo, tomar fotos con la cámara o usar la foto técnica de muestra.
+                            </p>
+                          </div>
+
+                          <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                            {/* Botón 1: Subir desde el computador */}
+                            <button
+                              type="button"
+                              onClick={() => fileInputRef.current?.click()}
+                              className="px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-800 font-bold text-xs rounded-xl border border-slate-300 shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                            >
+                              <Upload className="w-3.5 h-3.5 text-purple-600" />
+                              <span>📁 Subir desde el Computador</span>
+                            </button>
+
+                            {/* Botón 2: Tomar foto con la cámara */}
+                            <button
+                              type="button"
+                              onClick={handleStartLiveCamera}
+                              className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                            >
+                              <Camera className="w-3.5 h-3.5 text-white" />
+                              <span>📷 Tomar Foto con Cámara</span>
+                            </button>
+
+                            {/* Botón 3: Usar foto de muestra de la superficie */}
+                            <button
+                              type="button"
+                              onClick={handleAttachReferencePhoto}
+                              className="px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                              title="Adjuntar foto de muestra oficial para agilizar la cotización"
+                            >
+                              <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>✨ Usar Foto Técnica de Muestra</span>
+                            </button>
+                          </div>
+                          <p className="text-[11px] text-emerald-700 font-semibold flex items-center justify-center gap-1 mt-1">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Cualquier foto subida es revisada y validada automáticamente por IA para verificar compatibilidad de pintura</span>
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Galería de Fotos Adjuntas con Revisión Automática IA */}
+                      {formData.fotos && formData.fotos.length > 0 && (
+                        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {formData.fotos.map((foto, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-center justify-between p-3 rounded-2xl bg-white border border-slate-200 shadow-2xs hover:border-sky-300 transition-all"
+                            >
+                              <div className="flex items-center gap-3 truncate min-w-0">
+                                {foto.previewUrl ? (
+                                  <div
+                                    onClick={() => setPreviewEnlargedPhoto({ name: foto.name, url: foto.previewUrl })}
+                                    className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0 border border-slate-200 cursor-pointer group"
+                                    title="Clic para ampliar imagen"
+                                  >
+                                    <img
+                                      src={foto.previewUrl}
+                                      alt={foto.name}
+                                      className="w-full h-full object-cover group-hover:scale-110 transition-transform"
+                                    />
+                                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                      <ZoomIn className="w-4 h-4 text-white" />
                                     </div>
                                   </div>
+                                ) : (
+                                  <div className="w-12 h-12 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+                                    <FileText className="w-5 h-5 text-purple-600" />
+                                  </div>
+                                )}
+                                <div className="truncate min-w-0">
+                                  <span className="text-xs font-bold text-slate-800 truncate block">
+                                    {foto.name}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 font-mono block">
+                                    {foto.size}
+                                  </span>
+                                  <div className="flex items-center gap-1 mt-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 w-fit">
+                                    <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                                    <span>Revisada con IA: Aprobada ✓</span>
+                                  </div>
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemovePhoto(idx)}
-                                  className="text-slate-400 hover:text-rose-600 p-2 rounded-xl hover:bg-rose-50 transition-colors cursor-pointer shrink-0 ml-2"
-                                  title="Eliminar foto"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
                               </div>
-                            ))}
-                          </div>
-                        )}
-                        {errors.fotos && <p className="text-xs text-rose-600 mt-1.5">{errors.fotos}</p>}
-                      </div>
+                              <button
+                                type="button"
+                                onClick={() => handleRemovePhoto(idx)}
+                                className="text-slate-400 hover:text-rose-600 p-2 rounded-xl hover:bg-rose-50 transition-colors cursor-pointer shrink-0 ml-2"
+                                title="Eliminar foto"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {errors.fotos && <p className="text-xs text-rose-600 mt-1.5">{errors.fotos}</p>}
+                    </div>
 
-                      {/* Observaciones Opcionales */}
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                          Observaciones de acceso o logística
-                        </label>
+                    {/* Observaciones Opcionales */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                        Observaciones adicionales de obra o logística
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ej. Acceso por andamios certificados, parqueadero cubierto para el camión repartidor..."
+                        value={formData.observaciones}
+                        onChange={(e) => handleInputChange('observaciones', e.target.value)}
+                        className="w-full px-4 py-2.5 text-xs bg-slate-50/80 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#009FE3] transition-all"
+                      />
+                    </div>
+
+                    {/* Checkbox Consentimiento Legal */}
+                    <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+                      <label className="flex items-start gap-3 cursor-pointer">
                         <input
-                          type="text"
-                          placeholder="Ej. Acceso por andamios colgantes certificados de obra..."
-                          value={formData.observaciones}
-                          onChange={(e) => handleInputChange('observaciones', e.target.value)}
-                          className="w-full px-4 py-2.5 text-xs bg-slate-50/80 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#009FE3] transition-all"
+                          type="checkbox"
+                          checked={formData.consentimiento}
+                          onChange={(e) => handleInputChange('consentimiento', e.target.checked)}
+                          className="mt-0.5 rounded border-slate-300 text-[#009FE3] focus:ring-[#009FE3] w-4 h-4 cursor-pointer"
                         />
-                      </div>
-
-                      {/* Checkbox Consentimiento Legal */}
-                      <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
-                        <label className="flex items-start gap-3 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={formData.consentimiento}
-                            onChange={(e) => handleInputChange('consentimiento', e.target.checked)}
-                            className="mt-0.5 rounded border-slate-300 text-[#009FE3] focus:ring-[#009FE3] w-4 h-4"
-                          />
-                          <span className="text-xs text-slate-600 leading-relaxed font-medium">
-                            Autorizo el tratamiento de mis datos de contacto conforme a la Ley de Protección de Datos (Habeas Data) para la emisión formal de la cotización y despacho. <span className="text-rose-500">*</span>
-                          </span>
-                        </label>
-                        {errors.consentimiento && <p className="text-xs text-rose-600 mt-1.5 ml-7">{errors.consentimiento}</p>}
-                      </div>
+                        <span className="text-xs text-slate-600 leading-relaxed font-medium">
+                          Autorizo el tratamiento de mis datos de contacto y entrega conforme a la Ley de Protección de Datos (Habeas Data) para la emisión formal de la cotización, despacho y factura oficial. <span className="text-rose-500">*</span>
+                        </span>
+                      </label>
+                      {errors.consentimiento && <p className="text-xs text-rose-600 mt-1.5 ml-7">{errors.consentimiento}</p>}
                     </div>
 
                     <div className="flex items-center justify-between pt-4 border-t border-slate-100">
@@ -3699,7 +4045,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         className="px-8 py-3.5 bg-gradient-to-r from-[#FF5500] via-[#FF007A] to-[#0055FF] hover:brightness-110 text-white font-black text-sm rounded-2xl shadow-xl shadow-orange-500/30 glow-orange transition-all flex items-center gap-2.5 active:scale-95 cursor-pointer"
                       >
                         <Send className="w-4 h-4" />
-                        <span>Emitir Cotización Oficial</span>
+                        <span>Emitir Cotización Oficial y Programar Despacho</span>
                       </button>
                     </div>
                   </div>

@@ -208,14 +208,14 @@ export function ClientEmailPreviewModal({
 
           {/* BOTÓN CON DEGRADADO VIBRANTE */}
           <div className="text-center pt-1">
-            <a
-              href={`https://wa.me/573212460658?text=Hola%20Colorlink,%20acabo%20de%20revisar%20mi%20cotizaci%C3%B3n%20${orderNumber}%20para%20${encodeURIComponent(formData.cliente)}`}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={onDownloadPDF}
               className="inline-flex items-center justify-center gap-2 px-8 py-3.5 bg-gradient-to-r from-[#FF5500] via-[#FF7700] to-[#FF007A] hover:brightness-110 text-white font-black text-xs uppercase tracking-wider rounded-full shadow-lg shadow-orange-500/25 transition-all cursor-pointer"
             >
-              <span>Confirmar Despacho por WhatsApp 🚚</span>
-            </a>
+              <Download className="w-4 h-4 text-white" />
+              <span>Descargar Cotización & Hoja de Despacho en PDF 🚚</span>
+            </button>
           </div>
 
 

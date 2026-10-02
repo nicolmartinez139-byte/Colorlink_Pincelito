@@ -555,6 +555,24 @@ export function calculateTechnicalRequirements(formData: Partial<ProjectFormData
     });
   }
 
+  // 5. Herramientas y Accesorios de Pintura (Brochas, Rodillos, Cinta, etc.)
+  if (formData.herramientasSeleccionadas && formData.herramientasSeleccionadas.length > 0) {
+    formData.herramientasSeleccionadas.forEach((herramienta) => {
+      if (herramienta && herramienta.cantidad > 0) {
+        const catName = (herramienta.categoria || 'Herramienta').toString().toUpperCase();
+        items.push({
+          id: `tool-${herramienta.id || Math.random().toString(36).substring(2, 7)}`,
+          name: herramienta.nombre || 'Herramienta de Pintura',
+          presentation: `${herramienta.cantidad} ${herramienta.unidad || 'Unidad(es)'}`,
+          quantity: herramienta.cantidad,
+          unitPrice: herramienta.precioCOP || 0,
+          totalPrice: (herramienta.cantidad || 1) * (herramienta.precioCOP || 0),
+          description: `Herramienta profesional de aplicación (${catName}) • SKU: ${herramienta.sku || 'HERR-CLK'}`
+        });
+      }
+    });
+  }
+
   // Subtotal de materiales
   const subtotalMateriales = items.reduce((acc, it) => acc + it.totalPrice, 0);
 

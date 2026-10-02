@@ -115,7 +115,7 @@ export function generateWelcomeEmailHtml(params: {
                         <td style="font-weight: 700; color: #0f172a; text-align: right; font-family: monospace;">${nit}</td>
                       </tr>
                       <tr>
-                        <td style="color: #64748b; padding: 3px 0;">Teléfono WhatsApp:</td>
+                        <td style="color: #64748b; padding: 3px 0;">Teléfono de Contacto:</td>
                         <td style="font-weight: 700; color: #0f172a; text-align: right;">${tel}</td>
                       </tr>
                       <tr>
@@ -150,8 +150,8 @@ export function generateWelcomeEmailHtml(params: {
           <tr>
             <td align="center" style="background-color: #0f172a; color: #94a3b8; padding: 22px; font-size: 11px; line-height: 1.6; text-align: center;">
               <p style="margin: 0 0 4px; font-weight: 800; color: #ffffff;">COLORLINK® PINTURAS S.A.S. • NIT 900.854.219-1</p>
-              <p style="margin: 0 0 6px;">PBX: +57 (604) 448-0000 • WhatsApp: +57 321 246 0658</p>
-              <p style="margin: 0; font-size: 10px; color: #64748b;">Notificación automática de confirmación de registro de cuenta.</p>
+              <p style="margin: 0 0 6px;">PBX: +57 (604) 448-0000 • Línea Constructoras Medellín</p>
+              <p style="margin: 0; font-size: 10px; color: #64748b;">Notificación automática de registro de cuenta.</p>
             </td>
           </tr>
         </table>
@@ -225,6 +225,9 @@ export async function sendConfirmationEmail(
     order_id: orderNumber,
     orderId: orderNumber,
     ciudad: formData.ciudad,
+    direccion_entrega: formData.direccionEntrega || '',
+    direccion: formData.direccionEntrega || '',
+    punto_referencia: formData.puntoReferencia || '',
     tipo_obra: formData.tipoObra,
     superficie: formData.superficie,
     ambiente: formData.ambiente,
@@ -403,6 +406,10 @@ export async function sendOrderStatusUpdateEmail(params: {
     return { success: false, message: 'Correo de destino inválido' };
   }
 
+  const appOrigin = typeof window !== 'undefined' && window.location?.origin
+    ? window.location.origin
+    : 'https://ais-pre-tcjxjdywjtv5zjljxt2lry-427167179027.us-east5.run.app';
+
   const subject = `🎨 COLORLINK® • Actualización de Pedido #${params.orderId}: ${params.statusLabel}`;
 
   const htmlBody = `
@@ -449,8 +456,8 @@ export async function sendOrderStatusUpdateEmail(params: {
                   <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin:16px 0;">
                     <tr>
                       <td align="center">
-                        <a href="https://wa.me/573212460658?text=Hola%20Colorlink,%20consulto%20por%20mi%20pedido%20${params.orderId}" target="_blank" style="display:inline-block;background:linear-gradient(135deg,#FF5500 0%,#FF007A 100%);color:#ffffff;text-decoration:none;font-size:13px;font-weight:800;padding:12px 28px;border-radius:24px;">
-                          Consultar por WhatsApp 💬
+                        <a href="${appOrigin}" target="_blank" style="display:inline-block;background:linear-gradient(135deg,#FF5500 0%,#FF007A 100%);color:#ffffff;text-decoration:none;font-size:13px;font-weight:800;padding:12px 28px;border-radius:24px;">
+                          Consultar Estado en Portal de Clientes 🎨
                         </a>
                       </td>
                     </tr>

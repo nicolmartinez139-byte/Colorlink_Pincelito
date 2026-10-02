@@ -257,19 +257,8 @@ export async function sendRealOrderEmail(params: SendEmailParams): Promise<Email
                 </tr>
               </table>
 
-              <!-- BOTÓN DE ACCIÓN LLAMATIVO CON DEGRADADO VIBRANTE -->
-              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 22px;">
-                <tr>
-                  <td align="center">
-                    <a href="https://wa.me/573212460658?text=Hola%20Colorlink,%20acabo%20de%20recibir%20mi%20cotizaci%C3%B3n%20${orderId}%20para%20${encodeURIComponent(formData.cliente)}" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #FF5500 0%, #FF7700 40%, #FF007A 100%); color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 900; padding: 16px 36px; border-radius: 30px; letter-spacing: 0.5px; box-shadow: 0 6px 20px rgba(255, 85, 0, 0.4); text-transform: uppercase;">
-                      Confirmar Despacho por WhatsApp 🚚
-                    </a>
-                  </td>
-                </tr>
-              </table>
-
               <!-- SEGUIMIENTO DE DESPACHO CON LA FLOTA -->
-              <div style="background-color: #f8fafc; border-left: 4px solid #10E57A; padding: 14px 16px; border-radius: 0 12px 12px 0; font-size: 12px; color: #334155; line-height: 1.6;">
+              <div style="background-color: #f8fafc; border-left: 4px solid #10E57A; padding: 14px 16px; border-radius: 0 12px 12px 0; font-size: 12px; color: #334155; line-height: 1.6; margin-bottom: 22px;">
                 🚚 <strong>Despacho en Flota Oficial:</strong> Tu pedido ha sido asignado a nuestra flota de furgones urbanos con entrega en 24 a 48 horas. Nuestro asistente <strong>Pincelito 🐧</strong> y la asesora técnica Arq. Sofía Martínez coordinarán la hora exacta de arribo con el transportador.
               </div>
 
@@ -286,7 +275,7 @@ export async function sendRealOrderEmail(params: SendEmailParams): Promise<Email
                 Planta Central & CEDI: Parque Industrial Itagüí, Antioquia • Cobertura Nacional
               </p>
               <p style="margin: 0 0 10px;">
-                PBX: +57 (604) 448-0000 • WhatsApp Oficial: +57 321 246 0658 • <a href="mailto:notificaciones@colorlink.com.co" style="color: #009FE3; text-decoration: none; font-weight: 700;">notificaciones@colorlink.com.co</a>
+                PBX: +57 (604) 448-0000 • Línea Atención Medellín • <a href="mailto:notificaciones@colorlink.com.co" style="color: #009FE3; text-decoration: none; font-weight: 700;">notificaciones@colorlink.com.co</a>
               </p>
               <p style="margin: 0; font-size: 10px; color: #64748b;">
                 Documento emitido electrónicamente con validez tributaria y certificación NTC 1335 y NTC 5828.

@@ -224,14 +224,17 @@ export function createColorlinkPDFDoc(formData: ProjectFormData, technicalCalc: 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7);
   doc.setTextColor(148, 163, 184);
-  doc.text('CIUDAD DE DESTINO & LOGÍSTICA', margin + 3, currentY + 4.5);
-  doc.setFontSize(9);
+  doc.text('CIUDAD DE DESTINO & ENTREGA', margin + 3, currentY + 4.5);
+  doc.setFontSize(8.5);
   doc.setTextColor(15, 23, 42);
-  doc.text(formData.ciudad || 'Colombia', margin + 3, currentY + 9.5);
+  const destinoText = formData.direccionEntrega 
+    ? `${formData.ciudad || 'Medellín'}: ${formData.direccionEntrega}`.slice(0, 38)
+    : (formData.ciudad || 'Colombia');
+  doc.text(destinoText, margin + 3, currentY + 9.5);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(4, 120, 87); // emerald-700
-  doc.text(`Plazo Estimado: ${technicalCalc.presupuesto.tiempoEntregaDias}`, margin + 3, currentY + 13.5);
+  doc.text(`Despacho: ${technicalCalc.presupuesto.tiempoEntregaDias}`, margin + 3, currentY + 13.5);
 
   // Box 4: Especificación de Obra
   doc.setFillColor(248, 250, 252);
