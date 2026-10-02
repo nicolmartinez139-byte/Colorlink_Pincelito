@@ -221,22 +221,7 @@ export function ColorlinkLoginLanding({
         createdAt: newClient.created_at || new Date().toISOString()
       };
 
-      // Disparo automático de WhatsApp en segundo plano si hay teléfono registrado
-      if (whatsappLink && regTelefono) {
-        try {
-          const directLink = document.createElement('a');
-          directLink.href = whatsappLink;
-          directLink.target = '_blank';
-          directLink.rel = 'noopener noreferrer';
-          document.body.appendChild(directLink);
-          directLink.click();
-          document.body.removeChild(directLink);
-        } catch (autoSendErr) {
-          console.log('[WhatsApp Auto Trigger]', autoSendErr);
-        }
-      }
-
-      // Ingreso directo e inmediato al cotizador sin pantallas intermedias ni opciones manuales
+      // Ingreso directo e inmediato al cotizador sin pantallas intermedias ni interrupciones
       onLoginSuccess(userProfile, false);
     } catch (err: any) {
       console.error('[Registro Error]', err);

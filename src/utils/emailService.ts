@@ -38,12 +38,17 @@ export function generateWelcomeEmailHtml(params: {
   nit: string;
   telefono?: string;
   email: string;
+  appUrl?: string;
 }): string {
   const nombre = params.nombre || 'Cliente';
   const empresa = params.empresa || 'Empresa';
   const nit = params.nit || 'No especificado';
   const tel = params.telefono || 'No registrado';
   const email = params.email;
+  const targetUrl = params.appUrl ||
+    (typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : 'https://ais-pre-tcjxjdywjtv5zjljxt2lry-427167179027.us-east5.run.app');
 
   return `
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
@@ -133,7 +138,7 @@ export function generateWelcomeEmailHtml(params: {
               <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 20px;">
                 <tr>
                   <td align="center">
-                    <a href="https://colorlink.com.co" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #FF5500 0%, #FF007A 100%); color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 900; padding: 16px 38px; border-radius: 30px; letter-spacing: 0.5px; box-shadow: 0 8px 24px rgba(255, 85, 0, 0.4); text-transform: uppercase;">
+                    <a href="${targetUrl}" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #FF5500 0%, #FF007A 100%); color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 900; padding: 16px 38px; border-radius: 30px; letter-spacing: 0.5px; box-shadow: 0 8px 24px rgba(255, 85, 0, 0.4); text-transform: uppercase;">
                       Comenzar a Cotizar Ahora 🎨
                     </a>
                   </td>
@@ -268,12 +273,17 @@ export async function sendRegistrationWelcomeEmail(params: {
   const nitDocumento = params.nit?.trim() || 'No especificado';
   const telefonoContacto = params.telefono?.trim() || 'No registrado';
 
+  const appOrigin = typeof window !== 'undefined' && window.location?.origin
+    ? window.location.origin
+    : 'https://ais-pre-tcjxjdywjtv5zjljxt2lry-427167179027.us-east5.run.app';
+
   const welcomeHtml = generateWelcomeEmailHtml({
     nombre: nombreCliente,
     empresa: nombreEmpresa,
     nit: nitDocumento,
     telefono: telefonoContacto,
-    email: recipientEmail
+    email: recipientEmail,
+    appUrl: appOrigin
   });
 
   const subject = `¡Bienvenido a Colorlink® Pinturas! Registro Exitoso (${nombreEmpresa})`;
@@ -350,6 +360,10 @@ export async function sendRegistrationWelcomeEmail(params: {
         flete: 'Despacho con Flota Colorlink',
         iva: '19% en pedidos oficiales',
         status_message: '✓ Cuenta de Cliente Registrada & Verificada',
+        app_url: appOrigin,
+        cotizar_url: appOrigin,
+        link: appOrigin,
+        url: appOrigin,
         message: `¡Bienvenido a Colorlink Pinturas! Hola ${nombreCliente}, tu registro para la empresa ${nombreEmpresa} (NIT: ${nitDocumento}) ha sido completado exitosamente. Tu cuenta está activa para liquidar requerimientos en obra y emitir cotizaciones oficiales.`,
         html: welcomeHtml,
         html_content: welcomeHtml,
