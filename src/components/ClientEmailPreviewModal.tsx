@@ -98,7 +98,7 @@ export function ClientEmailPreviewModal({
         <div className="bg-slate-50 p-4 border-b border-slate-200 text-xs text-slate-600 space-y-1.5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
             <span className="font-bold text-slate-800">
-              Asunto: <span className="font-semibold text-blue-700">Cotización Aceptada #{orderNumber} • Confirmación de Registro, Recibo Oficial y Logística de Despacho</span>
+              Asunto: <span className="font-semibold text-blue-700">🎨 COLORLINK® • Cotización Oficial & Estado de tu Pedido #{orderNumber}</span>
             </span>
             <span className="text-[11px] text-slate-500 shrink-0">{decisionTimestamp || 'Hace un momento'}</span>
           </div>
@@ -112,87 +112,112 @@ export function ClientEmailPreviewModal({
           </div>
         </div>
 
-        {/* Cuerpo del Correo */}
-        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6 text-slate-800 text-xs sm:text-sm">
-          {/* Saludo y Confirmación de Cuenta */}
-          <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50/60 border border-blue-200 space-y-2">
-            <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <span>¡Hola, {formData.responsable || formData.cliente}! Tu cuenta ha sido creada exitosamente</span>
+        {/* Cuerpo del Correo - Plantilla Colorida Profesional */}
+        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5 text-slate-800 text-xs sm:text-sm">
+          {/* ENCABEZADO VIBRANTE DE MARCA */}
+          <div className="rounded-2xl p-6 bg-gradient-to-r from-[#003882] via-[#009FE3] to-[#FF6A00] text-white text-center shadow-lg relative overflow-hidden">
+            <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/30 mb-3">
+              <span className="text-xl">🐧🎨</span>
+              <span className="font-black text-sm tracking-wider">COLORLINK®</span>
+              <span className="text-[10px] font-black bg-white text-[#003882] px-2 py-0.5 rounded-full">PINTURAS</span>
             </div>
-            <p className="text-xs text-slate-700 leading-relaxed">
-              Te confirmamos que tu registro en el sistema <strong>Colorlink de Pintuco</strong> se completó con éxito para la empresa <strong>{formData.cliente}</strong> (NIT o documento: <strong>{formData.nitDocumento}</strong>).
+            <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+              COTIZACIÓN OFICIAL APROBADA
+            </h2>
+            <p className="text-xs sm:text-sm text-sky-100 mt-1 font-medium">
+              Especificación Técnica & Despacho a Obra #{orderNumber}
             </p>
-            <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px] text-slate-700 font-medium">
-              <span className="bg-white px-2.5 py-1 rounded-lg border border-blue-200 flex items-center gap-1.5">
-                <Mail className="w-3.5 h-3.5 text-blue-600" /> Usuario: <strong>{formData.emailResponsable}</strong>
-              </span>
-              <span className="bg-white px-2.5 py-1 rounded-lg border border-blue-200 flex items-center gap-1.5">
-                <Lock className="w-3.5 h-3.5 text-blue-600" /> Contraseña: <strong>•••••••• (Registrada)</strong>
-              </span>
+            <div className="inline-block mt-3 px-3.5 py-1 rounded-full text-xs font-black bg-emerald-400 text-slate-950 uppercase tracking-wider shadow-md">
+              ✓ Cotización Confirmada & Registrada
             </div>
           </div>
 
-          {/* Adjunto del Recibo Oficial */}
-          <div className="p-4 rounded-2xl bg-blue-50/70 border border-blue-200 space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-white border border-blue-200 p-0.5 flex items-center justify-center shrink-0 shadow-2xs overflow-hidden">
-                  <ColorlinkPenguin size="sm" className="w-full h-full" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold text-slate-900 block">
-                      Recibo Oficial de Cotización #{orderNumber}.pdf
-                    </span>
-                    <span className="text-[10px] font-bold bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">
-                      Colorlink®
-                    </span>
-                  </div>
-                  <span className="text-[11px] text-blue-800">
-                    Documento comercial con validez tributaria y certificación oficial
-                  </span>
-                </div>
-              </div>
+          {/* Saludo al cliente */}
+          <div className="p-4 rounded-2xl bg-sky-50/70 border border-sky-200 text-xs sm:text-sm text-slate-700 leading-relaxed">
+            <p className="mb-2">
+              Hola <strong className="text-slate-900 font-bold">{formData.responsable || formData.cliente}</strong>,
+            </p>
+            <p>
+              Te confirmamos la liquidación de la cotización oficial para tu proyecto en <strong className="text-[#009FE3] font-bold">{formData.cliente}</strong> (NIT: <span className="font-mono">{formData.nitDocumento}</span>) con destino en <strong className="text-slate-900">{formData.ciudad}</strong>.
+            </p>
+          </div>
 
-              <button
-                type="button"
-                onClick={onDownloadPDF}
-                className="px-4 py-2 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>Descargar Recibo PDF</span>
-              </button>
+          {/* TABLA DE ESPECIFICACIÓN Y DOSIFICACIÓN CON FILAS ALTERNAS SUAVES */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black uppercase text-slate-900 tracking-wide flex items-center gap-1.5">
+                <Package className="w-4 h-4 text-[#009FE3]" />
+                Dosificación de Materiales Fabricados
+              </span>
+              <span className="text-[10px] font-bold text-slate-500">Norma NTC 1335</span>
             </div>
 
-            {/* Fila Técnica de Manos y Desperdicio en el Correo */}
-            <div className="pt-2 border-t border-blue-200/80 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-800">
-              <div className="bg-white/90 p-2.5 rounded-xl border border-blue-200">
-                <span className="text-[10px] text-blue-800 font-bold block flex items-center gap-1">
-                  <Layers className="w-3 h-3 text-blue-700" /> Número de Manos:
-                </span>
-                <strong className="text-xs">{technicalCalc.manosSugeridas} manos de Pintura {formData.tipoPintura || 'Tipo 1'}</strong>
-                <p className="text-[10px] text-slate-600 mt-0.5">{technicalCalc.explicacionManos}</p>
-              </div>
-
-              <div className="bg-white/90 p-2.5 rounded-xl border border-blue-200">
-                <span className="text-[10px] text-blue-800 font-bold block flex items-center gap-1">
-                  <Sparkles className="w-3 h-3 text-amber-600" /> Factor de Desperdicio Técnico:
-                </span>
-                <strong className="text-xs">+{technicalCalc.factorDesperdicioPorcentaje}% (+{technicalCalc.galonesDesperdicio} galones)</strong>
-                <p className="text-[10px] text-slate-600 mt-0.5">
-                  Base neta: {technicalCalc.galonesNetosSinDesperdicio} gal ➔ Total despachado: {technicalCalc.galonesRequeridos} gal.
-                </p>
-              </div>
+            <div className="overflow-x-auto rounded-2xl border border-slate-200">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-gradient-to-r from-[#009FE3] to-[#003882] text-white">
+                    <th className="py-2.5 px-3 font-bold">Presentación</th>
+                    <th className="py-2.5 px-3 font-bold text-center">Cantidad</th>
+                    <th className="py-2.5 px-3 font-bold">Uso Técnico Certificado</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  <tr className="bg-white">
+                    <td className="py-2.5 px-3 font-bold text-slate-900">Cuñetes (5 Galones)</td>
+                    <td className="py-2.5 px-3 font-black text-center text-[#FF6A00] text-sm">{technicalCalc.cuñetesRequeridos}</td>
+                    <td className="py-2.5 px-3 text-slate-600">Área general ({formData.areaM2} m²) a {technicalCalc.manosSugeridas} manos</td>
+                  </tr>
+                  <tr className="bg-slate-50/80">
+                    <td className="py-2.5 px-3 font-bold text-slate-900">Galones Sueltos</td>
+                    <td className="py-2.5 px-3 font-black text-center text-[#009FE3] text-sm">{technicalCalc.galonesSueltosRequeridos}</td>
+                    <td className="py-2.5 px-3 text-slate-600">Ajuste técnico con {technicalCalc.factorDesperdicioPorcentaje}% de desperdicio</td>
+                  </tr>
+                  <tr className="bg-white">
+                    <td className="py-2.5 px-3 font-bold text-slate-900">{formData.tipoPintura || 'Pintura Tipo 1'}</td>
+                    <td className="py-2.5 px-3 font-black text-center text-emerald-600 text-sm">Acabado</td>
+                    <td className="py-2.5 px-3 text-slate-600">Color: {formData.colorAcabado || 'Gris'} • Sustrato: {formData.superficie}</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
+          </div>
 
-            <div className="text-right pt-1">
-              <span className="text-xs text-slate-700 font-medium">Total liquidado a pagar: </span>
-              <strong className="text-sm font-black bg-gradient-to-r from-sky-600 to-blue-700 bg-clip-text text-transparent font-mono">
+          {/* RESUMEN ECONÓMICO RESALTADO EN COLOR VIVO */}
+          <div className="p-5 rounded-2xl bg-gradient-to-br from-[#003882] to-[#009FE3] text-white shadow-lg space-y-2">
+            <div className="flex justify-between text-xs text-sky-100">
+              <span>Subtotal Materiales:</span>
+              <span className="font-mono font-bold text-white">{formatCOP(presupuesto.subtotalMateriales)} COP</span>
+            </div>
+            <div className="flex justify-between text-xs text-sky-100">
+              <span>Flete Asegurado ({formData.ciudad}):</span>
+              <span className="font-mono font-bold text-[#FFD000]">
+                {presupuesto.fleteEnvio === 0 ? 'GRATIS' : `${formatCOP(presupuesto.fleteEnvio)} COP`}
+              </span>
+            </div>
+            <div className="flex justify-between text-xs text-sky-100">
+              <span>IVA (19% Legal):</span>
+              <span className="font-mono font-bold text-white">{formatCOP(presupuesto.ivaValor)} COP</span>
+            </div>
+            <div className="pt-2 border-t border-white/20 flex items-center justify-between">
+              <span className="font-black text-sm uppercase tracking-wider text-white">TOTAL OFICIAL (COP):</span>
+              <span className="text-xl sm:text-2xl font-black text-[#FFD000] font-mono drop-shadow-sm">
                 {formatCOP(presupuesto.totalPresupuesto)} COP
-              </strong>
+              </span>
             </div>
           </div>
+
+          {/* BOTÓN CON DEGRADADO VIBRANTE */}
+          <div className="text-center pt-1">
+            <a
+              href={`https://wa.me/573212460658?text=Hola%20Colorlink,%20acabo%20de%20revisar%20mi%20cotizaci%C3%B3n%20${orderNumber}%20para%20${encodeURIComponent(formData.cliente)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 px-8 py-3.5 bg-gradient-to-r from-[#FF6A00] to-[#E5007D] hover:brightness-110 text-white font-black text-xs uppercase tracking-wider rounded-full shadow-lg shadow-orange-500/25 transition-all cursor-pointer"
+            >
+              <span>Confirmar Despacho por WhatsApp 🚚</span>
+            </a>
+          </div>
+
 
           {/* En qué Bus / Furgón va, cuándo llega y a qué hora aproximada */}
           <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-blue-50/80 via-indigo-50/50 to-slate-50 border border-blue-200/90 space-y-3.5 shadow-2xs">

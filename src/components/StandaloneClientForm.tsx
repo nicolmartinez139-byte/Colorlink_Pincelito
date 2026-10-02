@@ -68,7 +68,8 @@ import {
 } from 'lucide-react';
 import { ClientEmailPreviewModal } from './ClientEmailPreviewModal';
 import { sendRealOrderEmail } from '../lib/emailService';
-import { getWhatsAppReceiptUrl } from '../utils/whatsappService';
+import { getWhatsAppReceiptUrl, sendAutomaticWhatsAppMessage, generateReceiptWhatsAppMessage } from '../utils/whatsappService';
+import { fetchClientOrders, ClientOrderItem } from '../utils/supabaseApi';
 import facadeRefImg from '../assets/images/paint_facade_ref_1790519863937.jpg';
 import exteriorT2RefImg from '../assets/images/exterior_t2_ref_1790522631426.jpg';
 import exteriorT3RefImg from '../assets/images/exterior_t3_ref_1790522646174.jpg';
@@ -218,6 +219,53 @@ export function StandaloneClientForm({
   const [realEmailStatusNotice, setRealEmailStatusNotice] = useState<string | null>(null);
   const [supabaseSavedNotice, setSupabaseSavedNotice] = useState<boolean>(false);
 
+  // Estados para Historial "Mis Pedidos" (Requirement 6) y WhatsApp Automático (Requirement 3)
+  const [activeMainTab, setActiveMainTab] = useState<'cotizador' | 'pedidos'>('cotizador');
+  const [clientOrders, setClientOrders] = useState<ClientOrderItem[]>([]);
+  const [loadingClientOrders, setLoadingClientOrders] = useState<boolean>(false);
+  const [autoWhatsAppNotice, setAutoWhatsAppNotice] = useState<string | null>(null);
+
+  const loadClientOrders = async () => {
+    const userToQuery = activeSession || activeUser;
+    if (!userToQuery) return;
+    setLoadingClientOrders(true);
+    try {
+      const orders = await fetchClientOrders(userToQuery.nit, userToQuery.email);
+      // Incluir pedido actual si fue aceptado
+      if (orderNumber && quotationDecision === 'accepted') {
+        const exists = orders.some(o => o.orderNumber === orderNumber);
+        if (!exists) {
+          orders.unshift({
+            id: orderNumber,
+            orderNumber: orderNumber,
+            fecha: 'Hoy',
+            detalle: {
+              obra: formData.tipoObra || 'Obra General',
+              tipoObra: formData.tipoObra || 'Residencial',
+              areaM2: formData.areaM2 || 0,
+              tipoPintura: formData.tipoPintura || 'Pintura Tipo 1 Exterior',
+              color: formData.colorAcabado || 'Gris (Mate)',
+              ciudad: formData.ciudad || 'Medellín'
+            },
+            estado: 'en_ruta',
+            total: technicalCalc.presupuesto.totalPresupuesto
+          });
+        }
+      }
+      setClientOrders(orders);
+    } catch (e) {
+      console.warn('[loadClientOrders]', e);
+    } finally {
+      setLoadingClientOrders(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeSession || activeUser) {
+      loadClientOrders();
+    }
+  }, [activeSession, activeUser, orderNumber, quotationDecision]);
+
   const handleApplyAiData = (dataToApply: Partial<ProjectFormData>) => {
     setFormData(prev => ({
       ...prev,
@@ -291,6 +339,45 @@ export function StandaloneClientForm({
       setRealEmailStatusNotice(`✓ Solicitud de notificación registrada para ${formData.emailResponsable}`);
     } finally {
       setIsSendingRealEmail(false);
+    }
+
+    // Enviar WhatsApp automáticamente mediante API (Requirement 3)
+    if (formData.telefonoResponsable) {
+      try {
+        const waMsg = generateReceiptWhatsAppMessage({
+          orderId: generatedOrder,
+          cliente: formData.cliente,
+          nit: formData.nitDocumento,
+          responsable: formData.responsable,
+          telefono: formData.telefonoResponsable,
+          email: formData.emailResponsable,
+          ciudad: formData.ciudad,
+          producto: formData.tipoPintura || 'Pintura Tipo 1 Exterior',
+          marca: formData.marcaPintura,
+          metodoPago: formData.metodoPago,
+          color: formData.colorAcabado,
+          cunetes: technicalCalc.cuñetesRequeridos,
+          galones: technicalCalc.galonesSueltosRequeridos,
+          totalCOP: technicalCalc.presupuesto.totalPresupuesto,
+          subtotalCOP: technicalCalc.presupuesto.subtotalMateriales,
+          flete: technicalCalc.presupuesto.fleteEnvio === 0 ? 'GRATIS' : formatCOP(technicalCalc.presupuesto.fleteEnvio),
+          tiempoEntregaDias: 2
+        });
+
+        sendAutomaticWhatsAppMessage({
+          phone: formData.telefonoResponsable,
+          message: waMsg,
+          orderId: generatedOrder,
+          clientName: formData.responsable || formData.cliente,
+          templateType: 'receipt'
+        }).then((res) => {
+          if (res.success) {
+            setAutoWhatsAppNotice(`✓ WhatsApp enviado automáticamente a +${res.message || formData.telefonoResponsable}`);
+          }
+        });
+      } catch (waErr) {
+        console.warn('[Auto WhatsApp Error]', waErr);
+      }
     }
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -747,8 +834,283 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
 
   return (
     <div id="standalone-client-presentation" className="space-y-8 max-w-6xl mx-auto pb-12">
-      {/* VISTA A: DOCUMENTO OFICIAL DE COTIZACIÓN Y PRESUPUESTO EMITIDO (SE MUESTRA TRAS EMITIR LA COTIZACIÓN) */}
-      {isSubmitted ? (
+      {/* BARRA SUPERIOR DE NAVEGACIÓN: COTIZADOR VS MIS PEDIDOS */}
+      <div className="no-print bg-white/95 backdrop-blur-md rounded-3xl p-3 border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <button
+            type="button"
+            id="tab-cotizador"
+            onClick={() => setActiveMainTab('cotizador')}
+            className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
+              activeMainTab === 'cotizador'
+                ? 'bg-gradient-to-r from-[#FF6A00] via-[#FF8C00] to-[#009FE3] text-white shadow-md shadow-orange-500/25'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>Cotizador</span>
+          </button>
+
+          <button
+            type="button"
+            id="tab-mis-pedidos"
+            onClick={() => {
+              setActiveMainTab('pedidos');
+              loadClientOrders();
+            }}
+            className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
+              activeMainTab === 'pedidos'
+                ? 'bg-gradient-to-r from-[#003882] via-[#0052b4] to-[#009FE3] text-white shadow-md shadow-blue-500/25'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <Package className="w-4 h-4" />
+            <span>Mis Pedidos</span>
+            {clientOrders.length > 0 && (
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                activeMainTab === 'pedidos' ? 'bg-white/25 text-white' : 'bg-sky-100 text-sky-800'
+              }`}>
+                {clientOrders.length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* Info del Cliente y Acciones de Sesión */}
+        {(activeSession || activeUser) && (
+          <div className="flex items-center gap-2 text-xs w-full sm:w-auto justify-between sm:justify-end">
+            <div className="flex items-center gap-2 px-3.5 py-1.5 bg-gradient-to-r from-sky-50 to-blue-50 border border-sky-200/90 rounded-2xl text-slate-800">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="font-bold truncate max-w-[170px]">
+                {(activeSession || activeUser)?.responsable || (activeSession || activeUser)?.empresa}
+              </span>
+              <span className="font-mono text-[11px] text-slate-500 font-semibold">
+                NIT: {(activeSession || activeUser)?.nit}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveSession(null);
+                onLogout?.();
+              }}
+              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+              title="Cerrar sesión"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {activeMainTab === 'pedidos' ? (
+        /* SECCIÓN EXCLUSIVA: HISTORIAL DE PEDIDOS DEL CLIENTE (REQUIREMENT 6) */
+        <div className="space-y-6 animate-fadeIn">
+          {/* Header de Mis Pedidos */}
+          <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-sm relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <ColorlinkConfettiDots className="absolute inset-0 z-0" />
+            <div className="relative z-10 flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#003882] via-[#009FE3] to-[#FF6A00] text-white flex items-center justify-center shadow-lg shadow-sky-500/25 shrink-0">
+                <Package className="w-7 h-7 stroke-[2.5]" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+                    Mis Pedidos
+                  </h2>
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-2xs">
+                    Historial Exclusivo
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  Consulta el estado logístico, detalles de dosificación y facturación de tus órdenes en Colorlink®
+                </p>
+              </div>
+            </div>
+
+            <div className="relative z-10 flex items-center gap-2.5 shrink-0 w-full md:w-auto justify-end">
+              <button
+                type="button"
+                onClick={loadClientOrders}
+                disabled={loadingClientOrders}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-2xl transition-all border border-slate-200 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                title="Actualizar listado de pedidos"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loadingClientOrders ? 'animate-spin text-sky-600' : ''}`} />
+                <span>{loadingClientOrders ? 'Actualizando...' : 'Actualizar'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  resetForm();
+                  setActiveMainTab('cotizador');
+                }}
+                className="px-5 py-2.5 bg-gradient-to-r from-[#FF6A00] to-[#E5007D] hover:brightness-110 text-white text-xs font-black rounded-2xl transition-all shadow-md shadow-orange-500/20 flex items-center gap-2 cursor-pointer active:scale-95"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Nueva Cotización</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Tarjetas de Resumen Rápido con Colores Vivos */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs">
+              <span className="text-[11px] font-bold text-slate-400 block uppercase tracking-wider">Total Pedidos</span>
+              <div className="text-2xl font-black text-slate-900 mt-1 font-mono">{clientOrders.length}</div>
+            </div>
+
+            <div className="bg-amber-50/70 p-4 rounded-2xl border border-amber-200/80 shadow-2xs">
+              <span className="text-[11px] font-bold text-amber-800 block uppercase tracking-wider">Pendientes</span>
+              <div className="text-2xl font-black text-amber-950 mt-1 font-mono">
+                {clientOrders.filter(o => o.estado === 'pendiente').length}
+              </div>
+            </div>
+
+            <div className="bg-sky-50/70 p-4 rounded-2xl border border-sky-200/80 shadow-2xs">
+              <span className="text-[11px] font-bold text-sky-800 block uppercase tracking-wider">En Camino</span>
+              <div className="text-2xl font-black text-sky-950 mt-1 font-mono">
+                {clientOrders.filter(o => o.estado === 'en_ruta').length}
+              </div>
+            </div>
+
+            <div className="bg-emerald-50/70 p-4 rounded-2xl border border-emerald-200/80 shadow-2xs">
+              <span className="text-[11px] font-bold text-emerald-800 block uppercase tracking-wider">Entregados</span>
+              <div className="text-2xl font-black text-emerald-950 mt-1 font-mono">
+                {clientOrders.filter(o => o.estado === 'entregado').length}
+              </div>
+            </div>
+          </div>
+
+          {/* Listado o Tabla de Pedidos */}
+          {loadingClientOrders && clientOrders.length === 0 ? (
+            <div className="bg-white rounded-3xl p-12 text-center border border-slate-200 shadow-sm space-y-3">
+              <Loader2 className="w-8 h-8 animate-spin mx-auto text-[#009FE3]" />
+              <p className="text-sm font-bold text-slate-700">Consultando tus pedidos en la base de datos...</p>
+            </div>
+          ) : clientOrders.length === 0 ? (
+            <div className="bg-white rounded-3xl p-10 sm:p-14 text-center border border-slate-200 shadow-sm space-y-4">
+              <div className="w-16 h-16 rounded-3xl bg-slate-100 text-slate-400 mx-auto flex items-center justify-center">
+                <Package className="w-8 h-8" />
+              </div>
+              <div className="max-w-md mx-auto">
+                <h3 className="text-lg font-black text-slate-900">Aún no tienes pedidos registrados</h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Cuando apruebes una cotización en el cotizador oficial, tus pedidos aparecerán aquí con seguimiento en tiempo real y recibos descargables.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  resetForm();
+                  setActiveMainTab('cotizador');
+                }}
+                className="px-6 py-3 bg-gradient-to-r from-[#FF6A00] via-[#FF8C00] to-[#009FE3] text-white font-black text-xs sm:text-sm rounded-2xl shadow-lg shadow-orange-500/25 hover:brightness-110 transition-all cursor-pointer"
+              >
+                Comenzar a Cotizar Ahora 🎨
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {clientOrders.map((ord) => {
+                // Configuración de Colores Vivos según el Estado (Requirement 6)
+                let badgeClass = 'bg-amber-400 text-slate-950 font-black shadow-xs';
+                let labelEstado = 'Pendiente por Aprobar';
+                let dotColor = 'bg-amber-500';
+
+                if (ord.estado === 'preparando') {
+                  badgeClass = 'bg-orange-500 text-white font-black shadow-xs shadow-orange-500/30';
+                  labelEstado = 'En Tintometría / Preparación';
+                  dotColor = 'bg-orange-600';
+                } else if (ord.estado === 'en_ruta') {
+                  badgeClass = 'bg-blue-600 text-white font-black shadow-xs shadow-blue-600/30';
+                  labelEstado = 'En Camino / En Ruta';
+                  dotColor = 'bg-blue-500';
+                } else if (ord.estado === 'entregado') {
+                  badgeClass = 'bg-emerald-500 text-white font-black shadow-xs shadow-emerald-500/30';
+                  labelEstado = 'Entregado en Obra';
+                  dotColor = 'bg-emerald-600';
+                }
+
+                return (
+                  <div
+                    key={ord.id}
+                    className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/90 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-5 relative overflow-hidden"
+                  >
+                    {/* Borde izquierdo colorido */}
+                    <div className={`absolute left-0 top-0 bottom-0 w-2 ${
+                      ord.estado === 'entregado' ? 'bg-emerald-500' : ord.estado === 'en_ruta' ? 'bg-blue-600' : ord.estado === 'preparando' ? 'bg-orange-500' : 'bg-amber-400'
+                    }`} />
+
+                    <div className="space-y-2.5 flex-1 pl-1">
+                      {/* Fila 1: Número de orden, fecha y etiqueta viva de estado */}
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        <span className="font-mono font-black text-sm text-[#003882] bg-sky-50 px-3 py-1 rounded-xl border border-sky-200">
+                          #{ord.orderNumber}
+                        </span>
+                        <span className="text-xs text-slate-500 flex items-center gap-1">
+                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                          <span>{ord.fecha}</span>
+                        </span>
+                        {/* ETIQUETA VIVA DE ESTADO (Requirement 6) */}
+                        <span className={`px-3 py-1 rounded-full text-xs uppercase tracking-wider flex items-center gap-1.5 ${badgeClass}`}>
+                          <span className={`w-2 h-2 rounded-full ${dotColor}`} />
+                          <span>{labelEstado}</span>
+                        </span>
+                      </div>
+
+                      {/* Fila 2: Detalle de la obra y productos */}
+                      <div className="text-xs text-slate-700 space-y-1">
+                        <div className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                          <Building2 className="w-4 h-4 text-sky-600" />
+                          <span>{ord.detalle.obra}</span>
+                          <span className="text-slate-400">•</span>
+                          <span className="font-normal text-slate-600">{ord.detalle.tipoObra}</span>
+                          <span className="text-slate-400">•</span>
+                          <span className="font-normal text-slate-500">{ord.detalle.areaM2} m²</span>
+                        </div>
+                        <div className="text-slate-600 flex flex-wrap items-center gap-x-3 gap-y-1">
+                          <span><strong>Especificación:</strong> {ord.detalle.tipoPintura}</span>
+                          <span>•</span>
+                          <span><strong>Color / Acabado:</strong> {ord.detalle.color}</span>
+                          <span>•</span>
+                          <span className="flex items-center gap-1">
+                            <MapPin className="w-3.5 h-3.5 text-rose-500" />
+                            <strong>Destino:</strong> {ord.detalle.ciudad}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Fila 3: Total resaltado en color vivo y acción WhatsApp */}
+                    <div className="flex flex-col sm:flex-row md:flex-col items-start sm:items-center md:items-end justify-between w-full md:w-auto gap-3 pt-3 md:pt-0 border-t md:border-t-0 border-slate-100">
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block md:text-right">Total Liquidado</span>
+                        <div className="text-xl sm:text-2xl font-black font-mono text-[#003882] md:text-right">
+                          {formatCOP(ord.total)} COP
+                        </div>
+                      </div>
+
+                      <a
+                        href={`https://wa.me/573212460658?text=${encodeURIComponent(`Hola Colorlink, quiero consultar el estado de mi pedido #${ord.orderNumber}`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#25D366] hover:bg-[#20bd5a] text-white font-extrabold text-xs shadow-md shadow-emerald-500/20 transition-all cursor-pointer active:scale-95"
+                      >
+                        <MessageCircle className="w-4 h-4 fill-current" />
+                        <span>Consultar por WhatsApp</span>
+                      </a>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ) : (
+        /* VISTA A: DOCUMENTO OFICIAL DE COTIZACIÓN Y PRESUPUESTO EMITIDO (SE MUESTRA TRAS EMITIR LA COTIZACIÓN) */
+        isSubmitted ? (
         <div className="space-y-6 animate-fadeIn">
           {/* Barra Superior de Control y Notificaciones (Blanca con Puntitos de Colores) */}
           <div className="no-print bg-white text-slate-900 rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-sm relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
@@ -810,10 +1172,10 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                 id="btn-print-top"
                 onClick={handlePrintDocument}
                 disabled={isPrinting}
-                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-2xl transition-all border border-slate-200/80 flex items-center gap-2 cursor-pointer active:scale-95 shadow-2xs backdrop-blur-xs disabled:opacity-70"
+                className="px-4 py-2.5 bg-gradient-to-r from-sky-50 to-blue-50 hover:from-sky-100 hover:to-blue-100 text-[#0055FF] text-xs font-black rounded-2xl transition-all border border-[#00D2FF]/40 flex items-center gap-2 cursor-pointer active:scale-95 shadow-xs disabled:opacity-70"
                 title="Imprimir documento oficial Colorlink"
               >
-                {isPrinting ? <Loader2 className="w-4 h-4 animate-spin text-slate-700" /> : <Printer className="w-4 h-4 text-slate-700" />}
+                {isPrinting ? <Loader2 className="w-4 h-4 animate-spin text-[#0055FF]" /> : <Printer className="w-4 h-4 text-[#0055FF]" />}
                 <span>{isPrinting ? 'Imprimiendo...' : 'Imprimir'}</span>
               </button>
 
@@ -821,11 +1183,22 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                 type="button"
                 id="btn-modify-data-top"
                 onClick={() => setIsSubmitted(false)}
-                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 hover:text-slate-950 text-xs font-bold rounded-2xl transition-all border border-slate-200/80 flex items-center gap-2 cursor-pointer active:scale-95 shadow-2xs backdrop-blur-xs"
-                title="Volver al formulario para modificar datos"
+                className="px-4 py-2.5 bg-gradient-to-r from-[#FF007A] via-[#E00096] to-[#0055FF] hover:brightness-110 text-white text-xs font-black rounded-2xl transition-all flex items-center gap-2 cursor-pointer active:scale-95 shadow-md shadow-pink-500/25"
+                title="Editar los parámetros de la cotización actual"
               >
-                <Edit3 className="w-4 h-4 text-slate-700" />
+                <Edit3 className="w-4 h-4 text-white" />
                 <span>Modificar</span>
+              </button>
+
+              <button
+                type="button"
+                id="btn-new-quote-top"
+                onClick={resetForm}
+                className="px-4 py-2.5 bg-gradient-to-r from-[#FF5500] via-[#FF7700] to-[#FFD000] hover:brightness-110 text-slate-950 text-xs font-black rounded-2xl transition-all flex items-center gap-2 cursor-pointer active:scale-95 shadow-md shadow-orange-500/25"
+                title="Iniciar una cotización nueva desde cero"
+              >
+                <Sparkles className="w-4 h-4 text-slate-950" />
+                <span>Otra cotización</span>
               </button>
             </div>
           </div>
@@ -1397,12 +1770,12 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                   </p>
                 </div>
 
-                {/* BOTONES PRINCIPALES DE DECISIÓN */}
+                {/* BOTONES PRINCIPALES DE DECISIÓN CON LA PALETA DE MARCA */}
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
                   <button
                     type="button"
                     onClick={handleAcceptQuotation}
-                    className="flex-1 py-3.5 px-6 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-600 hover:via-teal-600 hover:to-cyan-600 text-white font-black text-xs sm:text-sm rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                    className="flex-1 py-3.5 px-6 bg-gradient-to-r from-[#10E57A] via-[#00D2FF] to-[#0055FF] hover:brightness-110 text-white font-black text-xs sm:text-sm rounded-2xl shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
                   >
                     <CheckCircle2 className="w-4.5 h-4.5 text-white" />
                     <span>Aceptar Cotización y Generar Recibo Oficial</span>
@@ -1411,16 +1784,25 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                   <button
                     type="button"
                     onClick={() => handleModifyQuotation(2)}
-                    className="py-3.5 px-5 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-2xl border border-slate-200 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
+                    className="py-3.5 px-5 bg-gradient-to-r from-[#FF007A] via-[#E00096] to-[#0055FF] hover:brightness-110 text-white font-black text-xs rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-pink-500/25 active:scale-95"
                   >
-                    <Edit3 className="w-4 h-4 text-purple-600" />
-                    <span>Modificar datos</span>
+                    <Edit3 className="w-4 h-4 text-white" />
+                    <span>Modificar</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={resetForm}
+                    className="py-3.5 px-5 bg-gradient-to-r from-[#FF5500] via-[#FF7700] to-[#FFD000] hover:brightness-110 text-slate-950 font-black text-xs rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-orange-500/25 active:scale-95"
+                  >
+                    <Sparkles className="w-4 h-4 text-slate-950" />
+                    <span>Otra cotización</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setShowRejectModal(true)}
-                    className="py-3.5 px-5 bg-rose-50/80 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-2xl border border-rose-200/80 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    className="py-3.5 px-5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold text-xs rounded-2xl border-2 border-rose-200 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
                   >
                     <ThumbsDown className="w-4 h-4 text-rose-500" />
                     <span>Rechazar Cotización</span>
@@ -1981,14 +2363,29 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
 
           {/* ACCIONES INFERIORES */}
           <div className="no-print flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
-            <button
-              type="button"
-              id="btn-modify-data-bottom"
-              onClick={() => setIsSubmitted(false)}
-              className="w-full sm:w-auto px-6 py-3 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <Edit3 className="w-4 h-4" /> Modificar Parámetros / Nueva Cotización
-            </button>
+            <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+              <button
+                type="button"
+                id="btn-modify-data-bottom"
+                onClick={() => setIsSubmitted(false)}
+                className="w-full sm:w-auto px-5 py-3 bg-gradient-to-r from-[#FF007A] via-[#E00096] to-[#0055FF] hover:brightness-110 text-white font-black text-xs rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-pink-500/25 active:scale-95"
+                title="Editar los parámetros de la cotización actual"
+              >
+                <Edit3 className="w-4 h-4 text-white" />
+                <span>Modificar</span>
+              </button>
+
+              <button
+                type="button"
+                id="btn-new-quote-bottom"
+                onClick={resetForm}
+                className="w-full sm:w-auto px-5 py-3 bg-gradient-to-r from-[#FF5500] via-[#FF7700] to-[#FFD000] hover:brightness-110 text-slate-950 font-black text-xs rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-orange-500/25 active:scale-95"
+                title="Iniciar una cotización nueva desde cero"
+              >
+                <Sparkles className="w-4 h-4 text-slate-950" />
+                <span>Otra cotización</span>
+              </button>
+            </div>
 
             <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
               <button
@@ -1996,7 +2393,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                 id="btn-download-pdf-bottom"
                 onClick={handleDownloadPDF}
                 disabled={isGeneratingPDF}
-                className="w-full sm:w-auto px-7 py-3.5 bg-gradient-to-r from-sky-500 via-sky-600 to-blue-600 hover:brightness-110 text-white font-black text-xs rounded-2xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 disabled:opacity-75 cursor-pointer active:scale-95"
+                className="w-full sm:w-auto px-7 py-3.5 bg-gradient-to-r from-[#0055FF] via-[#0099FF] to-[#00D2FF] hover:brightness-110 text-white font-black text-xs rounded-2xl transition-all shadow-md shadow-blue-500/25 flex items-center justify-center gap-2 disabled:opacity-75 cursor-pointer active:scale-95"
               >
                 {isGeneratingPDF ? (
                   <>
@@ -2016,9 +2413,9 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                 id="btn-print-bottom"
                 onClick={handlePrintDocument}
                 disabled={isPrinting}
-                className="w-full sm:w-auto px-6 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-2xl transition-all border border-slate-200 shadow-2xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70"
+                className="w-full sm:w-auto px-6 py-3.5 bg-gradient-to-r from-sky-50 via-blue-50 to-cyan-50 hover:brightness-95 text-[#0055FF] font-black text-xs rounded-2xl transition-all border-2 border-[#00D2FF]/40 shadow-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 active:scale-95"
               >
-                {isPrinting ? <Loader2 className="w-4 h-4 animate-spin text-slate-700" /> : <Printer className="w-4 h-4 text-slate-700" />}
+                {isPrinting ? <Loader2 className="w-4 h-4 animate-spin text-[#0055FF]" /> : <Printer className="w-4 h-4 text-[#0055FF]" />}
                 <span>{isPrinting ? 'Preparando Impresión...' : 'Imprimir Documento'}</span>
               </button>
             </div>
@@ -2037,8 +2434,21 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
             <div className="relative z-10">
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="space-y-1.5">
-                  <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-                    Cotiza tu pedido
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-[#FF5500] to-[#FF007A] text-white px-2.5 py-0.5 rounded-full shadow-xs">
+                      Colorlink® Tintometría & Pinturas
+                    </span>
+                    <div className="flex items-center gap-1 bg-white/90 px-2 py-0.5 rounded-full border border-slate-200 text-[10px] font-bold text-slate-600">
+                      <span className="w-2 h-2 rounded-full bg-[#FF5500]" title="Naranja Fuego" />
+                      <span className="w-2 h-2 rounded-full bg-[#FFD000]" title="Amarillo Eléctrico" />
+                      <span className="w-2 h-2 rounded-full bg-[#10E57A]" title="Verde Lima Neón" />
+                      <span className="w-2 h-2 rounded-full bg-[#00D2FF]" title="Turquesa Neón" />
+                      <span className="w-2 h-2 rounded-full bg-[#0055FF]" title="Azul Eléctrico" />
+                      <span className="w-2 h-2 rounded-full bg-[#FF007A]" title="Magenta Vibrante" />
+                    </div>
+                  </div>
+                  <h1 className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-[#FF5500] via-[#0055FF] to-[#00D2FF] bg-clip-text text-transparent tracking-tight">
+                    Cotiza tu pedido oficial
                   </h1>
                   <p className="text-slate-600 text-sm max-w-2xl leading-relaxed">
                     Completa los pasos de tu proyecto para recibir al instante la cotización oficial detallada, cálculo de flete y entrega programada.
@@ -2106,7 +2516,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                 </button>
               </div>
 
-              {/* Stepper Visual de 3 Pasos con Colores Vivos y Distintivos */}
+              {/* Stepper Visual de 3 Pasos con los 5 Colores Vivos de Marca */}
               <div className="mt-6 pt-6 border-t border-slate-200/80 grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {[
                   {
@@ -2114,24 +2524,24 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                     title: '1. Ubicación & Área',
                     desc: 'Ciudad, m² y Fechas de Obra',
                     icon: Layers,
-                    activeBorder: 'border-amber-400 ring-2 ring-amber-400/30 bg-amber-50/50',
-                    activeIcon: 'bg-gradient-to-tr from-amber-500 to-orange-500 text-white shadow-xs'
+                    activeBorder: 'border-[#FF5500] ring-2 ring-[#FF5500]/30 bg-orange-50/70',
+                    activeIcon: 'bg-gradient-to-tr from-[#FF5500] via-[#FF7700] to-[#FFD000] text-white shadow-md shadow-orange-500/30'
                   },
                   {
                     step: 2,
                     title: '2. Parámetros Técnicos',
                     desc: 'Sustrato, Pintura y Color',
                     icon: Sparkles,
-                    activeBorder: 'border-emerald-400 ring-2 ring-emerald-400/30 bg-emerald-50/50',
-                    activeIcon: 'bg-gradient-to-tr from-emerald-500 to-teal-500 text-white shadow-xs'
+                    activeBorder: 'border-[#00D2FF] ring-2 ring-[#00D2FF]/30 bg-sky-50/70',
+                    activeIcon: 'bg-gradient-to-tr from-[#0055FF] via-[#0099FF] to-[#00D2FF] text-white shadow-md shadow-blue-500/30'
                   },
                   {
                     step: 3,
                     title: '3. Diagnóstico & Envío',
                     desc: 'Evidencias y Confirmación',
                     icon: FileCheck,
-                    activeBorder: 'border-sky-400 ring-2 ring-sky-400/30 bg-sky-50/50',
-                    activeIcon: 'bg-gradient-to-tr from-sky-500 to-blue-600 text-white shadow-xs'
+                    activeBorder: 'border-[#10E57A] ring-2 ring-[#10E57A]/30 bg-emerald-50/70',
+                    activeIcon: 'bg-gradient-to-tr from-[#10E57A] via-[#00D2FF] to-[#FF007A] text-white shadow-md shadow-emerald-500/30'
                   }
                 ].map((item) => {
                   const isCompleted = currentStep > item.step;
@@ -2144,9 +2554,9 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       onClick={() => setCurrentStep(item.step)}
                       className={`p-3 rounded-2xl text-left border transition-all flex items-center gap-3 backdrop-blur-xs cursor-pointer ${
                         isCurrent
-                          ? `${item.activeBorder} shadow-xs`
+                          ? `${item.activeBorder} shadow-sm`
                           : isCompleted
-                          ? 'border-emerald-200 bg-emerald-50/70 text-emerald-900'
+                          ? 'border-[#10E57A]/40 bg-emerald-50/70 text-emerald-950 font-bold'
                           : 'border-slate-200 bg-white/80 text-slate-500 hover:border-slate-300'
                       }`}
                     >
@@ -2155,11 +2565,11 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                           isCurrent
                             ? item.activeIcon
                             : isCompleted
-                            ? 'bg-emerald-600 text-white'
+                            ? 'bg-gradient-to-tr from-[#10E57A] to-[#00D2FF] text-white shadow-xs'
                             : 'bg-slate-100 text-slate-500'
                         }`}
                       >
-                        {isCompleted ? <CheckCircle2 className="w-5 h-5" /> : <Icon className="w-4 h-4" />}
+                        {isCompleted ? <CheckCircle2 className="w-5 h-5 text-white" /> : <Icon className="w-4 h-4" />}
                       </div>
                       <div className="min-w-0">
                         <span className={`text-xs font-bold block truncate ${isCurrent ? 'text-slate-900 font-extrabold' : 'text-slate-800'}`}>
@@ -2399,9 +2809,10 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       <button
                         type="button"
                         onClick={handleNextStep}
-                        className="px-6 py-3 bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 hover:from-amber-600 hover:via-orange-600 hover:to-rose-600 text-white font-bold text-sm rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                        className="px-7 py-3.5 bg-gradient-to-r from-[#FF5500] via-[#FF007A] to-[#0055FF] hover:brightness-110 text-white font-black text-sm rounded-2xl shadow-lg shadow-orange-500/30 transition-all flex items-center gap-2 cursor-pointer active:scale-95"
                       >
-                        Continuar a Parámetros Técnicos <ArrowRight className="w-4 h-4" />
+                        <span>Continuar a Parámetros Técnicos</span>
+                        <ArrowRight className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
@@ -3083,16 +3494,17 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       <button
                         type="button"
                         onClick={handlePrevStep}
-                        className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-2xl transition-all cursor-pointer"
+                        className="px-5 py-2.5 bg-gradient-to-r from-sky-50 to-blue-50 hover:from-sky-100 hover:to-blue-100 text-[#0055FF] font-black text-xs rounded-2xl border border-[#00D2FF]/40 transition-all cursor-pointer shadow-xs active:scale-95"
                       >
                         Atrás
                       </button>
                       <button
                         type="button"
                         onClick={handleNextStep}
-                        className="px-6 py-3 bg-gradient-to-r from-sky-500 via-sky-600 to-blue-600 hover:brightness-110 text-white font-bold text-sm rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                        className="px-7 py-3.5 bg-gradient-to-r from-[#FF5500] via-[#FF007A] to-[#0055FF] hover:brightness-110 text-white font-black text-sm rounded-2xl shadow-lg shadow-orange-500/30 transition-all flex items-center gap-2 cursor-pointer active:scale-95"
                       >
-                        Continuar a Evidencias & Diagnóstico <ArrowRight className="w-4 h-4" />
+                        <span>Continuar a Evidencias & Diagnóstico</span>
+                        <ArrowRight className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
@@ -3291,7 +3703,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       <button
                         type="button"
                         onClick={handlePrevStep}
-                        className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-2xl transition-all cursor-pointer"
+                        className="px-5 py-2.5 bg-gradient-to-r from-sky-50 to-blue-50 hover:from-sky-100 hover:to-blue-100 text-[#0055FF] font-black text-xs rounded-2xl border border-[#00D2FF]/40 transition-all cursor-pointer shadow-xs active:scale-95"
                       >
                         Atrás
                       </button>
@@ -3299,10 +3711,10 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         id="standalone-submit-btn"
                         type="submit"
                         onClick={handleSubmit}
-                        className="px-8 py-3.5 bg-gradient-to-r from-sky-500 via-sky-600 to-blue-600 hover:brightness-110 text-white font-black text-sm rounded-2xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2.5 active:scale-95 cursor-pointer"
+                        className="px-8 py-3.5 bg-gradient-to-r from-[#FF5500] via-[#FF007A] to-[#0055FF] hover:brightness-110 text-white font-black text-sm rounded-2xl shadow-xl shadow-orange-500/30 glow-orange transition-all flex items-center gap-2.5 active:scale-95 cursor-pointer"
                       >
                         <Send className="w-4 h-4" />
-                        Emitir Cotización Oficial
+                        <span>Emitir Cotización Oficial</span>
                       </button>
                     </div>
                   </div>
@@ -3310,7 +3722,8 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
               </form>
           </div>
         </div>
-      )}
+      )
+    )}
 
       {/* Botón Flotante Permanente para el Asistente IA del Cliente */}
       <button

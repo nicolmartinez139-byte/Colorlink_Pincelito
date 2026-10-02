@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+@theme {
+  --color-brand-blue: #0055FF;
+  --color-brand-cyan: #00D2FF;
+  --color-brand-orange: #FF5500;
+  --color-brand-magenta: #FF007A;
+  --color-brand-lime: #10E57A;
+  --color-brand-yellow: #FFD000;
+  --color-brand-deep: #002B99;
+}
+
 @layer utilities {
   @keyframes fadeIn {
     from { opacity: 0; transform: translateY(6px); }
@@ -8,6 +18,33 @@
   .animate-fadeIn {
     animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
+  
+  /* Sombras y Resplandores Vivos de Marca */
+  .glow-orange {
+    box-shadow: 0 8px 24px -4px rgba(255, 85, 0, 0.45);
+  }
+  .glow-blue {
+    box-shadow: 0 8px 24px -4px rgba(0, 85, 255, 0.45);
+  }
+  .glow-cyan {
+    box-shadow: 0 8px 24px -4px rgba(0, 210, 255, 0.45);
+  }
+  .glow-magenta {
+    box-shadow: 0 8px 24px -4px rgba(255, 0, 122, 0.45);
+  }
+  .glow-lime {
+    box-shadow: 0 8px 24px -4px rgba(16, 229, 122, 0.45);
+  }
+}
+
+/* Fondo global con sutil ambientación colorida de marca */
+body {
+  background-color: #f6f9fc;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(0, 210, 255, 0.12) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(255, 85, 0, 0.12) 0px, transparent 50%),
+    radial-gradient(at 50% 100%, rgba(255, 0, 122, 0.08) 0px, transparent 50%);
+  background-attachment: fixed;
 }
 
 @media print {

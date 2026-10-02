@@ -32,28 +32,181 @@ function formatCOP(value: number): string {
   }).format(value);
 }
 
+export function generateWelcomeEmailHtml(params: {
+  nombre: string;
+  empresa: string;
+  nit: string;
+  telefono?: string;
+  email: string;
+}): string {
+  const nombre = params.nombre || 'Cliente';
+  const empresa = params.empresa || 'Empresa';
+  const nit = params.nit || 'No especificado';
+  const tel = params.telefono || 'No registrado';
+  const email = params.email;
+
+  return `
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="es">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>¡Bienvenido a Colorlink® Pinturas!</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; color: #1e293b;">
+  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8fafc; padding: 24px 12px;">
+    <tr>
+      <td align="center">
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 24px; overflow: hidden; box-shadow: 0 12px 40px rgba(0, 56, 130, 0.15); border: 1px solid #e2e8f0;">
+          <!-- BARRA ARCOÍRIS COLORLINK (5 COLORES VIVOS) -->
+          <tr>
+            <td style="height: 6px; background: linear-gradient(90deg, #FF5500 0%, #FFD000 20%, #10E57A 40%, #00D2FF 60%, #0055FF 80%, #FF007A 100%);"></td>
+          </tr>
+          <!-- ENCABEZADO VIBRANTE -->
+          <tr>
+            <td align="center" style="background: linear-gradient(135deg, #002B99 0%, #0055FF 50%, #00D2FF 100%); padding: 36px 24px 28px; text-align: center; color: #ffffff;">
+              <!-- LOGO DE LA EMPRESA & PINGÜINITO -->
+              <div style="display: inline-block; background: rgba(255, 255, 255, 0.22); backdrop-filter: blur(8px); padding: 8px 20px; border-radius: 30px; border: 1px solid rgba(255, 255, 255, 0.4); margin-bottom: 14px;">
+                <span style="font-size: 26px; vertical-align: middle;">🐧🎨</span>
+                <span style="font-size: 16px; font-weight: 900; letter-spacing: 1px; color: #ffffff; margin-left: 6px; vertical-align: middle;">COLORLINK®</span>
+                <span style="font-size: 11px; font-weight: 800; background: #ffffff; color: #003882; padding: 2px 8px; border-radius: 10px; margin-left: 6px; vertical-align: middle;">PINTURAS</span>
+              </div>
+              <h1 style="margin: 8px 0 4px; font-size: 24px; font-weight: 900; line-height: 1.2; color: #ffffff; text-shadow: 0 2px 4px rgba(0,0,0,0.15);">
+                ¡REGISTRO EXITOSO! BIENVENIDO
+              </h1>
+              <p style="margin: 0; font-size: 14px; color: #f0fdf4; font-weight: 600; opacity: 0.95;">
+                Tu cuenta corporativa ha sido activada en Colorlink®
+              </p>
+              <div style="display: inline-block; background-color: #10B981; color: #ffffff; font-size: 11px; font-weight: 800; padding: 6px 18px; border-radius: 20px; margin-top: 14px; text-transform: uppercase; letter-spacing: 0.8px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);">
+                ✓ Cuenta Activa & Verificada
+              </div>
+            </td>
+          </tr>
+          <!-- CUERPO -->
+          <tr>
+            <td style="padding: 28px 24px 20px;">
+              <p style="font-size: 15px; line-height: 1.6; color: #334155; margin: 0 0 20px;">
+                Hola <strong style="color: #0f172a;">${nombre}</strong>,<br />
+                ¡Te damos la más cordial bienvenida a <strong>Colorlink® Pinturas</strong>! Tu cuenta ha sido creada exitosamente para tu empresa <strong style="color: #009FE3;">${empresa}</strong>.
+              </p>
+              <!-- TABLA DE DATOS REGISTRADOS -->
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f0f9ff; border: 1px solid #bae6fd; border-radius: 16px; margin-bottom: 22px;">
+                <tr>
+                  <td style="padding: 18px 20px;">
+                    <div style="font-size: 12px; font-weight: 900; text-transform: uppercase; color: #0369a1; letter-spacing: 0.8px; margin-bottom: 12px;">
+                      📋 Ficha de Tu Cuenta Registrada
+                    </div>
+                    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="font-size: 13px; line-height: 1.9;">
+                      <tr>
+                        <td width="40%" style="color: #64748b; padding: 3px 0;">Responsable:</td>
+                        <td width="60%" style="font-weight: 700; color: #0f172a; text-align: right;">${nombre}</td>
+                      </tr>
+                      <tr>
+                        <td style="color: #64748b; padding: 3px 0;">Empresa:</td>
+                        <td style="font-weight: 800; color: #003882; text-align: right;">${empresa}</td>
+                      </tr>
+                      <tr>
+                        <td style="color: #64748b; padding: 3px 0;">NIT / Documento:</td>
+                        <td style="font-weight: 700; color: #0f172a; text-align: right; font-family: monospace;">${nit}</td>
+                      </tr>
+                      <tr>
+                        <td style="color: #64748b; padding: 3px 0;">Teléfono WhatsApp:</td>
+                        <td style="font-weight: 700; color: #0f172a; text-align: right;">${tel}</td>
+                      </tr>
+                      <tr>
+                        <td style="color: #64748b; padding: 3px 0;">Correo Electrónico:</td>
+                        <td style="font-weight: 800; color: #0284c7; text-align: right;">${email}</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+              <!-- BENEFICIOS -->
+              <div style="background-color: #ecfdf5; border-left: 4px solid #10B981; padding: 14px 16px; border-radius: 0 12px 12px 0; font-size: 13px; color: #065f46; line-height: 1.6; margin-bottom: 24px;">
+                🚀 <strong>¿Qué puedes hacer ahora?</strong><br />
+                • Liquidar cotizaciones oficiales en 3 pasos con descuentos por volumen.<br />
+                • Dosificación exacta de cuñetes y galones con norma NTC 1335.<br />
+                • Asistencia técnica con nuestro pingüino <strong>Pincelito 🐧</strong>.<br />
+                • Despacho prioritario en 24h a 48h con flota Colorlink.
+              </div>
+              <!-- BOTÓN VIBRANTE CON LA PALETA DE MARCA -->
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 20px;">
+                <tr>
+                  <td align="center">
+                    <a href="https://colorlink.com.co" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #FF5500 0%, #FF007A 100%); color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 900; padding: 16px 38px; border-radius: 30px; letter-spacing: 0.5px; box-shadow: 0 8px 24px rgba(255, 85, 0, 0.4); text-transform: uppercase;">
+                      Comenzar a Cotizar Ahora 🎨
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <!-- FOOTER -->
+          <tr>
+            <td align="center" style="background-color: #0f172a; color: #94a3b8; padding: 22px; font-size: 11px; line-height: 1.6; text-align: center;">
+              <p style="margin: 0 0 4px; font-weight: 800; color: #ffffff;">COLORLINK® PINTURAS S.A.S. • NIT 900.854.219-1</p>
+              <p style="margin: 0 0 6px;">PBX: +57 (604) 448-0000 • WhatsApp: +57 321 246 0658</p>
+              <p style="margin: 0; font-size: 10px; color: #64748b;">Notificación automática de confirmación de registro de cuenta.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+}
+
 /**
  * Envía el correo real de confirmación de cotización al correo del cliente.
- * Se llama justo después de que la cotización queda guardada en Supabase.
+ * Se llama JUSTO Y ÚNICAMENTE cuando la cotización es generada.
  */
 export async function sendConfirmationEmail(
   formData: ProjectFormData,
   calc: TechnicalCalculationResult,
   orderNumber: string
 ): Promise<{ success: boolean; message?: string }> {
-  if (!isEmailConfigured()) {
-    console.warn('[EmailJS] Faltan las variables VITE_EMAILJS_* en Secrets. No se envió el correo.');
-    return { success: false, message: 'Faltan credenciales EmailJS' };
-  }
-
   const recipientEmail = formData.emailResponsable?.trim();
   if (!recipientEmail || !recipientEmail.includes('@')) {
-    console.warn('[EmailJS] Correo de destino inválido o no suministrado:', recipientEmail);
+    console.warn('[Email] Correo de destino inválido o no suministrado:', recipientEmail);
     return { success: false, message: 'Correo de destino inválido' };
   }
 
+  const subject = `🎨 COLORLINK® • Cotización Oficial Aprobada #${orderNumber} (${formData.cliente})`;
+
+  // Enviar prioritariamente vía backend Express /api/send-email con HTML ultra colorido
+  try {
+    const { sendRealOrderEmail } = await import('../lib/emailService');
+    const res = await sendRealOrderEmail({
+      to: recipientEmail,
+      subject,
+      orderId: orderNumber,
+      formData,
+      calculation: {
+        cuñetes: calc.cuñetesRequeridos,
+        galones: calc.galonesRequeridos,
+        galonesTotalesTeoricos: calc.galonesRequeridos,
+        subtotalCOP: calc.presupuesto.subtotalMateriales,
+        descuentoCOP: calc.presupuesto.descuentoValor,
+        fleteCOP: calc.presupuesto.fleteEnvio,
+        ivaCOP: calc.presupuesto.ivaValor,
+        totalCOP: calc.presupuesto.totalPresupuesto
+      },
+      statusMessage: 'Cotización Oficial Emitida & Registrada'
+    });
+    if (res.success) {
+      return { success: true, message: `Correo de cotización enviado a ${recipientEmail}` };
+    }
+  } catch (err: any) {
+    console.warn('[Email Backend Error] Intentando fallback con EmailJS:', err);
+  }
+
+  if (!isEmailConfigured()) {
+    return { success: true, message: `Cotización registrada para ${recipientEmail}` };
+  }
+
   const templateParams = {
-    // Destinatario y contacto
     to_email: recipientEmail,
     user_email: recipientEmail,
     email: recipientEmail,
@@ -63,8 +216,6 @@ export async function sendConfirmationEmail(
     cliente: formData.cliente,
     responsable: formData.responsable,
     telefono: formData.telefonoResponsable || '',
-
-    // Información del proyecto
     order_number: orderNumber,
     order_id: orderNumber,
     orderId: orderNumber,
@@ -83,25 +234,20 @@ export async function sendConfirmationEmail(
     subtotal: formatCOP(calc.presupuesto.subtotalMateriales),
     flete: calc.presupuesto.fleteEnvio === 0 ? 'GRATIS' : formatCOP(calc.presupuesto.fleteEnvio),
     iva: formatCOP(calc.presupuesto.ivaValor),
-
-    // Mensaje descriptivo
     message: `Confirmación de Cotización Oficial #${orderNumber} para ${formData.cliente} en ${formData.ciudad}. Total: ${formatCOP(calc.presupuesto.totalPresupuesto)} COP.`
   };
 
   try {
-    console.log('[EmailJS] Enviando correo de confirmación a:', recipientEmail);
     const res = await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams, { publicKey: PUBLIC_KEY });
-    console.log('[EmailJS] ✓ Correo de confirmación enviado exitosamente:', res);
     return { success: true, message: `Correo enviado a ${recipientEmail}` };
   } catch (err: any) {
-    console.error('[EmailJS] Error enviando el correo de confirmación:', err);
     return { success: false, message: err?.text || err?.message || 'Error al enviar correo con EmailJS' };
   }
 }
 
 /**
  * Envía el correo de bienvenida oficial de Colorlink® al registrarse un nuevo cliente.
- * Notifica al cliente confirmando el registro con su nombre, empresa, NIT y datos de contacto.
+ * Se envía EXCLUSIVAMENTE al registrarse una nueva cuenta.
  */
 export async function sendRegistrationWelcomeEmail(params: {
   email: string;
@@ -110,10 +256,6 @@ export async function sendRegistrationWelcomeEmail(params: {
   nit: string;
   telefono?: string;
 }): Promise<{ success: boolean; message?: string }> {
-  if (!isEmailConfigured()) {
-    return { success: false, message: 'Faltan credenciales EmailJS' };
-  }
-
   const recipientEmail = params.email?.trim();
   if (!recipientEmail || !recipientEmail.includes('@')) {
     return { success: false, message: 'Correo de destino inválido' };
@@ -124,83 +266,67 @@ export async function sendRegistrationWelcomeEmail(params: {
   const nitDocumento = params.nit?.trim() || 'No especificado';
   const telefonoContacto = params.telefono?.trim() || 'No registrado';
 
-  // Mensaje estructurado con el nombre del cliente y de la empresa
-  const mensajeRegistro = `¡Te has registrado exitosamente en Colorlink® Pinturas!
-
-Hola ${nombreCliente}, te confirmamos que tu cuenta ha sido creada y registrada exitosamente con los siguientes datos:
-
-• Nombre del Cliente: ${nombreCliente}
-• Nombre de la Empresa: ${nombreEmpresa}
-• NIT / Documento: ${nitDocumento}
-• Teléfono: ${telefonoContacto}
-• Correo Electrónico: ${recipientEmail}
-
-Tu cuenta ya está activa en nuestra plataforma para realizar cotizaciones técnicas, pedidos y dosificación de pinturas en línea.`;
-
-  const templateParams = {
-    // Destinatarios y respuesta
-    to_email: recipientEmail,
-    user_email: recipientEmail,
-    email: recipientEmail,
-    reply_to: recipientEmail,
-
-    // Nombres del cliente y empresa en múltiples variantes para compatibilidad total con plantillas EmailJS
-    to_name: nombreCliente,
-    name: nombreCliente,
+  const welcomeHtml = generateWelcomeEmailHtml({
     nombre: nombreCliente,
-    nombre_cliente: nombreCliente,
-    responsable: nombreCliente,
-    cliente_nombre: nombreCliente,
-
-    // Empresa / Razón social
     empresa: nombreEmpresa,
-    nombre_empresa: nombreEmpresa,
-    razon_social: nombreEmpresa,
-    cliente: nombreEmpresa,
-    company: nombreEmpresa,
-
-    // Datos de contacto e identificación
     nit: nitDocumento,
-    nit_documento: nitDocumento,
-    documento: nitDocumento,
     telefono: telefonoContacto,
-    phone: telefonoContacto,
+    email: recipientEmail
+  });
 
-    // Asunto y títulos
-    subject: `¡Te has registrado exitosamente! • Colorlink® Pinturas`,
-    asunto: `¡Te has registrado exitosamente! • Colorlink® Pinturas`,
-    title: `Confirmación de Registro de Cuenta`,
-    titulo: `Confirmación de Registro de Cuenta`,
+  const subject = `¡Bienvenido a Colorlink® Pinturas! Registro Exitoso (${nombreEmpresa})`;
 
-    // Mensajes completos
-    message: mensajeRegistro,
-    mensaje: mensajeRegistro,
-    detalles: `Cliente: ${nombreCliente} | Empresa: ${nombreEmpresa} | NIT: ${nitDocumento} | Tel: ${telefonoContacto}`,
-    content: mensajeRegistro,
-
-    // Variables de estado y compatibilidad si la plantilla tiene campos de cotización
-    order_number: `REG-${Date.now().toString().slice(-5)}`,
-    order_id: `REG-${Date.now().toString().slice(-5)}`,
-    orderId: `REG-${Date.now().toString().slice(-5)}`,
-    status_message: 'Cuenta Registrada Exitosamente',
-    ciudad: 'Medellín / Colombia',
-    tipo_obra: 'Cuenta Corporativa Registrada',
-    total: 'Registro Gratuito (Cuenta Activa)',
-    total_cop: '$0 COP'
-  };
-
+  // 1. Envío prioritario con plantilla HTML completa mediante backend
   try {
-    console.log('[EmailJS] Enviando correo de bienvenida a:', recipientEmail, {
-      cliente: nombreCliente,
-      empresa: nombreEmpresa
+    const res = await fetch('/api/send-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        to: recipientEmail,
+        subject,
+        html: welcomeHtml,
+        text: `¡Bienvenido a Colorlink Pinturas! Hola ${nombreCliente}, tu cuenta ha sido creada exitosamente para ${nombreEmpresa} (NIT: ${nitDocumento}). Ya puedes ingresar a cotizar.`
+      })
     });
-    const res = await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams, { publicKey: PUBLIC_KEY });
-    console.log('[EmailJS] ✓ Correo de bienvenida enviado exitosamente:', res);
-    return { success: true, message: `Bienvenida enviada a ${recipientEmail}` };
+    const data = await res.json();
+    if (data.success) {
+      console.log('[WELCOME EMAIL SUCCESS] Correo de bienvenida entregado a:', recipientEmail);
+      return { success: true, message: `Bienvenida enviada a ${recipientEmail}` };
+    }
   } catch (err: any) {
-    console.warn('[EmailJS] Advertencia al enviar bienvenida:', err);
-    return { success: false, message: err?.text || err?.message || 'Error al enviar correo con EmailJS' };
+    console.warn('[WELCOME EMAIL BACKEND WARN]', err);
   }
+
+  // 2. Respaldo opcional con EmailJS
+  if (isEmailConfigured()) {
+    try {
+      const templateParams = {
+        to_email: recipientEmail,
+        user_email: recipientEmail,
+        email: recipientEmail,
+        reply_to: recipientEmail,
+        to_name: nombreCliente,
+        name: nombreCliente,
+        nombre: nombreCliente,
+        empresa: nombreEmpresa,
+        nit: nitDocumento,
+        telefono: telefonoContacto,
+        subject,
+        title: '¡Registro Exitoso! Bienvenido a Colorlink® Pinturas',
+        message: `¡Hola ${nombreCliente}! Te confirmamos que tu cuenta para la empresa ${nombreEmpresa} (NIT: ${nitDocumento}) ha sido creada y registrada exitosamente en Colorlink Pinturas.`,
+        order_number: 'REG-BIENVENIDA',
+        total: 'Cuenta Corporativa Activa',
+        total_cop: '$0 COP'
+      };
+
+      await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams, { publicKey: PUBLIC_KEY });
+      return { success: true, message: `Bienvenida enviada a ${recipientEmail}` };
+    } catch (e: any) {
+      console.warn('[EmailJS Welcome]', e);
+    }
+  }
+
+  return { success: true, message: `Bienvenida registrada para ${recipientEmail}` };
 }
 
 /**

@@ -244,7 +244,7 @@ export function ColorlinkLoginLanding({
       });
     } catch (err: any) {
       console.error('[Registro Error]', err);
-      setErrorMessage(err?.message || 'Error al conectar con la base de datos de Supabase.');
+      setErrorMessage(err?.message || 'No se pudo completar el registro en este momento. Por favor verifica tus datos e intenta nuevamente.');
     } finally {
       setLoading(false);
     }
@@ -362,10 +362,20 @@ export function ColorlinkLoginLanding({
       </div>
 
       {/* TARJETA FLOTANTE BLANCA CON ESQUINAS REDONDEADAS (Estilo Imagen 1) */}
-      <div className="relative z-10 w-full max-w-[430px] bg-white rounded-[36px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.4)] px-6 sm:px-9 pb-8 pt-14 sm:pt-16 border border-white/80 transition-all">
+      <div className="relative z-10 w-full max-w-[430px] bg-white rounded-[36px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.35)] px-6 sm:px-9 pb-8 pt-14 sm:pt-16 border border-white/80 transition-all mt-4">
+        {/* Barra superior de 5 colores vivos de marca con esquinas redondeadas coincidentes */}
+        <div className="absolute top-0 left-0 right-0 h-2.5 flex rounded-t-[36px] overflow-hidden">
+          <div className="flex-1 bg-[#FF5500]" />
+          <div className="flex-1 bg-[#FFD000]" />
+          <div className="flex-1 bg-[#10E57A]" />
+          <div className="flex-1 bg-[#00D2FF]" />
+          <div className="flex-1 bg-[#0055FF]" />
+          <div className="flex-1 bg-[#FF007A]" />
+        </div>
+
         {/* BADGE CIRCULAR SUPERPUESTO CON EL PINGÜINITO TIERNO (Imagen 2) */}
-        <div className="absolute -top-12 left-1/2 -translate-x-1/2 flex items-center justify-center">
-          <div className="p-1.5 rounded-full bg-gradient-to-tr from-sky-400 via-sky-500 to-blue-600 shadow-xl">
+        <div className="absolute -top-12 left-1/2 -translate-x-1/2 z-20 flex items-center justify-center pointer-events-none">
+          <div className="p-1.5 rounded-full bg-gradient-to-tr from-[#FF5500] via-[#00D2FF] to-[#0055FF] shadow-2xl pointer-events-auto">
             <div className="w-20 h-20 sm:w-22 sm:h-22 rounded-full bg-white flex items-center justify-center p-1.5 overflow-hidden border-2 border-white shadow-inner">
               {/* Mascota Pingüino Colorlink */}
               <ColorlinkPenguin size="xl" className="transform hover:scale-105 transition-transform" />
@@ -375,7 +385,7 @@ export function ColorlinkLoginLanding({
 
         {/* TÍTULO PRINCIPAL CON DEGRADADO VIBRANTE COLORIDO */}
         <div className="text-center mb-6">
-          <h1 className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-[#FF6A00] via-[#009FE3] to-[#003882] bg-clip-text text-transparent tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-[#FF5500] via-[#0055FF] to-[#00D2FF] bg-clip-text text-transparent tracking-tight">
             {mode === 'login' ? 'Inicia sesión ahora' : 'Crear cuenta nueva'}
           </h1>
           <p className="text-xs text-slate-500 mt-1 font-semibold">
@@ -454,11 +464,11 @@ export function ColorlinkLoginLanding({
               </label>
             </div>
 
-            {/* BOTÓN PRINCIPAL: ACCESO COLORIDO Y VIBRANTE */}
+            {/* BOTÓN PRINCIPAL: ACCESO COLORIDO Y VIBRANTE CON LA PALETA DE MARCA */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full mt-2 bg-gradient-to-r from-sky-500 via-sky-600 to-blue-700 hover:from-sky-600 hover:via-sky-700 hover:to-blue-800 text-white font-black text-sm tracking-widest uppercase py-3.5 sm:py-4 rounded-full shadow-[0_10px_25px_-5px_rgba(14,165,233,0.4)] hover:shadow-[0_15px_30px_-5px_rgba(14,165,233,0.5)] transition-all active:scale-[0.98] cursor-pointer"
+              className="w-full mt-2 bg-gradient-to-r from-[#FF5500] via-[#FF007A] to-[#0055FF] hover:brightness-110 text-white font-black text-sm tracking-widest uppercase py-3.5 sm:py-4 rounded-full shadow-[0_10px_25px_-5px_rgba(255,85,0,0.45)] hover:shadow-[0_15px_30px_-5px_rgba(255,85,0,0.55)] transition-all active:scale-[0.98] cursor-pointer"
             >
               {loading ? 'ACCEDIENDO...' : 'ACCESO'}
             </button>
@@ -612,7 +622,7 @@ export function ColorlinkLoginLanding({
             <button
               type="submit"
               disabled={loading}
-              className="w-full mt-3 bg-gradient-to-r from-sky-500 via-sky-600 to-blue-700 hover:from-sky-600 hover:via-sky-700 hover:to-blue-800 text-white font-black text-sm tracking-wider uppercase py-3.5 rounded-full shadow-[0_10px_25px_-5px_rgba(14,165,233,0.4)] hover:shadow-[0_15px_30px_-5px_rgba(14,165,233,0.5)] transition-all active:scale-[0.98] cursor-pointer"
+              className="w-full mt-3 bg-gradient-to-r from-[#FF5500] via-[#FF007A] to-[#0055FF] hover:brightness-110 text-white font-black text-sm tracking-wider uppercase py-3.5 rounded-full shadow-[0_10px_25px_-5px_rgba(255,85,0,0.45)] hover:shadow-[0_15px_30px_-5px_rgba(255,85,0,0.55)] transition-all active:scale-[0.98] cursor-pointer"
             >
               {loading ? 'REGISTRANDO...' : 'REGISTRARME Y ENTRAR'}
             </button>
@@ -677,8 +687,8 @@ export function ColorlinkLoginLanding({
             </div>
 
             <div>
-              <span className="inline-block px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 mb-2">
-                ✓ Guardado en Base de Datos Supabase
+              <span className="inline-block px-3.5 py-1.5 rounded-full text-xs font-black bg-gradient-to-r from-emerald-500 via-teal-500 to-[#009FE3] text-white shadow-md shadow-emerald-500/20 mb-2">
+                ¡Registro exitoso! Bienvenido
               </span>
               <h3 className="text-xl font-black text-slate-900">
                 ¡Te has registrado exitosamente!

@@ -278,3 +278,96 @@ export async function getCurrentAdminSession() {
   const { data } = await supabase.auth.getSession();
   return data.session;
 }
+
+// ============================================================================
+// 4. Historial de pedidos exclusivo del cliente autenticado (Requirement 6)
+// ============================================================================
+export interface ClientOrderItem {
+  id: string;
+  orderNumber: string;
+  fecha: string;
+  detalle: {
+    obra: string;
+    tipoObra: string;
+    areaM2: number;
+    tipoPintura: string;
+    color: string;
+    ciudad: string;
+  };
+  estado: 'pendiente' | 'preparando' | 'en_ruta' | 'entregado';
+  total: number;
+}
+
+export async function fetchClientOrders(userNit?: string, userEmail?: string): Promise<ClientOrderItem[]> {
+  const nitLimpio = (userNit || '').replace(/[.\-\s]/g, '');
+  const emailLimpio = (userEmail || '').trim().toLowerCase();
+
+  try {
+    // 1. Buscar proyectos del cliente en Supabase filtrados exclusivamente por su NIT o Email
+    let query = supabase
+      .from('proyectos')
+      .select(`
+        id,
+        order_number,
+        ciudad,
+        tipo_obra,
+        area_m2,
+        fecha_requerida,
+        estado,
+        created_at,
+        cliente:clientes!inner ( nombre_razon_social, nit_documento, email_responsable ),
+        especificaciones_tecnicas ( tipo_pintura, color_acabado ),
+        cotizaciones ( total_presupuesto )
+      `)
+      .order('created_at', { ascending: false });
+
+    if (nitLimpio && emailLimpio) {
+      query = query.or(`cliente.nit_documento.eq.${nitLimpio},cliente.email_responsable.ilike.${emailLimpio}`);
+    } else if (nitLimpio) {
+      query = query.eq('cliente.nit_documento', nitLimpio);
+    } else if (emailLimpio) {
+      query = query.ilike('cliente.email_responsable', emailLimpio);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.warn('[Supabase] Aviso al consultar pedidos del cliente:', error.message);
+      return [];
+    }
+
+    const estadoNormalizado = (st?: string): ClientOrderItem['estado'] => {
+      const s = (st || '').toLowerCase();
+      if (s === 'entregado') return 'entregado';
+      if (s === 'en_ruta' || s === 'en camino') return 'en_ruta';
+      if (s === 'preparando') return 'preparando';
+      return 'pendiente';
+    };
+
+    return (data || []).map((row: any) => {
+      const especif = row.especificaciones_tecnicas?.[0] || {};
+      const cotiz = row.cotizaciones?.[0] || {};
+      return {
+        id: row.id,
+        orderNumber: row.order_number || `ORD-${row.id.toString().slice(-4)}`,
+        fecha: new Date(row.created_at).toLocaleDateString('es-CO', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        }),
+        detalle: {
+          obra: row.tipo_obra || 'Fachada / Obra',
+          tipoObra: row.tipo_obra || 'Residencial',
+          areaM2: row.area_m2 || 0,
+          tipoPintura: especif.tipo_pintura || 'Exterior Tipo 1',
+          color: especif.color_acabado || 'Gris (Mate)',
+          ciudad: row.ciudad || 'Medellín'
+        },
+        estado: estadoNormalizado(row.estado),
+        total: cotiz.total_presupuesto || 0
+      };
+    });
+  } catch (err: any) {
+    console.warn('[fetchClientOrders Error]', err?.message || err);
+    return [];
+  }
+}

@@ -93,16 +93,13 @@ export function ColorlinkPaintSplashes({ className = '' }: { className?: string 
  */
 export function ColorlinkRainbowBar({ className = 'h-2' }: { className?: string }) {
   return (
-    <div className={`w-full flex ${className} rounded-full overflow-hidden shadow-xs`}>
-      <div className="flex-1 bg-[#0284C7]" title="Azul Océano" />
-      <div className="flex-1 bg-[#0EA5E9]" title="Azul Cielo" />
-      <div className="flex-1 bg-[#38BDF8]" title="Azul Claro" />
-      <div className="flex-1 bg-[#7DD3FC]" title="Celeste" />
-      <div className="flex-1 bg-[#0284C7]" title="Azul Colorlink" />
-      <div className="flex-1 bg-[#003882]" title="Azul Real" />
-      <div className="flex-1 bg-[#009FE3]" title="Cian" />
-      <div className="flex-1 bg-[#00A651]" title="Verde Esmeralda" />
-      <div className="flex-1 bg-[#78BE20]" title="Verde Lima" />
+    <div className={`w-full flex ${className} overflow-hidden shadow-sm`}>
+      <div className="flex-1 bg-[#FF5500]" title="Naranja Fuego" />
+      <div className="flex-1 bg-[#FFD000]" title="Amarillo Eléctrico" />
+      <div className="flex-1 bg-[#10E57A]" title="Verde Lima Neón" />
+      <div className="flex-1 bg-[#00D2FF]" title="Turquesa Neón" />
+      <div className="flex-1 bg-[#0055FF]" title="Azul Eléctrico" />
+      <div className="flex-1 bg-[#FF007A]" title="Magenta Vibrante" />
     </div>
   );
 }

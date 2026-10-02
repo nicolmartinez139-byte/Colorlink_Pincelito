@@ -217,16 +217,76 @@ export function ClientAIAssistant({
         estado: 'en_negociacion'
       });
 
+      // Consultar al Asesor con TODO el contexto del cliente (Requirement 10)
+      const clientName = currentFormData.responsable || currentFormData.cliente || 'Cliente';
+      const city = currentFormData.ciudad || 'Medellín';
+      const paint = currentFormData.tipoPintura || 'Pintura Tipo 1 Exterior';
+      const color = currentFormData.colorAcabado || 'Color Estándar';
+      const area = currentFormData.areaM2 || 0;
+      const historySummary = messages.slice(-5).map(m => `${m.sender}: ${m.text}`).join('\n');
+
+      try {
+        const res = await fetch('/api/pincelito-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query,
+            formData: currentFormData,
+            isAdvisorMode: true,
+            history: messages.slice(-6).map(m => ({ sender: m.sender, text: m.text })),
+            clientContext: {
+              nombre: clientName,
+              cliente: currentFormData.cliente,
+              ciudad: city,
+              areaM2: area,
+              tipoObra: currentFormData.tipoObra,
+              tipoPintura: paint,
+              colorAcabado: color,
+              superficie: currentFormData.superficie,
+              ambiente: currentFormData.ambiente,
+              condicion: currentFormData.condicion,
+              telefono: currentFormData.telefonoResponsable,
+              email: currentFormData.emailResponsable,
+              historial: historySummary
+            }
+          })
+        });
+
+        const data = await res.json();
+        if (data.success && data.reply) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: Date.now().toString(),
+              sender: 'asesor',
+              text: data.reply,
+              timestamp: 'Ahora',
+              options: [
+                'Aplicar datos al formulario',
+                '¿Tienen stock disponible para entrega inmediata?',
+                'Volver a consultar con Pincelito 🐧'
+              ]
+            }
+          ]);
+          setIsTyping(false);
+          return;
+        }
+      } catch (err) {
+        console.warn('[Advisor Chat API Fail, using personalized fallback]', err);
+      }
+
+      // Respuesta personalizada contextual del Asesor con datos del cliente
       setTimeout(() => {
-        let advisorReply = '';
+        let advisorReply = `Hola ${clientName}, con respecto a tu consulta sobre "${query}" para tu proyecto en ${city}:`;
+
         if (lower.includes('stock') || lower.includes('disponible') || lower.includes('entrega')) {
-          advisorReply = `Acabo de verificar en bodega central de ${currentFormData.ciudad || 'Medellín'}: tenemos cuñetes listos para despacho hoy mismo en camión Colorlink asegurado. Si confirmas antes de las 2:00 PM, sale en la primera ruta.`;
+          advisorReply = `Hola ${clientName}, acabo de verificar directamente en nuestro CEDI de ${city}: tenemos stock de ${paint} (${color}) disponible para cubrir tus ${area > 0 ? `${area} m²` : 'requerimientos'}. Tu pedido puede salir hoy mismo en furgón Colorlink si confirmamos los detalles.`;
         } else if (lower.includes('visita') || lower.includes('obra')) {
-          advisorReply = 'Sí, para constructoras y proyectos realizamos visita técnica sin costo en el área metropolitana para verificar adherencia, alcalinidad y humedad antes de la aplicación.';
+          advisorReply = `Estimado ${clientName}, para tu obra en ${city} (${currentFormData.tipoObra || 'proyecto arquitectónico'}), podemos programar una visita técnica a la obra sin costo adicional para evaluar la superficie (${currentFormData.superficie || 'concreto/revoque'}) y asegurar la adherencia de la pintura ${paint}.`;
         } else if (lower.includes('garantia') || lower.includes('años')) {
-          advisorReply = 'Nuestra Pintura Tipo 1 cuenta con garantía por escrito de 5 a 7 años, avalada bajo las normas NTC 1335 y NTC 5828. Te entregamos el certificado técnico junto con la remisión de flete.';
+          advisorReply = `${clientName}, la especificación de ${paint} que seleccionaste cuenta con certificación técnica NTC 1335 y garantía por escrito de 5 a 7 años para ambientes de ${currentFormData.ambiente || 'intemperie'}. Te entregamos el certificado junto con tu remisión de flete.`;
         } else {
-          advisorReply = `Con respecto a tu consulta "${query}": nuestros ingenieros recomiendan asegurar la imprimación adecuada con sellador hidrófugo antialcalino y dos capas de acabado. ¿Deseas que apliquemos estos productos o te llamo directamente al ${currentFormData.telefonoResponsable || 'teléfono'}?`;
+          advisorReply = `Hola ${clientName}, revisando los detalles de tu cotización en ${city} (${area > 0 ? `${area} m² de ` : ''}${paint} en tono ${color}): te aconsejo aplicar primero sellador antialcalino sobre la superficie de ${currentFormData.superficie || 'revoque'} para maximizar el rendimiento. ¿Deseas que coordinemos los cuñetes o te marco a tu número ${currentFormData.telefonoResponsable || 'registrado'}?`;
         }
 
         setMessages((prev) => [
@@ -244,7 +304,7 @@ export function ClientAIAssistant({
           }
         ]);
         setIsTyping(false);
-      }, 800);
+      }, 700);
       return;
     }
 
@@ -344,7 +404,22 @@ export function ClientAIAssistant({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query,
-          formData: currentFormData
+          formData: currentFormData,
+          isAdvisorMode: false,
+          clientContext: {
+            nombre: currentFormData.responsable || currentFormData.cliente,
+            cliente: currentFormData.cliente,
+            ciudad: currentFormData.ciudad,
+            areaM2: currentFormData.areaM2,
+            tipoObra: currentFormData.tipoObra,
+            tipoPintura: currentFormData.tipoPintura,
+            colorAcabado: currentFormData.colorAcabado,
+            superficie: currentFormData.superficie,
+            ambiente: currentFormData.ambiente,
+            condicion: currentFormData.condicion,
+            telefono: currentFormData.telefonoResponsable,
+            email: currentFormData.emailResponsable
+          }
         })
       });
 

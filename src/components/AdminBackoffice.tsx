@@ -1470,7 +1470,7 @@ export function AdminBackoffice({
               <span>Gemini 3.8 Flash</span>
             </strong>
             <span className="text-[10px] text-emerald-600 font-semibold block mt-0.5">
-              ✓ Asignación de bus y ruta en vivo
+              ✓ Despacho inteligente con IA en vivo
             </span>
           </div>
         </div>
@@ -1481,9 +1481,9 @@ export function AdminBackoffice({
           <button
             type="button"
             onClick={() => setActiveTab('pedidos')}
-            className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+            className={`px-3.5 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'pedidos'
-                ? 'bg-sky-600 text-white shadow-sm ring-2 ring-sky-500/25'
+                ? 'bg-gradient-to-r from-[#0055FF] to-[#00D2FF] text-white shadow-md shadow-blue-500/25 ring-2 ring-[#0055FF]/30'
                 : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
             }`}
           >
@@ -1500,36 +1500,36 @@ export function AdminBackoffice({
           <button
             type="button"
             onClick={() => setActiveTab('ciudades')}
-            className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+            className={`px-3.5 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'ciudades'
-                ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-sm ring-2 ring-sky-500/25'
+                ? 'bg-gradient-to-r from-[#FF5500] to-[#FFD000] text-slate-950 shadow-md shadow-orange-500/25 ring-2 ring-[#FF5500]/30'
                 : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
             }`}
           >
-            <TrendingUp className="w-4 h-4 text-amber-300" />
+            <TrendingUp className="w-4 h-4 text-[#FF5500]" />
             <span>Sedes & Ventas por Ciudad</span>
             <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
-              activeTab === 'ciudades' ? 'bg-white/20 text-white' : 'bg-sky-100 text-sky-800'
+              activeTab === 'ciudades' ? 'bg-slate-950/20 text-slate-950' : 'bg-sky-100 text-sky-800'
             }`}>
               {cityAnalytics.length} Sedes
             </span>
           </button>
 
-          {/* Tab 3: Clientes Supabase */}
+          {/* Tab 3: Clientes */}
           <button
             type="button"
             onClick={() => {
               setActiveTab('clientes');
               fetchClientsFromSupabase();
             }}
-            className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+            className={`px-3.5 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'clientes'
-                ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-500/20'
+                ? 'bg-gradient-to-r from-[#10E57A] to-[#00D2FF] text-white shadow-md shadow-emerald-500/25 ring-2 ring-[#10E57A]/30'
                 : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
             }`}
           >
             <Users className="w-4 h-4 text-emerald-500" />
-            <span>Clientes Supabase</span>
+            <span>Clientes</span>
             <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
               activeTab === 'clientes' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
             }`}>
@@ -1541,9 +1541,9 @@ export function AdminBackoffice({
           <button
             type="button"
             onClick={() => setActiveTab('stock')}
-            className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+            className={`px-3.5 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'stock'
-                ? 'bg-purple-600 text-white shadow-sm ring-2 ring-purple-500/20'
+                ? 'bg-gradient-to-r from-[#FF007A] to-[#0055FF] text-white shadow-md shadow-pink-500/25 ring-2 ring-[#FF007A]/30'
                 : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
             }`}
           >
@@ -1556,8 +1556,8 @@ export function AdminBackoffice({
       {/* CONTENIDO DE TAB 1: SUPERVISIÓN DE PEDIDOS, AUDITORÍA IA, FLOTA Y MENSAJERÍA */}
       {activeTab === 'pedidos' && (
         <div className="space-y-5">
-          {/* BARRA SUPERIOR: AUTO-PILOTO IA Y ASIGNACIÓN AUTOMÁTICA */}
-          <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-sky-500 via-sky-600 to-blue-700 text-white shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+          {/* BARRA SUPERIOR: AUTO-PILOTO IA Y ASIGNACIÓN AUTOMÁTICA CON DEGRADADO DE MARCA */}
+          <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-[#002B99] via-[#0055FF] to-[#00D2FF] text-white shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-3.5">
               <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-xs flex items-center justify-center text-white shrink-0 shadow-inner">
                 <Sparkles className="w-6 h-6 text-amber-300 animate-pulse" />
@@ -2054,13 +2054,7 @@ export function AdminBackoffice({
                         </p>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setForceManualIntervention(true)}
-                      className="px-3.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl border border-slate-300 shadow-2xs transition-all shrink-0 cursor-pointer active:scale-95"
-                    >
-                      Intervenir si hay error o excepción
-                    </button>
+                    {/* En condiciones normales NO se muestra ningún botón según especificación del usuario */}
                   </div>
                 ) : (
                   <div className="space-y-3 p-4 bg-amber-50/80 rounded-2xl border-2 border-amber-300">
@@ -2209,146 +2203,7 @@ export function AdminBackoffice({
                 </button>
               </div>
 
-              {/* SECCIÓN 1: ASIGNACIÓN DE VEHÍCULO / FURGÓN DE COLORLINK */}
-              <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-extrabold text-slate-800 flex items-center gap-2">
-                    <Truck className="w-4 h-4 text-[#009FE3]" />
-                    <span>Asignación de Vehículo de Despacho (Flota Colorlink)</span>
-                  </h4>
-                  <span className="text-[10px] text-slate-500 font-bold">
-                    Vehículo actual: {activeOrder.vehiculoAsignado || 'Sin asignar'}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                  {[
-                    {
-                      nombre: 'Furgón Colorlink #08',
-                      placa: 'WLL-482',
-                      conductor: 'Carlos Restrepo',
-                      tipo: 'Mediano (2.5 Ton)'
-                    },
-                    {
-                      nombre: 'Furgón Colorlink #04',
-                      placa: 'TLK-193',
-                      conductor: 'Andrés Mejía',
-                      tipo: 'Rápido (1.8 Ton)'
-                    },
-                    {
-                      nombre: 'Camión Reparto #02',
-                      placa: 'SKJ-841',
-                      conductor: 'Mauricio Vélez',
-                      tipo: 'Pesado (4.5 Ton)'
-                    }
-                  ].map((v) => {
-                    const isCurrent = activeOrder.vehiculoAsignado === v.nombre;
-                    return (
-                      <button
-                        key={v.nombre}
-                        type="button"
-                        onClick={() =>
-                          handleAssignVehicle(activeOrder.id, v.nombre, v.placa, v.conductor)
-                        }
-                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                          isCurrent
-                            ? 'border-sky-500 bg-white ring-2 ring-sky-500/20 shadow-xs'
-                            : 'border-slate-200 bg-white hover:border-slate-300'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-extrabold text-xs text-slate-900 block truncate">
-                            {v.nombre}
-                          </span>
-                          {isCurrent && <Check className="w-3.5 h-3.5 text-sky-600" />}
-                        </div>
-                        <span className="text-[11px] text-[#009FE3] font-mono font-bold block">
-                          Placa: {v.placa}
-                        </span>
-                        <span className="text-[10px] text-slate-500 block">
-                          Conductor: {v.conductor}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* SECCIÓN 2: RUTA ÓPTIMA CALCULADA POR IA */}
-              <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-sky-50/70 via-blue-50/50 to-cyan-50/40 border border-sky-200 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-[#009FE3] text-white flex items-center justify-center">
-                      <Navigation className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-black text-slate-900">
-                        Ruta Óptima Calculada con Inteligencia Artificial
-                      </h4>
-                      <p className="text-[10px] text-slate-500">
-                        Algoritmo de tráfico en tiempo real y optimización de combustible
-                      </p>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                    Ahorro de {activeOrder.rutaOptima?.ahorroMin || 20} minutos
-                  </span>
-                </div>
-
-                <div className="bg-white p-4 rounded-xl border border-sky-100 space-y-3">
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center border-b border-slate-100 pb-3">
-                    <div>
-                      <span className="text-[10px] text-slate-400 font-bold block uppercase">
-                        Origen
-                      </span>
-                      <strong className="text-xs text-slate-800 block truncate">Planta Itagüí</strong>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-400 font-bold block uppercase">
-                        Destino
-                      </span>
-                      <strong className="text-xs text-slate-800 block truncate">
-                        {activeOrder.ciudad}
-                      </strong>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-400 font-bold block uppercase">
-                        Distancia
-                      </span>
-                      <strong className="text-xs text-slate-900 block font-mono">
-                        {activeOrder.rutaOptima?.distanciaKm || 13.4} km
-                      </strong>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-400 font-bold block uppercase">
-                        Hora Estimada
-                      </span>
-                      <strong className="text-xs text-emerald-800 block font-bold">
-                        {activeOrder.rutaOptima?.horaEstimada || '11:15 AM'}
-                      </strong>
-                    </div>
-                  </div>
-
-                  {/* Recorrido detallado */}
-                  <div className="flex items-start gap-2.5 text-xs text-slate-700">
-                    <MapPin className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
-                    <div>
-                      <span className="font-bold text-slate-900 block">
-                        Trayectoria recomendada por IA:
-                      </span>
-                      <p className="text-[11px] text-slate-600 leading-relaxed">
-                        {activeOrder.rutaOptima?.recorrido ||
-                          'Autopista Sur ➔ Av. Las Vegas ➔ Puente 4 Sur ➔ Cra 43A'}
-                      </p>
-                      <span className="text-[10px] text-emerald-700 font-medium block mt-1">
-                        ✓ Evita el embotellamiento de Av. Guayabal por obras en la calzada derecha.
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* SECCIÓN 3: HISTORIAL DE NOTIFICACIONES ENVIADAS AL CLIENTE */}
+              {/* SECCIÓN: HISTORIAL DE NOTIFICACIONES ENVIADAS AL CLIENTE */}
               <div className="space-y-2">
                 <h4 className="text-xs font-bold text-slate-800 flex items-center justify-between">
                   <span>Mensajes Enviados al Cliente ({activeOrder.notificaciones.length})</span>
@@ -2406,14 +2261,11 @@ export function AdminBackoffice({
                 <div>
                   <div className="flex items-center gap-2">
                     <h2 className="text-base font-black text-slate-900">
-                      Directorio de Clientes Registrados
+                      Clientes
                     </h2>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                      En Vivo Supabase
-                    </span>
                   </div>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Cada registro queda almacenado permanentemente en la tabla <code className="text-sky-600 font-mono">clientes</code> de PostgreSQL.
+                    Directorio oficial de cuentas corporativas y clientes registrados
                   </p>
                 </div>
               </div>
