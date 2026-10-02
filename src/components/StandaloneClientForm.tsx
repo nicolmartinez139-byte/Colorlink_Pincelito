@@ -68,7 +68,6 @@ import {
 } from 'lucide-react';
 import { ClientEmailPreviewModal } from './ClientEmailPreviewModal';
 import { sendRealOrderEmail } from '../lib/emailService';
-import { getWhatsAppReceiptUrl, sendAutomaticWhatsAppMessage, generateReceiptWhatsAppMessage } from '../utils/whatsappService';
 import { fetchClientOrders, ClientOrderItem } from '../utils/supabaseApi';
 import facadeRefImg from '../assets/images/paint_facade_ref_1790519863937.jpg';
 import exteriorT2RefImg from '../assets/images/exterior_t2_ref_1790522631426.jpg';
@@ -224,11 +223,10 @@ export function StandaloneClientForm({
   const [realEmailStatusNotice, setRealEmailStatusNotice] = useState<string | null>(null);
   const [supabaseSavedNotice, setSupabaseSavedNotice] = useState<boolean>(false);
 
-  // Estados para Historial "Mis Pedidos" (Requirement 6) y WhatsApp Automático (Requirement 3)
+  // Estados para Historial "Mis Pedidos" (Requirement 6)
   const [activeMainTab, setActiveMainTab] = useState<'cotizador' | 'pedidos'>('cotizador');
   const [clientOrders, setClientOrders] = useState<ClientOrderItem[]>([]);
   const [loadingClientOrders, setLoadingClientOrders] = useState<boolean>(false);
-  const [autoWhatsAppNotice, setAutoWhatsAppNotice] = useState<string | null>(null);
 
   const loadClientOrders = async () => {
     const userToQuery = activeSession || activeUser;
@@ -344,45 +342,6 @@ export function StandaloneClientForm({
       setRealEmailStatusNotice(`✓ Solicitud de notificación registrada para ${formData.emailResponsable}`);
     } finally {
       setIsSendingRealEmail(false);
-    }
-
-    // Enviar WhatsApp automáticamente mediante API (Requirement 3)
-    if (formData.telefonoResponsable) {
-      try {
-        const waMsg = generateReceiptWhatsAppMessage({
-          orderId: generatedOrder,
-          cliente: formData.cliente,
-          nit: formData.nitDocumento,
-          responsable: formData.responsable,
-          telefono: formData.telefonoResponsable,
-          email: formData.emailResponsable,
-          ciudad: formData.ciudad,
-          producto: formData.tipoPintura || 'Pintura Tipo 1 Exterior',
-          marca: formData.marcaPintura,
-          metodoPago: formData.metodoPago,
-          color: formData.colorAcabado,
-          cunetes: technicalCalc.cuñetesRequeridos,
-          galones: technicalCalc.galonesSueltosRequeridos,
-          totalCOP: technicalCalc.presupuesto.totalPresupuesto,
-          subtotalCOP: technicalCalc.presupuesto.subtotalMateriales,
-          flete: technicalCalc.presupuesto.fleteEnvio === 0 ? 'GRATIS' : formatCOP(technicalCalc.presupuesto.fleteEnvio),
-          tiempoEntregaDias: 2
-        });
-
-        sendAutomaticWhatsAppMessage({
-          phone: formData.telefonoResponsable,
-          message: waMsg,
-          orderId: generatedOrder,
-          clientName: formData.responsable || formData.cliente,
-          templateType: 'receipt'
-        }).then((res) => {
-          if (res.success) {
-            setAutoWhatsAppNotice(`✓ WhatsApp enviado automáticamente a +${res.message || formData.telefonoResponsable}`);
-          }
-        });
-      } catch (waErr) {
-        console.warn('[Auto WhatsApp Error]', waErr);
-      }
     }
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -851,7 +810,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                 ¡Bienvenido a Colorlink® Pinturas, {activeUser.responsable}!
               </strong>
               <p className="text-white/95 leading-relaxed">
-                Tu cuenta para <strong>{activeUser.empresa}</strong> (NIT: {activeUser.nit}) ha sido registrada y activada con éxito. Hemos enviado automáticamente tu mensaje de bienvenida a WhatsApp{activeUser.telefono ? ` (+57 ${activeUser.telefono})` : ''} y a tu correo ({activeUser.email}).
+                Tu cuenta para <strong>{activeUser.empresa}</strong> (NIT: {activeUser.nit}) ha sido registrada y activada con éxito. Hemos enviado la confirmación y bienvenida a tu correo electrónico ({activeUser.email}).
               </p>
             </div>
           </div>
@@ -1115,7 +1074,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       </div>
                     </div>
 
-                    {/* Fila 3: Total resaltado en color vivo y acción WhatsApp */}
+                    {/* Fila 3: Total resaltado en color vivo y estado */}
                     <div className="flex flex-col sm:flex-row md:flex-col items-start sm:items-center md:items-end justify-between w-full md:w-auto gap-3 pt-3 md:pt-0 border-t md:border-t-0 border-slate-100">
                       <div>
                         <span className="text-[10px] uppercase font-bold text-slate-400 block md:text-right">Total Liquidado</span>
@@ -1124,15 +1083,9 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         </div>
                       </div>
 
-                      <a
-                        href={`https://wa.me/573212460658?text=${encodeURIComponent(`Hola Colorlink, quiero consultar el estado de mi pedido #${ord.orderNumber}`)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#25D366] hover:bg-[#20bd5a] text-white font-extrabold text-xs shadow-md shadow-emerald-500/20 transition-all cursor-pointer active:scale-95"
-                      >
-                        <MessageCircle className="w-4 h-4 fill-current" />
-                        <span>Consultar por WhatsApp</span>
-                      </a>
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs">
+                        <span>Canal Oficial Colorlink</span>
+                      </div>
                     </div>
                   </div>
                 );
@@ -1169,13 +1122,13 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
             <div className="relative z-10 flex flex-wrap items-center gap-2.5 shrink-0">
               <button
                 type="button"
-                id="btn-copy-whatsapp"
+                id="btn-copy-summary"
                 onClick={handleCopyBudgetSummary}
                 className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-2xl transition-all border border-slate-200/80 flex items-center gap-2 cursor-pointer active:scale-95 shadow-2xs backdrop-blur-xs"
-                title="Copiar cotización para enviar por WhatsApp"
+                title="Copiar resumen de la cotización al portapapeles"
               >
                 {copiedQuote ? <Check className="w-4 h-4 text-emerald-600" /> : <Share2 className="w-4 h-4 text-sky-600" />}
-                <span>{copiedQuote ? '¡Copiado a WhatsApp!' : 'Copiar Resumen'}</span>
+                <span>{copiedQuote ? '¡Copiado al Portapapeles!' : 'Copiar Resumen'}</span>
               </button>
 
               <button

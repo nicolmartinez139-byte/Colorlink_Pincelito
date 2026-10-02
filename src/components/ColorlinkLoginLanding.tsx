@@ -4,7 +4,6 @@ import { ColorlinkPenguin } from './ColorlinkPenguin';
 import { UserProfile } from '../types/form';
 import { supabase } from '../lib/supabase';
 import { sendRegistrationWelcomeEmail } from '../utils/emailService';
-import { sendWhatsAppNotification, getWhatsAppRegistrationUrl } from '../utils/whatsappService';
 import paintSplatterBg from '../assets/images/paint_splatter_bg_1788742862980.jpg';
 
 interface ColorlinkLoginLandingProps {
@@ -193,21 +192,6 @@ export function ColorlinkLoginLanding({
         });
       } catch (welcomeErr) {
         console.warn('[EmailJS] Advertencia al enviar bienvenida:', welcomeErr);
-      }
-
-      // Enviar / preparar enlace de WhatsApp
-      let whatsappLink = '';
-      try {
-        const waRes = await sendWhatsAppNotification({
-          email: regEmail,
-          nombre: regResponsable || regEmail.split('@')[0],
-          empresa: regEmpresa || 'Cliente Registrado',
-          nit: nitLimpio || 'No especificado',
-          telefono: regTelefono
-        });
-        whatsappLink = waRes.whatsappUrl;
-      } catch (waErr) {
-        console.warn('[WhatsApp] Advertencia:', waErr);
       }
 
       const userProfile: UserProfile = {

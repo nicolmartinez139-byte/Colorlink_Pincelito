@@ -255,7 +255,7 @@ export function FormCapture({ onSuccessSubmit }: FormCaptureProps) {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Teléfono / WhatsApp de Contacto <span className="text-rose-500">*</span>
+                  Teléfono Celular de Contacto <span className="text-rose-500">*</span>
                 </label>
                 <input
                   id="input-telefono"
