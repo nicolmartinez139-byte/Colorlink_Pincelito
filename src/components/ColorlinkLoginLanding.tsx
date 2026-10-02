@@ -38,13 +38,6 @@ export function ColorlinkLoginLanding({
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [forgotPasswordMsg, setForgotPasswordMsg] = useState(false);
-  const [registeredSuccessData, setRegisteredSuccessData] = useState<{
-    userProfile: UserProfile;
-    whatsappUrl: string;
-    telefono: string;
-    nombre: string;
-    empresa: string;
-  } | null>(null);
 
   // Activación de la simulación con el punto chiquito multicolor
   const handleTriggerSimulation = () => {
@@ -228,20 +221,23 @@ export function ColorlinkLoginLanding({
         createdAt: newClient.created_at || new Date().toISOString()
       };
 
-      // Si tiene teléfono o desea abrir WhatsApp, mostramos la confirmación interactiva
-      setRegisteredSuccessData({
-        userProfile,
-        whatsappUrl: whatsappLink || getWhatsAppRegistrationUrl({
-          email: regEmail,
-          nombre: userProfile.responsable,
-          empresa: userProfile.empresa,
-          nit: userProfile.nit,
-          telefono: regTelefono
-        }),
-        telefono: regTelefono,
-        nombre: userProfile.responsable,
-        empresa: userProfile.empresa
-      });
+      // Disparo automático de WhatsApp en segundo plano si hay teléfono registrado
+      if (whatsappLink && regTelefono) {
+        try {
+          const directLink = document.createElement('a');
+          directLink.href = whatsappLink;
+          directLink.target = '_blank';
+          directLink.rel = 'noopener noreferrer';
+          document.body.appendChild(directLink);
+          directLink.click();
+          document.body.removeChild(directLink);
+        } catch (autoSendErr) {
+          console.log('[WhatsApp Auto Trigger]', autoSendErr);
+        }
+      }
+
+      // Ingreso directo e inmediato al cotizador sin pantallas intermedias ni opciones manuales
+      onLoginSuccess(userProfile, false);
     } catch (err: any) {
       console.error('[Registro Error]', err);
       setErrorMessage(err?.message || 'No se pudo completar el registro en este momento. Por favor verifica tus datos e intenta nuevamente.');
@@ -676,82 +672,6 @@ export function ColorlinkLoginLanding({
           </button>
         </div>
       </div>
-
-      {/* MODAL DE CONFIRMACIÓN DE REGISTRO CON ENVÍO DIRECTO A WHATSAPP */}
-      {registeredSuccessData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-100 text-center space-y-5 animate-scaleUp">
-            {/* Ícono animado de éxito */}
-            <div className="mx-auto w-16 h-16 rounded-3xl bg-gradient-to-tr from-emerald-500 to-green-400 text-white flex items-center justify-center shadow-lg shadow-emerald-500/30">
-              <Check className="w-8 h-8 stroke-[3]" />
-            </div>
-
-            <div>
-              <span className="inline-block px-3.5 py-1.5 rounded-full text-xs font-black bg-gradient-to-r from-emerald-500 via-teal-500 to-[#009FE3] text-white shadow-md shadow-emerald-500/20 mb-2">
-                ¡Registro exitoso! Bienvenido
-              </span>
-              <h3 className="text-xl font-black text-slate-900">
-                ¡Te has registrado exitosamente!
-              </h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Tu cuenta corporativa ya está activa en Colorlink® Pinturas.
-              </p>
-            </div>
-
-            {/* Tarjeta con los datos registrados del cliente y empresa */}
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-left space-y-2 text-xs">
-              <div className="flex justify-between items-center pb-2 border-b border-slate-200/80">
-                <span className="text-slate-500">Cliente / Responsable:</span>
-                <span className="font-bold text-slate-900">{registeredSuccessData.nombre}</span>
-              </div>
-              <div className="flex justify-between items-center pb-2 border-b border-slate-200/80">
-                <span className="text-slate-500">Empresa:</span>
-                <span className="font-bold text-slate-900">{registeredSuccessData.empresa}</span>
-              </div>
-              <div className="flex justify-between items-center pb-2 border-b border-slate-200/80">
-                <span className="text-slate-500">NIT / Documento:</span>
-                <span className="font-mono font-bold text-slate-900">{registeredSuccessData.userProfile.nit}</span>
-              </div>
-              <div className="flex justify-between items-center pb-2 border-b border-slate-200/80">
-                <span className="text-slate-500">Teléfono WhatsApp:</span>
-                <span className="font-bold text-slate-900">{registeredSuccessData.telefono || 'No especificado'}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 shrink-0">Correo Electrónico:</span>
-                <span className="font-bold text-sky-700 break-all text-right pl-2">{registeredSuccessData.userProfile.email}</span>
-              </div>
-            </div>
-
-            {/* Aviso de correo */}
-            <p className="text-[11px] text-emerald-700 bg-emerald-50/80 border border-emerald-200 rounded-xl py-2 px-3">
-              ✓ Correo corporativo de confirmación enviado exitosamente.
-            </p>
-
-            <div className="space-y-2.5 pt-1">
-              {/* Botón Principal WhatsApp */}
-              <a
-                href={registeredSuccessData.whatsappUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-extrabold text-sm py-3.5 px-4 rounded-2xl flex items-center justify-center gap-2.5 shadow-lg shadow-emerald-500/25 transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
-              >
-                <MessageCircle className="w-5 h-5 fill-current" />
-                <span>Enviar / Abrir por WhatsApp</span>
-              </a>
-
-              {/* Botón Continuar */}
-              <button
-                type="button"
-                onClick={() => onLoginSuccess(registeredSuccessData.userProfile, false)}
-                className="w-full bg-gradient-to-r from-sky-500 via-sky-600 to-blue-700 hover:brightness-110 text-white font-bold text-xs py-3 px-4 rounded-2xl flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md"
-              >
-                <span>Continuar al Cotizador y Dosificación</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

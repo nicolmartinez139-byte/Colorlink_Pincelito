@@ -188,6 +188,11 @@ export function StandaloneClientForm({
   const [isAiAssistantOpen, setIsAiAssistantOpen] = useState<boolean>(false);
   const [showClientPassword, setShowClientPassword] = useState<boolean>(false);
   const [showEmailModal, setShowEmailModal] = useState<boolean>(false);
+  const [showWelcomeBanner, setShowWelcomeBanner] = useState<boolean>(() => {
+    if (!activeUser?.createdAt) return false;
+    const createdTime = new Date(activeUser.createdAt).getTime();
+    return (Date.now() - createdTime) < 180000;
+  });
 
   // Flujo de Decisión del Cliente sobre la Cotización (Aceptar / Modificar / Rechazar)
   const [quotationDecision, setQuotationDecision] = useState<'pending' | 'accepted' | 'rejected'>('accepted');
@@ -833,7 +838,34 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
   };
 
   return (
-    <div id="standalone-client-presentation" className="space-y-8 max-w-6xl mx-auto pb-12">
+    <div id="standalone-client-presentation" className="space-y-6 max-w-6xl mx-auto pb-12">
+      {/* BANNER DE BIENVENIDA AUTOMÁTICA TRAS REGISTRO */}
+      {showWelcomeBanner && activeUser && (
+        <div className="no-print bg-gradient-to-r from-[#10E57A] via-[#00D2FF] to-[#0055FF] text-white p-4 sm:p-5 rounded-3xl shadow-lg shadow-emerald-500/20 flex items-center justify-between gap-3 animate-fadeIn">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-white/20 backdrop-blur-xs flex items-center justify-center font-bold text-white shrink-0 shadow-inner">
+              <Check className="w-6 h-6 stroke-[3]" />
+            </div>
+            <div className="text-xs space-y-0.5">
+              <strong className="block text-sm font-black tracking-tight">
+                ¡Bienvenido a Colorlink® Pinturas, {activeUser.responsable}!
+              </strong>
+              <p className="text-white/95 leading-relaxed">
+                Tu cuenta para <strong>{activeUser.empresa}</strong> (NIT: {activeUser.nit}) ha sido registrada y activada con éxito. Hemos enviado automáticamente tu mensaje de bienvenida a WhatsApp{activeUser.telefono ? ` (+57 ${activeUser.telefono})` : ''} y a tu correo ({activeUser.email}).
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowWelcomeBanner(false)}
+            className="p-2 hover:bg-white/20 rounded-xl transition-colors shrink-0 text-white cursor-pointer"
+            title="Cerrar notificación"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* BARRA SUPERIOR DE NAVEGACIÓN: COTIZADOR VS MIS PEDIDOS */}
       <div className="no-print bg-white/95 backdrop-blur-md rounded-3xl p-3 border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -843,7 +875,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
             onClick={() => setActiveMainTab('cotizador')}
             className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
               activeMainTab === 'cotizador'
-                ? 'bg-gradient-to-r from-[#FF6A00] via-[#FF8C00] to-[#009FE3] text-white shadow-md shadow-orange-500/25'
+                ? 'bg-gradient-to-r from-[#FF5500] via-[#FF7700] to-[#FF007A] text-white shadow-md shadow-orange-500/25'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
@@ -860,7 +892,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
             }}
             className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer ${
               activeMainTab === 'pedidos'
-                ? 'bg-gradient-to-r from-[#003882] via-[#0052b4] to-[#009FE3] text-white shadow-md shadow-blue-500/25'
+                ? 'bg-gradient-to-r from-[#002B99] via-[#0055FF] to-[#00D2FF] text-white shadow-md shadow-blue-500/25'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >

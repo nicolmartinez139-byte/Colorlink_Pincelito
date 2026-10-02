@@ -276,7 +276,8 @@ export async function sendRegistrationWelcomeEmail(params: {
 
   const subject = `¡Bienvenido a Colorlink® Pinturas! Registro Exitoso (${nombreEmpresa})`;
 
-  // 1. Envío prioritario con plantilla HTML completa mediante backend
+  // 1. Envío prioritario con plantilla HTML completa mediante backend si cuenta con Resend o SMTP real
+  let backendDelivered = false;
   try {
     const res = await fetch('/api/send-email', {
       method: 'POST',
@@ -285,21 +286,28 @@ export async function sendRegistrationWelcomeEmail(params: {
         to: recipientEmail,
         subject,
         html: welcomeHtml,
-        text: `¡Bienvenido a Colorlink Pinturas! Hola ${nombreCliente}, tu cuenta ha sido creada exitosamente para ${nombreEmpresa} (NIT: ${nitDocumento}). Ya puedes ingresar a cotizar.`
+        text: `¡Bienvenido a Colorlink Pinturas! Hola ${nombreCliente}, tu cuenta corporativa ha sido creada exitosamente para ${nombreEmpresa} (NIT: ${nitDocumento}). Ya puedes ingresar a cotizar.`
       })
     });
     const data = await res.json();
-    if (data.success) {
-      console.log('[WELCOME EMAIL SUCCESS] Correo de bienvenida entregado a:', recipientEmail);
+    if (data.success && data.provider !== 'ethereal_sandbox' && data.provider !== 'ethereal_test') {
+      console.log('[WELCOME EMAIL SUCCESS] Correo de bienvenida entregado vía backend:', recipientEmail);
+      backendDelivered = true;
       return { success: true, message: `Bienvenida enviada a ${recipientEmail}` };
     }
   } catch (err: any) {
     console.warn('[WELCOME EMAIL BACKEND WARN]', err);
   }
 
-  // 2. Respaldo opcional con EmailJS
-  if (isEmailConfigured()) {
+  // 2. Envío con EmailJS garantizando que SIEMPRE sea un mensaje de BIENVENIDA y REGISTRO EXITOSO
+  if (isEmailConfigured() && !backendDelivered) {
     try {
+      const welcomeTemplateId = (
+        (typeof import.meta !== 'undefined' && import.meta.env?.VITE_EMAILJS_WELCOME_TEMPLATE_ID) ||
+        (typeof process !== 'undefined' && process.env?.VITE_EMAILJS_WELCOME_TEMPLATE_ID) ||
+        TEMPLATE_ID
+      ) as string;
+
       const templateParams = {
         to_email: recipientEmail,
         user_email: recipientEmail,
@@ -309,17 +317,45 @@ export async function sendRegistrationWelcomeEmail(params: {
         name: nombreCliente,
         nombre: nombreCliente,
         empresa: nombreEmpresa,
+        cliente: nombreEmpresa,
+        responsable: nombreCliente,
         nit: nitDocumento,
+        nit_documento: nitDocumento,
         telefono: telefonoContacto,
-        subject,
+        subject: `🎨 COLORLINK® • ¡Bienvenido! Registro Exitoso (${nombreEmpresa})`,
         title: '¡Registro Exitoso! Bienvenido a Colorlink® Pinturas',
-        message: `¡Hola ${nombreCliente}! Te confirmamos que tu cuenta para la empresa ${nombreEmpresa} (NIT: ${nitDocumento}) ha sido creada y registrada exitosamente en Colorlink Pinturas.`,
-        order_number: 'REG-BIENVENIDA',
-        total: 'Cuenta Corporativa Activa',
-        total_cop: '$0 COP'
+        // Variables completas para que la plantilla de EmailJS nunca muestre campos en blanco ni parezca cotización
+        order_number: `REG-${nitDocumento.replace(/[^0-9]/g, '').slice(-6) || 'CLK2026'} (Cuenta Activa)`,
+        order_id: `REG-${nitDocumento.replace(/[^0-9]/g, '').slice(-6) || 'CLK2026'}`,
+        orderId: `REG-${nitDocumento.replace(/[^0-9]/g, '').slice(-6) || 'CLK2026'}`,
+        ciudad: 'Medellín y Cobertura Nacional',
+        tipo_obra: 'Portal Corporativo de Clientes Colorlink',
+        superficie: 'Muros, Fachadas y Pisos Industriales',
+        ambiente: 'Interior y Exterior',
+        color_acabado: 'Catálogo Oficial Colorlink (Mil Opciones)',
+        producto: 'Línea Profesional de Pinturas y Tintometría Colorlink®',
+        producto_recomendado: 'Línea Profesional de Pinturas y Tintometría Colorlink®',
+        manos: 'Asistencia Técnica Personalizada & Descuento Especial',
+        manos_sugeridas: 'Asistencia Técnica Personalizada',
+        galones: 'Acceso Total al Cotizador',
+        galones_requeridos: 'Acceso Total',
+        cunetes_requeridos: 'Habilitado',
+        tiempo: 'Inmediato (Plataforma Autónoma 24/7)',
+        tiempo_entrega: 'Activación Inmediata',
+        total: 'Cuenta Corporativa Habilitada',
+        total_cop: 'Acceso Gratuito',
+        subtotal: 'Acceso Habilitado',
+        flete: 'Despacho con Flota Colorlink',
+        iva: '19% en pedidos oficiales',
+        status_message: '✓ Cuenta de Cliente Registrada & Verificada',
+        message: `¡Bienvenido a Colorlink Pinturas! Hola ${nombreCliente}, tu registro para la empresa ${nombreEmpresa} (NIT: ${nitDocumento}) ha sido completado exitosamente. Tu cuenta está activa para liquidar requerimientos en obra y emitir cotizaciones oficiales.`,
+        html: welcomeHtml,
+        html_content: welcomeHtml,
+        content: welcomeHtml
       };
 
-      await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams, { publicKey: PUBLIC_KEY });
+      await emailjs.send(SERVICE_ID, welcomeTemplateId, templateParams, { publicKey: PUBLIC_KEY });
+      console.log('[EmailJS] Correo de bienvenida enviado exitosamente a:', recipientEmail);
       return { success: true, message: `Bienvenida enviada a ${recipientEmail}` };
     } catch (e: any) {
       console.warn('[EmailJS Welcome]', e);
