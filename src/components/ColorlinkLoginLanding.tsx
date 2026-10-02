@@ -717,8 +717,8 @@ export function ColorlinkLoginLanding({
                 <span className="font-bold text-slate-900">{registeredSuccessData.telefono || 'No especificado'}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-slate-500">Correo Electrónico:</span>
-                <span className="font-bold text-sky-700 truncate max-w-[180px]">{registeredSuccessData.userProfile.email}</span>
+                <span className="text-slate-500 shrink-0">Correo Electrónico:</span>
+                <span className="font-bold text-sky-700 break-all text-right pl-2">{registeredSuccessData.userProfile.email}</span>
               </div>
             </div>
 

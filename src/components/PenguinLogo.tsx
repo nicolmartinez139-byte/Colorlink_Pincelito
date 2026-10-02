@@ -25,15 +25,15 @@ export function PenguinLogo({
       {showText && (
         <div className="flex flex-col">
           <div className="flex items-center gap-1.5">
-            <span className="font-black text-lg sm:text-xl tracking-tight bg-gradient-to-r from-[#D77E63] via-[#EC4899] via-[#009FE3] to-[#0052CC] bg-clip-text text-transparent">
+            <span className="font-black text-lg sm:text-xl tracking-tight bg-gradient-to-r from-[#FF5500] via-[#0055FF] to-[#00D2FF] bg-clip-text text-transparent">
               COLORLINK
             </span>
-            <span className="text-[10px] font-black text-[#009FE3] bg-sky-50 px-1.5 py-0.2 rounded-md border border-sky-200">
+            <span className="text-[10px] font-black text-[#0055FF] bg-blue-50 px-1.5 py-0.2 rounded-md border border-blue-200">
               ®
             </span>
           </div>
           <span className="text-[10px] font-bold text-slate-500 -mt-0.5 tracking-wide flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
+            <span className="w-1.5 h-1.5 rounded-full bg-[#10E57A] inline-block"></span>
             Pinturas & Tintometría
           </span>
         </div>

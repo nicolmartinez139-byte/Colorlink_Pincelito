@@ -115,11 +115,11 @@ export function ClientEmailPreviewModal({
         {/* Cuerpo del Correo - Plantilla Colorida Profesional */}
         <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5 text-slate-800 text-xs sm:text-sm">
           {/* ENCABEZADO VIBRANTE DE MARCA */}
-          <div className="rounded-2xl p-6 bg-gradient-to-r from-[#003882] via-[#009FE3] to-[#FF6A00] text-white text-center shadow-lg relative overflow-hidden">
+          <div className="rounded-2xl p-6 bg-gradient-to-r from-[#002B99] via-[#0055FF] to-[#00D2FF] text-white text-center shadow-lg relative overflow-hidden">
             <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/30 mb-3">
               <span className="text-xl">🐧🎨</span>
               <span className="font-black text-sm tracking-wider">COLORLINK®</span>
-              <span className="text-[10px] font-black bg-white text-[#003882] px-2 py-0.5 rounded-full">PINTURAS</span>
+              <span className="text-[10px] font-black bg-white text-[#0055FF] px-2 py-0.5 rounded-full">PINTURAS</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
               COTIZACIÓN OFICIAL APROBADA
@@ -127,7 +127,7 @@ export function ClientEmailPreviewModal({
             <p className="text-xs sm:text-sm text-sky-100 mt-1 font-medium">
               Especificación Técnica & Despacho a Obra #{orderNumber}
             </p>
-            <div className="inline-block mt-3 px-3.5 py-1 rounded-full text-xs font-black bg-emerald-400 text-slate-950 uppercase tracking-wider shadow-md">
+            <div className="inline-block mt-3 px-3.5 py-1 rounded-full text-xs font-black bg-[#10E57A] text-slate-950 uppercase tracking-wider shadow-md">
               ✓ Cotización Confirmada & Registrada
             </div>
           </div>
@@ -138,7 +138,7 @@ export function ClientEmailPreviewModal({
               Hola <strong className="text-slate-900 font-bold">{formData.responsable || formData.cliente}</strong>,
             </p>
             <p>
-              Te confirmamos la liquidación de la cotización oficial para tu proyecto en <strong className="text-[#009FE3] font-bold">{formData.cliente}</strong> (NIT: <span className="font-mono">{formData.nitDocumento}</span>) con destino en <strong className="text-slate-900">{formData.ciudad}</strong>.
+              Te confirmamos la liquidación de la cotización oficial para tu proyecto en <strong className="text-[#0055FF] font-bold">{formData.cliente}</strong> (NIT: <span className="font-mono">{formData.nitDocumento}</span>) con destino en <strong className="text-slate-900">{formData.ciudad}</strong>.
             </p>
           </div>
 
@@ -146,16 +146,16 @@ export function ClientEmailPreviewModal({
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-black uppercase text-slate-900 tracking-wide flex items-center gap-1.5">
-                <Package className="w-4 h-4 text-[#009FE3]" />
+                <Package className="w-4 h-4 text-[#0055FF]" />
                 Dosificación de Materiales Fabricados
               </span>
               <span className="text-[10px] font-bold text-slate-500">Norma NTC 1335</span>
             </div>
 
             <div className="overflow-x-auto rounded-2xl border border-slate-200">
-              <table className="w-full text-left border-collapse text-xs">
+              <table className="w-full min-w-[460px] text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-gradient-to-r from-[#009FE3] to-[#003882] text-white">
+                  <tr className="bg-gradient-to-r from-[#0055FF] to-[#00D2FF] text-white">
                     <th className="py-2.5 px-3 font-bold">Presentación</th>
                     <th className="py-2.5 px-3 font-bold text-center">Cantidad</th>
                     <th className="py-2.5 px-3 font-bold">Uso Técnico Certificado</th>
@@ -164,12 +164,12 @@ export function ClientEmailPreviewModal({
                 <tbody className="divide-y divide-slate-100">
                   <tr className="bg-white">
                     <td className="py-2.5 px-3 font-bold text-slate-900">Cuñetes (5 Galones)</td>
-                    <td className="py-2.5 px-3 font-black text-center text-[#FF6A00] text-sm">{technicalCalc.cuñetesRequeridos}</td>
+                    <td className="py-2.5 px-3 font-black text-center text-[#FF5500] text-sm">{technicalCalc.cuñetesRequeridos}</td>
                     <td className="py-2.5 px-3 text-slate-600">Área general ({formData.areaM2} m²) a {technicalCalc.manosSugeridas} manos</td>
                   </tr>
                   <tr className="bg-slate-50/80">
                     <td className="py-2.5 px-3 font-bold text-slate-900">Galones Sueltos</td>
-                    <td className="py-2.5 px-3 font-black text-center text-[#009FE3] text-sm">{technicalCalc.galonesSueltosRequeridos}</td>
+                    <td className="py-2.5 px-3 font-black text-center text-[#0055FF] text-sm">{technicalCalc.galonesSueltosRequeridos}</td>
                     <td className="py-2.5 px-3 text-slate-600">Ajuste técnico con {technicalCalc.factorDesperdicioPorcentaje}% de desperdicio</td>
                   </tr>
                   <tr className="bg-white">
@@ -183,7 +183,7 @@ export function ClientEmailPreviewModal({
           </div>
 
           {/* RESUMEN ECONÓMICO RESALTADO EN COLOR VIVO */}
-          <div className="p-5 rounded-2xl bg-gradient-to-br from-[#003882] to-[#009FE3] text-white shadow-lg space-y-2">
+          <div className="p-5 rounded-2xl bg-gradient-to-br from-[#002B99] via-[#0055FF] to-[#00D2FF] text-white shadow-lg space-y-2">
             <div className="flex justify-between text-xs text-sky-100">
               <span>Subtotal Materiales:</span>
               <span className="font-mono font-bold text-white">{formatCOP(presupuesto.subtotalMateriales)} COP</span>
@@ -212,7 +212,7 @@ export function ClientEmailPreviewModal({
               href={`https://wa.me/573212460658?text=Hola%20Colorlink,%20acabo%20de%20revisar%20mi%20cotizaci%C3%B3n%20${orderNumber}%20para%20${encodeURIComponent(formData.cliente)}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-2 px-8 py-3.5 bg-gradient-to-r from-[#FF6A00] to-[#E5007D] hover:brightness-110 text-white font-black text-xs uppercase tracking-wider rounded-full shadow-lg shadow-orange-500/25 transition-all cursor-pointer"
+              className="inline-flex items-center justify-center gap-2 px-8 py-3.5 bg-gradient-to-r from-[#FF5500] via-[#FF7700] to-[#FF007A] hover:brightness-110 text-white font-black text-xs uppercase tracking-wider rounded-full shadow-lg shadow-orange-500/25 transition-all cursor-pointer"
             >
               <span>Confirmar Despacho por WhatsApp 🚚</span>
             </a>

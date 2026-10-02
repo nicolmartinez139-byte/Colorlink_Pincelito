@@ -79,14 +79,14 @@ export async function sendRealOrderEmail(params: SendEmailParams): Promise<Email
         <!-- TARJETA CENTRADA RESPONSIVA (MAX 600PX) -->
         <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 24px; overflow: hidden; box-shadow: 0 10px 35px rgba(0, 56, 130, 0.12); border: 1px solid #e2e8f0;">
 
-          <!-- BARRA ARCOÍRIS DE MARCA COLORLINK -->
+          <!-- BARRA ARCOÍRIS DE MARCA COLORLINK (5 COLORES VIVOS) -->
           <tr>
-            <td style="height: 6px; background: linear-gradient(90deg, #FF6A00 0%, #FFD000 25%, #10B981 50%, #009FE3 75%, #E5007D 100%);"></td>
+            <td style="height: 6px; background: linear-gradient(90deg, #FF5500 0%, #FFD000 20%, #10E57A 40%, #00D2FF 60%, #0055FF 80%, #FF007A 100%);"></td>
           </tr>
 
           <!-- ENCABEZADO VIBRANTE CON DEGRADADO -->
           <tr>
-            <td align="center" style="background: linear-gradient(135deg, #003882 0%, #009FE3 55%, #FF6A00 100%); padding: 36px 24px 28px; text-align: center; color: #ffffff;">
+            <td align="center" style="background: linear-gradient(135deg, #002B99 0%, #0055FF 55%, #00D2FF 100%); padding: 36px 24px 28px; text-align: center; color: #ffffff;">
               <table border="0" cellpadding="0" cellspacing="0" width="100%">
                 <tr>
                   <td align="center">
@@ -94,7 +94,7 @@ export async function sendRealOrderEmail(params: SendEmailParams): Promise<Email
                     <div style="display: inline-block; background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(8px); padding: 8px 18px; border-radius: 30px; border: 1px solid rgba(255, 255, 255, 0.35); margin-bottom: 12px;">
                       <span style="font-size: 26px; vertical-align: middle;">🐧🎨</span>
                       <span style="font-size: 16px; font-weight: 900; letter-spacing: 1px; color: #ffffff; margin-left: 6px; vertical-align: middle;">COLORLINK®</span>
-                      <span style="font-size: 11px; font-weight: 800; background: #ffffff; color: #003882; padding: 2px 7px; border-radius: 10px; margin-left: 6px; vertical-align: middle;">PINTURAS</span>
+                      <span style="font-size: 11px; font-weight: 800; background: #ffffff; color: #0055FF; padding: 2px 7px; border-radius: 10px; margin-left: 6px; vertical-align: middle;">PINTURAS</span>
                     </div>
 
                     <h1 style="margin: 8px 0 4px; font-size: 24px; font-weight: 900; line-height: 1.2; color: #ffffff; text-shadow: 0 2px 4px rgba(0,0,0,0.15);">
@@ -105,7 +105,7 @@ export async function sendRealOrderEmail(params: SendEmailParams): Promise<Email
                     </p>
 
                     <!-- BADGE DE ESTADO VERDE LIMA -->
-                    <div style="display: inline-block; background-color: #10B981; color: #ffffff; font-size: 11px; font-weight: 800; padding: 6px 16px; border-radius: 20px; margin-top: 14px; text-transform: uppercase; letter-spacing: 0.8px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);">
+                    <div style="display: inline-block; background-color: #10E57A; color: #ffffff; font-size: 11px; font-weight: 800; padding: 6px 16px; border-radius: 20px; margin-top: 14px; text-transform: uppercase; letter-spacing: 0.8px; box-shadow: 0 4px 12px rgba(16, 229, 122, 0.4);">
                       ✓ ${statusMessage || 'Cotización Confirmada & Registrada'}
                     </div>
                   </td>
@@ -121,7 +121,7 @@ export async function sendRealOrderEmail(params: SendEmailParams): Promise<Email
               <!-- SALUDO AL CLIENTE -->
               <p style="font-size: 15px; line-height: 1.6; color: #334155; margin: 0 0 20px;">
                 Hola <strong style="color: #0f172a;">${formData.responsable || formData.cliente || 'Cliente'}</strong>,<br />
-                Te confirmamos que hemos liquidado y generado satisfactoriamente la cotización técnica para tu proyecto en <strong style="color: #009FE3;">${formData.cliente || 'Constructora'}</strong>.
+                Te confirmamos que hemos liquidado y generado satisfactoriamente la cotización técnica para tu proyecto en <strong style="color: #0055FF;">${formData.cliente || 'Constructora'}</strong>.
               </p>
 
               <!-- DETALLES DEL PROYECTO (TARJETA SUAVE CON BORDE TURQUESA) -->
@@ -220,7 +220,7 @@ export async function sendRealOrderEmail(params: SendEmailParams): Promise<Email
               </table>
 
               <!-- RESUMEN ECONÓMICO RESALTADO EN COLOR VIVO -->
-              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background: linear-gradient(135deg, #003882 0%, #009FE3 100%); border-radius: 18px; margin-bottom: 24px; box-shadow: 0 8px 24px rgba(0, 159, 227, 0.3); color: #ffffff;">
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background: linear-gradient(135deg, #002B99 0%, #0055FF 60%, #00D2FF 100%); border-radius: 18px; margin-bottom: 24px; box-shadow: 0 8px 24px rgba(0, 85, 255, 0.35); color: #ffffff;">
                 <tr>
                   <td style="padding: 22px 24px;">
                     <table border="0" cellpadding="0" cellspacing="0" width="100%" style="font-size: 13px; line-height: 1.8;">
@@ -261,7 +261,7 @@ export async function sendRealOrderEmail(params: SendEmailParams): Promise<Email
               <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 22px;">
                 <tr>
                   <td align="center">
-                    <a href="https://wa.me/573212460658?text=Hola%20Colorlink,%20acabo%20de%20recibir%20mi%20cotizaci%C3%B3n%20${orderId}%20para%20${encodeURIComponent(formData.cliente)}" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #FF6A00 0%, #E5007D 100%); color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 900; padding: 16px 36px; border-radius: 30px; letter-spacing: 0.5px; box-shadow: 0 6px 20px rgba(229, 0, 125, 0.35); text-transform: uppercase;">
+                    <a href="https://wa.me/573212460658?text=Hola%20Colorlink,%20acabo%20de%20recibir%20mi%20cotizaci%C3%B3n%20${orderId}%20para%20${encodeURIComponent(formData.cliente)}" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #FF5500 0%, #FF7700 40%, #FF007A 100%); color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 900; padding: 16px 36px; border-radius: 30px; letter-spacing: 0.5px; box-shadow: 0 6px 20px rgba(255, 85, 0, 0.4); text-transform: uppercase;">
                       Confirmar Despacho por WhatsApp 🚚
                     </a>
                   </td>
@@ -269,7 +269,7 @@ export async function sendRealOrderEmail(params: SendEmailParams): Promise<Email
               </table>
 
               <!-- SEGUIMIENTO DE DESPACHO CON LA FLOTA -->
-              <div style="background-color: #f8fafc; border-left: 4px solid #10B981; padding: 14px 16px; border-radius: 0 12px 12px 0; font-size: 12px; color: #334155; line-height: 1.6;">
+              <div style="background-color: #f8fafc; border-left: 4px solid #10E57A; padding: 14px 16px; border-radius: 0 12px 12px 0; font-size: 12px; color: #334155; line-height: 1.6;">
                 🚚 <strong>Despacho en Flota Oficial:</strong> Tu pedido ha sido asignado a nuestra flota de furgones urbanos con entrega en 24 a 48 horas. Nuestro asistente <strong>Pincelito 🐧</strong> y la asesora técnica Arq. Sofía Martínez coordinarán la hora exacta de arribo con el transportador.
               </div>
 

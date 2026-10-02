@@ -1967,9 +1967,9 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
                     <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 space-y-1">
                       <span className="text-[10px] font-bold uppercase text-slate-400 block">Contacto Responsable</span>
-                      <strong className="text-xs font-bold text-slate-900 block truncate">{formData.responsable || formData.emailResponsable}</strong>
-                      <span className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-600" /> {formData.emailResponsable}
+                      <strong className="text-xs font-bold text-slate-900 block break-words">{formData.responsable || formData.emailResponsable}</strong>
+                      <span className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1 break-all">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" /> {formData.emailResponsable}
                       </span>
                     </div>
 
@@ -2149,13 +2149,13 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
                 <div className="p-3.5 rounded-2xl bg-slate-50/90 border border-slate-200 space-y-1">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Empresa / Cliente</span>
-                  <p className="font-bold text-slate-900 text-sm truncate">{formData.cliente}</p>
+                  <p className="font-bold text-slate-900 text-sm break-words">{formData.cliente}</p>
                   <p className="text-slate-500 font-mono">NIT: {formData.nitDocumento}</p>
                 </div>
 
                 <div className="p-3.5 rounded-2xl bg-slate-50/90 border border-slate-200 space-y-1">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Contacto / Responsable</span>
-                  <p className="font-bold text-slate-900 text-sm truncate">{formData.responsable}</p>
+                  <p className="font-bold text-slate-900 text-sm break-words">{formData.responsable}</p>
                   <p className="text-slate-500 font-mono">{formData.telefonoResponsable}</p>
                 </div>
 
@@ -2170,7 +2170,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                 <div className="p-3.5 rounded-2xl bg-slate-50/90 border border-slate-200 space-y-1">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Especificación de Obra</span>
                   <p className="font-black text-slate-900 text-base">{formData.areaM2} m²</p>
-                  <p className="text-slate-600 truncate">{formData.tipoObra}</p>
+                  <p className="text-slate-600 break-words">{formData.tipoObra}</p>
                 </div>
               </div>
 
@@ -2225,8 +2225,8 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                   <span className="text-[11px] text-slate-500 font-medium">Lista de Precios Oficial Colorlink</span>
                 </div>
 
-                <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs bg-white">
-                  <table className="w-full text-left text-xs border-collapse">
+                <div className="border border-slate-200 rounded-2xl overflow-x-auto shadow-xs bg-white">
+                  <table className="w-full min-w-[560px] text-left text-xs border-collapse">
                     <thead className="bg-slate-100/90 text-slate-800 font-bold border-b border-slate-200">
                       <tr>
                         <th className="p-3.5">Descripción del Material / Recubrimiento</th>
@@ -2572,10 +2572,10 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         {isCompleted ? <CheckCircle2 className="w-5 h-5 text-white" /> : <Icon className="w-4 h-4" />}
                       </div>
                       <div className="min-w-0">
-                        <span className={`text-xs font-bold block truncate ${isCurrent ? 'text-slate-900 font-extrabold' : 'text-slate-800'}`}>
+                        <span className={`text-xs font-bold block ${isCurrent ? 'text-slate-900 font-extrabold' : 'text-slate-800'}`}>
                           {item.title}
                         </span>
-                        <span className="text-[11px] text-slate-500 block truncate">{item.desc}</span>
+                        <span className="text-[11px] text-slate-500 block leading-tight">{item.desc}</span>
                       </div>
                     </button>
                   );
