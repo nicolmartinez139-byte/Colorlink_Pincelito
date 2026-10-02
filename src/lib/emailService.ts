@@ -383,6 +383,11 @@ export async function sendRealOrderEmail(params: SendEmailParams): Promise<Email
       flete: calculation.fleteCOP === 0 ? 'GRATIS' : formatCOP(calculation.fleteCOP),
       iva: formatCOP(calculation.ivaCOP),
       status_message: statusMessage || 'Cotización Aprobada',
+      subject: resolvedSubject,
+      title: 'Cotización Oficial Aprobada - Colorlink® Pinturas',
+      html: htmlContent,
+      html_content: htmlContent,
+      content: htmlContent,
       message: `Cotización Oficial Aprobada #${orderId || 'CLK-2026'} para ${formData.cliente} en ${formData.ciudad}. Total: ${formatCOP(calculation.totalCOP)} COP.`
     };
 

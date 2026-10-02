@@ -234,6 +234,8 @@ export async function sendConfirmationEmail(
     subtotal: formatCOP(calc.presupuesto.subtotalMateriales),
     flete: calc.presupuesto.fleteEnvio === 0 ? 'GRATIS' : formatCOP(calc.presupuesto.fleteEnvio),
     iva: formatCOP(calc.presupuesto.ivaValor),
+    subject,
+    title: `Cotización Oficial Aprobada #${orderNumber} (${formData.cliente})`,
     message: `Confirmación de Cotización Oficial #${orderNumber} para ${formData.cliente} en ${formData.ciudad}. Total: ${formatCOP(calc.presupuesto.totalPresupuesto)} COP.`
   };
 
@@ -389,6 +391,71 @@ export async function sendOrderStatusUpdateEmail(params: {
 
   const subject = `🎨 COLORLINK® • Actualización de Pedido #${params.orderId}: ${params.statusLabel}`;
 
+  const htmlBody = `
+    <!DOCTYPE html>
+    <html lang="es">
+    <head><meta charset="UTF-8"><title>${subject}</title></head>
+    <body style="margin:0;padding:0;background-color:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f8fafc;padding:20px 10px;">
+        <tr>
+          <td align="center">
+            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:600px;background:#ffffff;border-radius:24px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 10px 30px rgba(0,0,0,0.08);">
+              <tr>
+                <td style="height:6px;background:linear-gradient(90deg,#FF5500 0%,#FFD000 20%,#10E57A 40%,#00D2FF 60%,#0055FF 80%,#FF007A 100%);"></td>
+              </tr>
+              <tr>
+                <td align="center" style="background:linear-gradient(135deg,#002B99 0%,#0055FF 55%,#00D2FF 100%);padding:30px 20px;color:#ffffff;text-align:center;">
+                  <span style="font-size:24px;">🚚🎨</span>
+                  <h1 style="margin:8px 0 4px;font-size:20px;font-weight:900;color:#ffffff;">ACTUALIZACIÓN DE DESPACHO</h1>
+                  <p style="margin:0;font-size:13px;color:#e0f2fe;">Pedido #${params.orderId} • ${params.statusLabel}</p>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:24px;">
+                  <p style="font-size:14px;color:#334155;margin:0 0 16px;">
+                    Hola <strong>${params.responsable || params.cliente}</strong>,<br/>
+                    Te informamos el avance del despacho para tu proyecto en <strong>${params.cliente}</strong>.
+                  </p>
+                  <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:12px;padding:14px;margin-bottom:16px;font-size:13px;line-height:1.7;">
+                    <p style="margin:0;color:#0369a1;font-weight:800;text-transform:uppercase;font-size:11px;margin-bottom:6px;">Detalles de Estado</p>
+                    <strong>Pedido:</strong> #${params.orderId}<br/>
+                    <strong>Ciudad:</strong> ${params.ciudad || 'Medellín'}<br/>
+                    <strong>Estado Actual:</strong> <span style="color:#0055FF;font-weight:800;">${params.statusLabel}</span>
+                  </div>
+                  <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:14px;margin-bottom:16px;font-size:13px;line-height:1.6;color:#334155;white-space:pre-line;">
+                    ${params.mensaje}
+                  </div>
+                  ${params.vehiculo ? `
+                  <div style="background:#f8fafc;border-left:4px solid #10E57A;padding:12px 14px;border-radius:0 10px 10px 0;font-size:12px;color:#334155;line-height:1.6;margin-bottom:16px;">
+                    🚚 <strong>Logística Asignada:</strong><br/>
+                    • Vehículo: ${params.vehiculo} (Placa ${params.placa || 'WLL-482'})<br/>
+                    • Conductor: ${params.conductor || 'Carlos Mario Henao'}
+                  </div>
+                  ` : ''}
+                  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin:16px 0;">
+                    <tr>
+                      <td align="center">
+                        <a href="https://wa.me/573212460658?text=Hola%20Colorlink,%20consulto%20por%20mi%20pedido%20${params.orderId}" target="_blank" style="display:inline-block;background:linear-gradient(135deg,#FF5500 0%,#FF007A 100%);color:#ffffff;text-decoration:none;font-size:13px;font-weight:800;padding:12px 28px;border-radius:24px;">
+                          Consultar por WhatsApp 💬
+                        </a>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="background:#0f172a;color:#94a3b8;padding:18px;font-size:11px;text-align:center;">
+                  COLORLINK® PINTURAS S.A.S. • Planta Central Medellín • PBX: (604) 448-0000
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `.trim();
+
   // 1. Intentar con EmailJS si está configurado
   if (isEmailConfigured()) {
     const templateParams = {
@@ -409,7 +476,11 @@ export async function sendOrderStatusUpdateEmail(params: {
       message: params.mensaje,
       mensaje: params.mensaje,
       subject,
-      asunto: subject
+      asunto: subject,
+      title: subject,
+      html: htmlBody,
+      html_content: htmlBody,
+      content: htmlBody
     };
 
     try {
@@ -424,39 +495,6 @@ export async function sendOrderStatusUpdateEmail(params: {
 
   // 2. Envío o registro mediante backend Express /api/send-email
   try {
-    const htmlBody = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;">
-        <div style="text-align: center; border-bottom: 2px solid #0284C7; padding-bottom: 12px; margin-bottom: 20px;">
-          <h2 style="color: #0f172a; margin: 0; font-size: 20px;">COLORLINK® Pinturas de Colombia</h2>
-          <p style="color: #64748b; font-size: 12px; margin: 4px 0 0;">Actualización Oficial de Despacho y Estado de Pedido</p>
-        </div>
-
-        <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 14px; margin-bottom: 16px;">
-          <p style="margin: 0 0 6px; font-size: 13px;"><strong>Pedido:</strong> #${params.orderId}</p>
-          <p style="margin: 0 0 6px; font-size: 13px;"><strong>Cliente:</strong> ${params.cliente} (${params.responsable})</p>
-          <p style="margin: 0 0 6px; font-size: 13px;"><strong>Ciudad de Entrega:</strong> ${params.ciudad || 'Medellín'}</p>
-          <p style="margin: 0; font-size: 13px; color: #0284c7;"><strong>Estado Actual:</strong> ${params.statusLabel}</p>
-        </div>
-
-        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-bottom: 16px; font-size: 13px; line-height: 1.6; color: #334155; white-space: pre-line;">
-          ${params.mensaje}
-        </div>
-
-        ${params.vehiculo ? `
-        <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px; margin-bottom: 16px; font-size: 12px; color: #1e3a8a;">
-          <strong>Datos de Logística Asignada:</strong><br/>
-          • Vehículo: ${params.vehiculo}<br/>
-          • Placa: ${params.placa || 'TZW-402'}<br/>
-          • Conductor: ${params.conductor || 'Carlos Mario Henao'}
-        </div>
-        ` : ''}
-
-        <div style="text-align: center; border-top: 1px solid #e2e8f0; padding-top: 14px; font-size: 11px; color: #94a3b8;">
-          COLORLINK Pinturas S.A.S. • Planta Central Medellín • Soporte: (604) 448-0000
-        </div>
-      </div>
-    `;
-
     const response = await fetch('/api/send-email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -464,7 +502,7 @@ export async function sendOrderStatusUpdateEmail(params: {
         to: recipientEmail,
         subject,
         html: htmlBody,
-        text: params.mensaje
+        text: `COLORLINK Pinturas - Pedido #${params.orderId}: ${params.statusLabel}. ${params.mensaje}`
       })
     });
 
