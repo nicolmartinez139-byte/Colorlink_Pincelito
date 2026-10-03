@@ -293,10 +293,10 @@ export default function App() {
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-700 block">
-                    Usuario Administrador:
+                    Correo Electrónico Administrador:
                   </label>
                   <input
-                    type="text"
+                    type="email"
                     required
                     value={adminUsername}
                     onChange={(e) => setAdminUsername(e.target.value)}
@@ -679,11 +679,11 @@ export default function App() {
 
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700 block">
-                  Usuario Administrador:
+                  Correo Electrónico Administrador:
                 </label>
                 <div className="relative">
                   <input
-                    type="text"
+                    type="email"
                     required
                     value={adminUsername}
                     onChange={(e) => {

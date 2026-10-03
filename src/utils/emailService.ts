@@ -410,7 +410,80 @@ export async function sendOrderStatusUpdateEmail(params: {
     ? window.location.origin
     : 'https://ais-pre-tcjxjdywjtv5zjljxt2lry-427167179027.us-east5.run.app';
 
-  const subject = `🎨 COLORLINK® • Actualización de Pedido #${params.orderId}: ${params.statusLabel}`;
+  const statusThemeMap: Record<string, {
+    emoji: string;
+    headerTitle: string;
+    headerGradient: string;
+    boxBg: string;
+    boxBorder: string;
+    boxTitleColor: string;
+    statusAccent: string;
+    introText: string;
+  }> = {
+    pendiente: {
+      emoji: '📋⏳',
+      headerTitle: 'PEDIDO RECIBIDO Y REGISTRADO',
+      headerGradient: 'linear-gradient(135deg,#B45309 0%,#D97706 55%,#F59E0B 100%)',
+      boxBg: '#fffbeb',
+      boxBorder: '#fde68a',
+      boxTitleColor: '#92400e',
+      statusAccent: '#d97706',
+      introText: `Confirmamos la recepción oficial de tu pedido en sistema para el proyecto <strong>${params.cliente}</strong>. Ingresará a laboratorio de tintometría en 2 segundos.`
+    },
+    preparando: {
+      emoji: '🧪🎨',
+      headerTitle: 'INGRESO A LABORATORIO DE TINTOMETRÍA',
+      headerGradient: 'linear-gradient(135deg,#0369A1 0%,#0284C7 55%,#00D2FF 100%)',
+      boxBg: '#f0f9ff',
+      boxBorder: '#bae6fd',
+      boxTitleColor: '#0369a1',
+      statusAccent: '#0284c7',
+      introText: `¡Tu pintura se está formulando en este momento! Tu pedido para <strong>${params.cliente}</strong> ingresó al laboratorio central de tintometría computarizada Colorlink®.`
+    },
+    en_ruta: {
+      emoji: '🚚🛣️',
+      headerTitle: '¡PEDIDO DESPACHANDO Y EN RUTA A OBRA!',
+      headerGradient: 'linear-gradient(135deg,#4338CA 0%,#6D28D9 55%,#9333EA 100%)',
+      boxBg: '#faf5ff',
+      boxBorder: '#e9d5ff',
+      boxTitleColor: '#6b21a8',
+      statusAccent: '#7e22ce',
+      introText: `¡Tu pedido ya salió de planta! El vehículo de la flota Colorlink® va en camino hacia tu obra en <strong>${params.ciudad || 'Medellín'}</strong> para el proyecto <strong>${params.cliente}</strong>.`
+    },
+    entregado: {
+      emoji: '✅🏆',
+      headerTitle: '¡PEDIDO ENTREGADO CON ÉXITO EN OBRA!',
+      headerGradient: 'linear-gradient(135deg,#047857 0%,#059669 55%,#10B981 100%)',
+      boxBg: '#ecfdf5',
+      boxBorder: '#a7f3d0',
+      boxTitleColor: '#065f46',
+      statusAccent: '#059669',
+      introText: `¡Entrega finalizada a entera satisfacción! Los materiales para <strong>${params.cliente}</strong> fueron recibidos en obra junto con su Certificado de Calidad NTC 1335.`
+    },
+    en_espera: {
+      emoji: '📦⏳',
+      headerTitle: 'PROGRAMACIÓN DE ABASTECIMIENTO CEDI',
+      headerGradient: 'linear-gradient(135deg,#C2410C 0%,#EA580C 55%,#F97316 100%)',
+      boxBg: '#fff7ed',
+      boxBorder: '#fed7aa',
+      boxTitleColor: '#9a3412',
+      statusAccent: '#ea580c',
+      introText: `Tu pedido para <strong>${params.cliente}</strong> se encuentra en transferencia prioritaria de stock desde nuestra Planta Central hacia la sede de <strong>${params.ciudad || 'destino'}</strong>.`
+    },
+    rechazado: {
+      emoji: '⚠️🔎',
+      headerTitle: 'OBSERVACIÓN TÉCNICA DE AUDITORÍA',
+      headerGradient: 'linear-gradient(135deg,#9F1239 0%,#E11D48 55%,#F43F5E 100%)',
+      boxBg: '#fff1f2',
+      boxBorder: '#fecdd3',
+      boxTitleColor: '#9f1239',
+      statusAccent: '#e11d48',
+      introText: `El departamento de ingeniería revisó la solicitud para <strong>${params.cliente}</strong> y detectó requerimientos de ajuste técnico antes de proceder con la dosificación.`
+    }
+  };
+
+  const theme = statusThemeMap[params.status] || statusThemeMap.preparando;
+  const subject = `${theme.emoji} COLORLINK® • Pedido #${params.orderId} [${params.statusLabel}]`;
 
   const htmlBody = `
     <!DOCTYPE html>
@@ -425,32 +498,32 @@ export async function sendOrderStatusUpdateEmail(params: {
                 <td style="height:6px;background:linear-gradient(90deg,#FF5500 0%,#FFD000 20%,#10E57A 40%,#00D2FF 60%,#0055FF 80%,#FF007A 100%);"></td>
               </tr>
               <tr>
-                <td align="center" style="background:linear-gradient(135deg,#002B99 0%,#0055FF 55%,#00D2FF 100%);padding:30px 20px;color:#ffffff;text-align:center;">
-                  <span style="font-size:24px;">🚚🎨</span>
-                  <h1 style="margin:8px 0 4px;font-size:20px;font-weight:900;color:#ffffff;">ACTUALIZACIÓN DE DESPACHO</h1>
-                  <p style="margin:0;font-size:13px;color:#e0f2fe;">Pedido #${params.orderId} • ${params.statusLabel}</p>
+                <td align="center" style="background:${theme.headerGradient};padding:30px 20px;color:#ffffff;text-align:center;">
+                  <span style="font-size:28px;">${theme.emoji}</span>
+                  <h1 style="margin:8px 0 4px;font-size:20px;font-weight:900;color:#ffffff;">${theme.headerTitle}</h1>
+                  <p style="margin:0;font-size:13px;color:#f8fafc;">Pedido #${params.orderId} • ${params.statusLabel}</p>
                 </td>
               </tr>
               <tr>
                 <td style="padding:24px;">
                   <p style="font-size:14px;color:#334155;margin:0 0 16px;">
                     Hola <strong>${params.responsable || params.cliente}</strong>,<br/>
-                    Te informamos el avance del despacho para tu proyecto en <strong>${params.cliente}</strong>.
+                    ${theme.introText}
                   </p>
-                  <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:12px;padding:14px;margin-bottom:16px;font-size:13px;line-height:1.7;">
-                    <p style="margin:0;color:#0369a1;font-weight:800;text-transform:uppercase;font-size:11px;margin-bottom:6px;">Detalles de Estado</p>
+                  <div style="background:${theme.boxBg};border:1px solid ${theme.boxBorder};border-radius:12px;padding:14px;margin-bottom:16px;font-size:13px;line-height:1.7;">
+                    <p style="margin:0;color:${theme.boxTitleColor};font-weight:800;text-transform:uppercase;font-size:11px;margin-bottom:6px;">Reporte Oficial según Estado del Pedido</p>
                     <strong>Pedido:</strong> #${params.orderId}<br/>
-                    <strong>Ciudad:</strong> ${params.ciudad || 'Medellín'}<br/>
-                    <strong>Estado Actual:</strong> <span style="color:#0055FF;font-weight:800;">${params.statusLabel}</span>
+                    <strong>Ciudad / Destino:</strong> ${params.ciudad || 'Medellín'}<br/>
+                    <strong>Fase Actual:</strong> <span style="color:${theme.statusAccent};font-weight:800;">${params.statusLabel}</span>
                   </div>
                   <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:14px;margin-bottom:16px;font-size:13px;line-height:1.6;color:#334155;white-space:pre-line;">
                     ${params.mensaje}
                   </div>
-                  ${params.vehiculo ? `
-                  <div style="background:#f8fafc;border-left:4px solid #10E57A;padding:12px 14px;border-radius:0 10px 10px 0;font-size:12px;color:#334155;line-height:1.6;margin-bottom:16px;">
-                    🚚 <strong>Logística Asignada:</strong><br/>
-                    • Vehículo: ${params.vehiculo} (Placa ${params.placa || 'WLL-482'})<br/>
-                    • Conductor: ${params.conductor || 'Carlos Mario Henao'}
+                  ${(params.status === 'en_ruta' || params.status === 'entregado') && params.vehiculo ? `
+                  <div style="background:#f8fafc;border-left:4px solid ${theme.statusAccent};padding:12px 14px;border-radius:0 10px 10px 0;font-size:12px;color:#334155;line-height:1.6;margin-bottom:16px;">
+                    🚚 <strong>${params.status === 'entregado' ? 'Unidad que Realizó la Entrega en Obra:' : 'Unidad de Flota en Camino a Obra:'}</strong><br/>
+                    • Vehículo: ${params.vehiculo} (Placa ${params.placa || 'TZW-402'})<br/>
+                    • Conductor Responsable: ${params.conductor || 'Carlos Restrepo'}
                   </div>
                   ` : ''}
                   <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin:16px 0;">

@@ -72,6 +72,7 @@ import { ClientEmailPreviewModal } from './ClientEmailPreviewModal';
 import { sendRealOrderEmail } from '../lib/emailService';
 import { sendOrderStatusUpdateEmail } from '../utils/emailService';
 import { fetchClientOrders, ClientOrderItem } from '../utils/supabaseApi';
+import { buildOrderStateMessage, getLogisticsForCity } from '../utils/orderStateMessages';
 import facadeRefImg from '../assets/images/paint_facade_ref_1790519863937.jpg';
 import exteriorT2RefImg from '../assets/images/exterior_t2_ref_1790522631426.jpg';
 import exteriorT3RefImg from '../assets/images/exterior_t3_ref_1790522646174.jpg';
@@ -303,7 +304,14 @@ export function StandaloneClientForm({
               color: formData.colorAcabado || 'Gris (Mate)',
               ciudad: formData.ciudad || 'Medellín'
             },
-            estado: orderLifecyclePhase === 'entregado' ? 'entregado' : orderLifecyclePhase === 'en_ruta' ? 'en_ruta' : 'preparando',
+            estado:
+              orderLifecyclePhase === 'entregado'
+                ? 'entregado'
+                : orderLifecyclePhase === 'en_ruta'
+                ? 'en_ruta'
+                : orderLifecyclePhase === 'preparando'
+                ? 'preparando'
+                : 'pendiente',
             total: technicalCalc.presupuesto.totalPresupuesto
           });
         }
@@ -330,7 +338,14 @@ export function StandaloneClientForm({
           if (o.orderNumber === orderNumber) {
             return {
               ...o,
-              estado: orderLifecyclePhase === 'entregado' ? 'entregado' : orderLifecyclePhase === 'en_ruta' ? 'en_ruta' : 'preparando'
+              estado:
+                orderLifecyclePhase === 'entregado'
+                  ? 'entregado'
+                  : orderLifecyclePhase === 'en_ruta'
+                  ? 'en_ruta'
+                  : orderLifecyclePhase === 'preparando'
+                  ? 'preparando'
+                  : 'pendiente'
             };
           }
           return o;
@@ -338,6 +353,95 @@ export function StandaloneClientForm({
       );
     }
   }, [orderLifecyclePhase, orderNumber, quotationDecision]);
+
+  // Helper para ejecutar el cambio de fase con su mensaje específico según el estado
+  const triggerClientLifecycleTransition = (
+    targetPhase: 'aceptado' | 'preparando' | 'en_ruta' | 'entregado',
+    ordNum: string
+  ) => {
+    const nowStr = new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+    const mappedStatus = targetPhase === 'aceptado' ? 'pendiente' : targetPhase;
+    const stateInfo = buildOrderStateMessage({
+      status: mappedStatus,
+      orderId: ordNum,
+      cliente: formData.cliente || 'Constructora / Proyecto',
+      responsable: formData.responsable || formData.cliente || 'Responsable de Obra',
+      color: formData.colorAcabado || 'Blanco Puro',
+      tipoPintura: formData.tipoPintura || 'Pintura Tipo 1 Exterior',
+      ciudad: formData.ciudad || 'Medellín',
+      totalCOP: technicalCalc.presupuesto.totalPresupuesto,
+      cuñetes: technicalCalc.cuñetesRequeridos
+    });
+
+    setOrderLifecyclePhase(targetPhase);
+
+    if (targetPhase === 'aceptado') {
+      setRealEmailStatusNotice(
+        `📋 [Estado: Pedido Confirmado] Correo enviado a ${formData.emailResponsable}: Orden #${ordNum} radicada y en cola para ingresar a tintometría en 2s.`
+      );
+    } else if (targetPhase === 'preparando') {
+      setRealEmailStatusNotice(
+        `🎨 [Estado: En Tintometría] Correo enviado a ${formData.emailResponsable}: Dosificando pigmentos para "${formData.colorAcabado}" en laboratorio (${stateInfo.lote}).`
+      );
+    } else if (targetPhase === 'en_ruta') {
+      setRealEmailStatusNotice(
+        `🚚 [Estado: Despachando en Ruta] Correo enviado a ${formData.emailResponsable}: Tu pedido #${ordNum} va en camino en ${stateInfo.logistica.vehiculo} (Placa ${stateInfo.logistica.placa}) con ${stateInfo.logistica.conductor}.`
+      );
+    } else if (targetPhase === 'entregado') {
+      setRealEmailStatusNotice(
+        `✅ [Estado: Entregado en Obra] Correo enviado a ${formData.emailResponsable}: Entrega completada por ${stateInfo.logistica.conductor}. Remisión #${stateInfo.remision} y garantía NTC 1335 activas.`
+      );
+    }
+
+    setPhaseNotificationLogs((logs) => [
+      {
+        stage: targetPhase,
+        titulo: stateInfo.tituloNotificacion,
+        mensaje: stateInfo.mensajeNotificacion,
+        hora: nowStr,
+        vehiculo: targetPhase === 'en_ruta' || targetPhase === 'entregado' ? stateInfo.logistica.vehiculo : undefined,
+        placa: targetPhase === 'en_ruta' || targetPhase === 'entregado' ? stateInfo.logistica.placa : undefined,
+        conductor: targetPhase === 'en_ruta' || targetPhase === 'entregado' ? stateInfo.logistica.conductor : undefined,
+        email: formData.emailResponsable
+      },
+      ...logs.filter((l) => l.stage !== targetPhase)
+    ]);
+
+    if (targetPhase !== 'aceptado') {
+      sendOrderStatusUpdateEmail({
+        orderId: ordNum,
+        cliente: formData.cliente,
+        responsable: formData.responsable,
+        email: formData.emailResponsable,
+        status: mappedStatus as any,
+        statusLabel: stateInfo.statusLabel,
+        mensaje: stateInfo.mensajeEmail,
+        vehiculo: stateInfo.logistica.vehiculo,
+        conductor: stateInfo.logistica.conductor,
+        placa: stateInfo.logistica.placa,
+        ciudad: formData.ciudad,
+        totalCOP: technicalCalc.presupuesto.totalPresupuesto
+      }).catch(() => {});
+    }
+
+    fetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        orderNumber: ordNum,
+        cliente: formData.cliente,
+        responsable: formData.responsable,
+        email: formData.emailResponsable,
+        ciudad: formData.ciudad,
+        status: mappedStatus,
+        mensaje: stateInfo.mensajeNotificacion,
+        vehiculo: stateInfo.logistica.vehiculo,
+        placa: stateInfo.logistica.placa,
+        conductor: stateInfo.logistica.conductor,
+        totalCOP: technicalCalc.presupuesto.totalPresupuesto
+      })
+    }).catch(() => {});
+  };
 
   // =========================================================================
   // CICLO AUTOMÁTICO DE ACTUALIZACIÓN DEL PEDIDO DEL CLIENTE:
@@ -351,157 +455,14 @@ export function StandaloneClientForm({
     const interval = setInterval(() => {
       setPhaseSecondsLeft((prev) => {
         if (prev <= 1) {
-          const nowStr = new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
-
           if (orderLifecyclePhase === 'aceptado') {
-            setOrderLifecyclePhase('preparando');
-            const notifMsg = `🎨 [Tintometría - 2s] Tu pedido #${orderNumber} ingresó al laboratorio de tintometría Colorlink®. Se inició la formulación computarizada del color "${formData.colorAcabado || 'Color Específico'}" con base ${formData.tipoPintura || 'Tipo 1'}.`;
-            setPhaseNotificationLogs((logs) => [
-              {
-                stage: 'preparando',
-                titulo: '🎨 Ingreso a Tintometría (A los 2 segundos del pedido)',
-                mensaje: notifMsg,
-                hora: nowStr,
-                email: formData.emailResponsable
-              },
-              ...logs
-            ]);
-
-            // Notificación por correo de ingreso a tintometría
-            sendOrderStatusUpdateEmail({
-              orderId: orderNumber,
-              cliente: formData.cliente,
-              responsable: formData.responsable,
-              email: formData.emailResponsable,
-              status: 'preparando',
-              statusLabel: 'Pedido en Tintometría (Formulación del Color)',
-              mensaje: `Estimado(a) ${formData.responsable},\n\nLe confirmamos que su pedido #${orderNumber} ha ingresado a los 2 segundos de confirmado al laboratorio de tintometría Colorlink®.\n\nFormulación computarizada de pigmentos para "${formData.colorAcabado}" en proceso.\n\nTotal liquidado: ${formatCOP(technicalCalc.presupuesto.totalPresupuesto)} COP.`,
-              totalCOP: technicalCalc.presupuesto.totalPresupuesto
-            }).catch(() => {});
-
-            // Sincronizar actualización con Vercel Serverless
-            fetch('/api/orders', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                orderNumber,
-                cliente: formData.cliente,
-                responsable: formData.responsable,
-                email: formData.emailResponsable,
-                ciudad: formData.ciudad,
-                status: 'preparando',
-                mensaje: notifMsg,
-                totalCOP: technicalCalc.presupuesto.totalPresupuesto
-              })
-            }).catch(() => {});
-
+            triggerClientLifecycleTransition('preparando', orderNumber);
             return lifecycleFastDemo ? 20 : 1200;
           } else if (orderLifecyclePhase === 'preparando') {
-            setOrderLifecyclePhase('en_ruta');
-            const veh = 'Camión Turbo NHR 4.5 Ton Colorlink';
-            const plc = 'TZW-402';
-            const cond = 'Carlos Restrepo';
-            const eta = 'Hoy en 45 min';
-            const notifMsg = `🚚 [Despacho en Ruta - 20 min] ¡Tu pedido #${orderNumber} se está despachando hacia la obra! Asignado a ${veh} (${plc}) conducido por ${cond}. ETA: ${eta}.`;
-
-            setPhaseNotificationLogs((logs) => [
-              {
-                stage: 'en_ruta',
-                titulo: '🚚 Despachando Pedido (A los 20 minutos)',
-                mensaje: notifMsg,
-                hora: nowStr,
-                vehiculo: veh,
-                placa: plc,
-                conductor: cond,
-                email: formData.emailResponsable
-              },
-              ...logs
-            ]);
-
-            // Enviar correo de despacho
-            sendOrderStatusUpdateEmail({
-              orderId: orderNumber,
-              cliente: formData.cliente,
-              responsable: formData.responsable,
-              email: formData.emailResponsable,
-              status: 'en_ruta',
-              statusLabel: 'Pedido Despachando y En Ruta a Obra',
-              mensaje: `Estimado(a) ${formData.responsable},\n\n¡Excelentes noticias! Le confirmamos que su pedido #${orderNumber} completó su preparación en tintometría y SE ESTÁ DESPACHANDO hacia su obra en ${formData.ciudad}.\n\n• Vehículo Asignado: ${veh}\n• Placa: ${plc}\n• Conductor: ${cond}\n• Hora Estimada: ${eta}.\n\nEl conductor lleva remisión física oficial y certificado de calidad Colorlink®.`,
-              vehiculo: veh,
-              conductor: cond,
-              placa: plc,
-              ciudad: formData.ciudad,
-              totalCOP: technicalCalc.presupuesto.totalPresupuesto
-            }).catch(() => {});
-
-            // Sincronizar despacho con Vercel Serverless
-            fetch('/api/orders', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                orderNumber,
-                cliente: formData.cliente,
-                responsable: formData.responsable,
-                email: formData.emailResponsable,
-                ciudad: formData.ciudad,
-                status: 'en_ruta',
-                mensaje: notifMsg,
-                vehiculo: veh,
-                placa: plc,
-                conductor: cond,
-                totalCOP: technicalCalc.presupuesto.totalPresupuesto
-              })
-            }).catch(() => {});
-
+            triggerClientLifecycleTransition('en_ruta', orderNumber);
             return lifecycleFastDemo ? 20 : 1200;
           } else if (orderLifecyclePhase === 'en_ruta') {
-            setOrderLifecyclePhase('entregado');
-            const cond = 'Carlos Restrepo';
-            const notifMsg = `✅ [Entrega Exitosa - 20 min] ¡Tu pedido #${orderNumber} ha sido ENTREGADO con éxito en tu obra por el conductor ${cond}! Remisión física y certificado técnico NTC 1335 emitidos.`;
-
-            setPhaseNotificationLogs((logs) => [
-              {
-                stage: 'entregado',
-                titulo: '✅ Pedido Entregado con Éxito (A los 20 minutos)',
-                mensaje: notifMsg,
-                hora: nowStr,
-                conductor: cond,
-                email: formData.emailResponsable
-              },
-              ...logs
-            ]);
-
-            // Enviar correo de entrega
-            sendOrderStatusUpdateEmail({
-              orderId: orderNumber,
-              cliente: formData.cliente,
-              responsable: formData.responsable,
-              email: formData.emailResponsable,
-              status: 'entregado',
-              statusLabel: 'Pedido Entregado con Éxito en Obra',
-              mensaje: `Estimado(a) ${formData.responsable},\n\nLe confirmamos que su pedido #${orderNumber} ha sido ENTREGADO con total satisfacción en su obra en ${formData.ciudad} por el conductor ${cond}.\n\nSe ha emitido el certificado oficial de calidad bajo la norma técnica NTC 1335.\n\n¡Gracias por pintar con Colorlink® Pinturas!`,
-              conductor: cond,
-              ciudad: formData.ciudad,
-              totalCOP: technicalCalc.presupuesto.totalPresupuesto
-            }).catch(() => {});
-
-            // Sincronizar entrega con Vercel Serverless
-            fetch('/api/orders', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                orderNumber,
-                cliente: formData.cliente,
-                responsable: formData.responsable,
-                email: formData.emailResponsable,
-                ciudad: formData.ciudad,
-                status: 'entregado',
-                mensaje: notifMsg,
-                conductor: cond,
-                totalCOP: technicalCalc.presupuesto.totalPresupuesto
-              })
-            }).catch(() => {});
-
+            triggerClientLifecycleTransition('entregado', orderNumber);
             return 0; // Completado
           }
           return 0;
@@ -549,11 +510,23 @@ export function StandaloneClientForm({
     setPhaseSecondsLeft(2);
     const now = new Date();
     const timeStr = now.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+    const initialStateMsg = buildOrderStateMessage({
+      status: 'pendiente',
+      orderId: generatedOrder,
+      cliente: formData.cliente || 'Constructora / Proyecto',
+      responsable: formData.responsable || formData.cliente || 'Responsable de Obra',
+      color: formData.colorAcabado || 'Blanco Puro',
+      tipoPintura: formData.tipoPintura || 'Pintura Tipo 1 Exterior',
+      ciudad: formData.ciudad || 'Medellín',
+      totalCOP: technicalCalc.presupuesto.totalPresupuesto,
+      cuñetes: technicalCalc.cuñetesRequeridos
+    });
+
     setPhaseNotificationLogs([
       {
         stage: 'aceptado',
-        titulo: '📝 Pedido Confirmado & Aprobado por el Cliente',
-        mensaje: `El pedido #${generatedOrder} ha sido formalmente confirmado con método de pago ${formData.metodoPago || 'Bancolombia'}. Ingresando al laboratorio de tintometría a los 2 segundos...`,
+        titulo: initialStateMsg.tituloNotificacion,
+        mensaje: initialStateMsg.mensajeNotificacion,
         hora: timeStr,
         email: formData.emailResponsable
       }
@@ -614,12 +587,18 @@ export function StandaloneClientForm({
       });
 
       if (emailResult.success) {
-        setRealEmailStatusNotice(`✓ ¡Notificación oficial enviada exitosamente a ${formData.emailResponsable}!`);
+        setRealEmailStatusNotice(
+          `📋 [Estado: Pedido Confirmado] Correo enviado a ${formData.emailResponsable}: Orden #${generatedOrder} radicada y entrando a tintometría en 2s.`
+        );
       } else {
-        setRealEmailStatusNotice(`Notificación registrada para: ${formData.emailResponsable}`);
+        setRealEmailStatusNotice(
+          `📋 [Estado: Pedido Confirmado] Notificación registrada para ${formData.emailResponsable}: Orden #${generatedOrder} en cola de tintometría.`
+        );
       }
     } catch (emailErr) {
-      setRealEmailStatusNotice(`✓ Solicitud de notificación registrada para ${formData.emailResponsable}`);
+      setRealEmailStatusNotice(
+        `📋 [Estado: Pedido Confirmado] Solicitud registrada para ${formData.emailResponsable}: Orden #${generatedOrder}.`
+      );
     } finally {
       setIsSendingRealEmail(false);
     }
@@ -1406,87 +1385,147 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
           ) : (
             <div className="space-y-4">
               {clientOrders.map((ord) => {
-                // Configuración de Colores Vivos según el Estado (Requirement 6)
+                // Configuración de Colores Vivos y Mensaje Dinámico según el Estado (Requirement 6)
                 let badgeClass = 'bg-amber-400 text-slate-950 font-black shadow-xs';
-                let labelEstado = 'Pendiente por Aprobar';
-                let dotColor = 'bg-amber-500';
+                let labelEstado = 'Pendiente • En Cola (2s)';
+                let dotColor = 'bg-amber-600';
+                let msgBannerClass = 'bg-amber-50/90 border-amber-300 text-amber-950';
 
                 if (ord.estado === 'preparando') {
-                  badgeClass = 'bg-orange-500 text-white font-black shadow-xs shadow-orange-500/30';
-                  labelEstado = 'En Tintometría / Preparación';
-                  dotColor = 'bg-orange-600';
+                  badgeClass = 'bg-sky-600 text-white font-black shadow-xs shadow-sky-500/30';
+                  labelEstado = 'En Tintometría / Dosificación';
+                  dotColor = 'bg-sky-200 animate-pulse';
+                  msgBannerClass = 'bg-sky-50/90 border-sky-300 text-sky-950';
                 } else if (ord.estado === 'en_ruta') {
-                  badgeClass = 'bg-blue-600 text-white font-black shadow-xs shadow-blue-600/30';
-                  labelEstado = 'En Camino / En Ruta';
-                  dotColor = 'bg-blue-500';
+                  badgeClass = 'bg-purple-600 text-white font-black shadow-xs shadow-purple-600/30';
+                  labelEstado = 'Despachando en Ruta a Obra';
+                  dotColor = 'bg-purple-200 animate-pulse';
+                  msgBannerClass = 'bg-purple-50/90 border-purple-300 text-purple-950';
                 } else if (ord.estado === 'entregado') {
-                  badgeClass = 'bg-emerald-500 text-white font-black shadow-xs shadow-emerald-500/30';
-                  labelEstado = 'Entregado en Obra';
-                  dotColor = 'bg-emerald-600';
+                  badgeClass = 'bg-emerald-600 text-white font-black shadow-xs shadow-emerald-500/30';
+                  labelEstado = 'Entregado con Éxito en Obra';
+                  dotColor = 'bg-emerald-200';
+                  msgBannerClass = 'bg-emerald-50/90 border-emerald-300 text-emerald-950';
                 }
+
+                const ordStateInfo = buildOrderStateMessage({
+                  status: ord.estado,
+                  orderId: ord.orderNumber,
+                  cliente: ord.detalle.obra || formData.cliente || 'Constructora',
+                  responsable: formData.responsable || 'Cliente Colorlink',
+                  color: ord.detalle.color,
+                  tipoPintura: ord.detalle.tipoPintura,
+                  ciudad: ord.detalle.ciudad,
+                  totalCOP: ord.total,
+                  cuñetes: Math.max(1, Math.ceil((ord.detalle.areaM2 || 50) / 28))
+                });
 
                 return (
                   <div
                     key={ord.id}
-                    className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/90 shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-5 relative overflow-hidden"
+                    className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/90 shadow-sm hover:shadow-md transition-all flex flex-col gap-4 relative overflow-hidden"
                   >
                     {/* Borde izquierdo colorido */}
                     <div className={`absolute left-0 top-0 bottom-0 w-2 ${
-                      ord.estado === 'entregado' ? 'bg-emerald-500' : ord.estado === 'en_ruta' ? 'bg-blue-600' : ord.estado === 'preparando' ? 'bg-orange-500' : 'bg-amber-400'
+                      ord.estado === 'entregado' ? 'bg-emerald-500' : ord.estado === 'en_ruta' ? 'bg-purple-600' : ord.estado === 'preparando' ? 'bg-sky-500' : 'bg-amber-400'
                     }`} />
 
-                    <div className="space-y-2.5 flex-1 pl-1">
-                      {/* Fila 1: Número de orden, fecha y etiqueta viva de estado */}
-                      <div className="flex flex-wrap items-center gap-2.5">
-                        <span className="font-mono font-black text-sm text-[#003882] bg-sky-50 px-3 py-1 rounded-xl border border-sky-200">
-                          #{ord.orderNumber}
-                        </span>
-                        <span className="text-xs text-slate-500 flex items-center gap-1">
-                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                          <span>{ord.fecha}</span>
-                        </span>
-                        {/* ETIQUETA VIVA DE ESTADO (Requirement 6) */}
-                        <span className={`px-3 py-1 rounded-full text-xs uppercase tracking-wider flex items-center gap-1.5 ${badgeClass}`}>
-                          <span className={`w-2 h-2 rounded-full ${dotColor}`} />
-                          <span>{labelEstado}</span>
-                        </span>
+                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pl-2">
+                      <div className="space-y-2.5 flex-1">
+                        {/* Fila 1: Número de orden, fecha y etiqueta viva de estado */}
+                        <div className="flex flex-wrap items-center gap-2.5">
+                          <span className="font-mono font-black text-sm text-[#003882] bg-sky-50 px-3 py-1 rounded-xl border border-sky-200">
+                            #{ord.orderNumber}
+                          </span>
+                          <span className="text-xs text-slate-500 flex items-center gap-1">
+                            <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                            <span>{ord.fecha}</span>
+                          </span>
+                          {/* ETIQUETA VIVA DE ESTADO */}
+                          <span className={`px-3 py-1 rounded-full text-xs uppercase tracking-wider flex items-center gap-1.5 ${badgeClass}`}>
+                            <span className={`w-2 h-2 rounded-full ${dotColor}`} />
+                            <span>{labelEstado}</span>
+                          </span>
+                        </div>
+
+                        {/* Fila 2: Detalle de la obra y productos */}
+                        <div className="text-xs text-slate-700 space-y-1">
+                          <div className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                            <Building2 className="w-4 h-4 text-sky-600" />
+                            <span>{ord.detalle.obra}</span>
+                            <span className="text-slate-400">•</span>
+                            <span className="font-normal text-slate-600">{ord.detalle.tipoObra}</span>
+                            <span className="text-slate-400">•</span>
+                            <span className="font-normal text-slate-500">{ord.detalle.areaM2} m²</span>
+                          </div>
+                          <div className="text-slate-600 flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <span><strong>Especificación:</strong> {ord.detalle.tipoPintura}</span>
+                            <span>•</span>
+                            <span><strong>Color / Acabado:</strong> {ord.detalle.color}</span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1">
+                              <MapPin className="w-3.5 h-3.5 text-rose-500" />
+                              <strong>Destino:</strong> {ord.detalle.ciudad}
+                            </span>
+                          </div>
+                        </div>
                       </div>
 
-                      {/* Fila 2: Detalle de la obra y productos */}
-                      <div className="text-xs text-slate-700 space-y-1">
-                        <div className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                          <Building2 className="w-4 h-4 text-sky-600" />
-                          <span>{ord.detalle.obra}</span>
-                          <span className="text-slate-400">•</span>
-                          <span className="font-normal text-slate-600">{ord.detalle.tipoObra}</span>
-                          <span className="text-slate-400">•</span>
-                          <span className="font-normal text-slate-500">{ord.detalle.areaM2} m²</span>
+                      {/* Fila 3: Total resaltado en color vivo y selector rápido de estado para ver cambio de mensaje */}
+                      <div className="flex flex-col sm:flex-row md:flex-col items-start sm:items-center md:items-end justify-between w-full md:w-auto gap-2 pt-3 md:pt-0 border-t md:border-t-0 border-slate-100">
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block md:text-right">Total Liquidado</span>
+                          <div className="text-xl sm:text-2xl font-black font-mono text-[#003882] md:text-right">
+                            {formatCOP(ord.total)} COP
+                          </div>
                         </div>
-                        <div className="text-slate-600 flex flex-wrap items-center gap-x-3 gap-y-1">
-                          <span><strong>Especificación:</strong> {ord.detalle.tipoPintura}</span>
-                          <span>•</span>
-                          <span><strong>Color / Acabado:</strong> {ord.detalle.color}</span>
-                          <span>•</span>
-                          <span className="flex items-center gap-1">
-                            <MapPin className="w-3.5 h-3.5 text-rose-500" />
-                            <strong>Destino:</strong> {ord.detalle.ciudad}
-                          </span>
+
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {[
+                            { id: 'pendiente', label: '1. Recibido' },
+                            { id: 'preparando', label: '2. Tintometría' },
+                            { id: 'en_ruta', label: '3. En Ruta' },
+                            { id: 'entregado', label: '4. Entregado' }
+                          ].map((stBtn) => (
+                            <button
+                              key={stBtn.id}
+                              type="button"
+                              onClick={() => {
+                                setClientOrders((prev) =>
+                                  prev.map((item) =>
+                                    item.id === ord.id ? { ...item, estado: stBtn.id as any } : item
+                                  )
+                                );
+                              }}
+                              className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                                ord.estado === stBtn.id
+                                  ? 'bg-[#003882] text-white shadow-2xs'
+                                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                              }`}
+                              title="Cambiar estado para ver el mensaje correspondiente"
+                            >
+                              {stBtn.label}
+                            </button>
+                          ))}
                         </div>
                       </div>
                     </div>
 
-                    {/* Fila 3: Total resaltado en color vivo y estado */}
-                    <div className="flex flex-col sm:flex-row md:flex-col items-start sm:items-center md:items-end justify-between w-full md:w-auto gap-3 pt-3 md:pt-0 border-t md:border-t-0 border-slate-100">
-                      <div>
-                        <span className="text-[10px] uppercase font-bold text-slate-400 block md:text-right">Total Liquidado</span>
-                        <div className="text-xl sm:text-2xl font-black font-mono text-[#003882] md:text-right">
-                          {formatCOP(ord.total)} COP
-                        </div>
+                    {/* MENSAJE DINÁMICO EXCLUSIVO SEGÚN EL ESTADO ACTUAL DEL PEDIDO */}
+                    <div className={`ml-2 p-3.5 rounded-2xl border text-xs space-y-1 transition-all ${msgBannerClass}`}>
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <strong className="font-black text-xs sm:text-sm">
+                          {ordStateInfo.tituloNotificacion}
+                        </strong>
+                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-white/80 border border-current/20">
+                          {ord.estado === 'en_ruta' || ord.estado === 'entregado'
+                            ? `Remisión #${ordStateInfo.remision} • Placa ${ordStateInfo.logistica.placa}`
+                            : `Lote ${ordStateInfo.lote}`}
+                        </span>
                       </div>
-
-                      <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs">
-                        <span>Canal Oficial Colorlink</span>
-                      </div>
+                      <p className="text-xs leading-relaxed font-medium">
+                        {ordStateInfo.mensajeNotificacion}
+                      </p>
                     </div>
                   </div>
                 );
@@ -2198,28 +2237,69 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
             )}
 
             {/* 2. SI LA COTIZACIÓN FUE ACEPTADA */}
-            {quotationDecision === 'accepted' && (
+            {quotationDecision === 'accepted' && (() => {
+              const currentMappedStatus = orderLifecyclePhase === 'aceptado' ? 'pendiente' : orderLifecyclePhase;
+              const liveStateMsg = buildOrderStateMessage({
+                status: currentMappedStatus,
+                orderId: orderNumber || 'ORD-CLK-2026',
+                cliente: formData.cliente || 'Constructora / Proyecto',
+                responsable: formData.responsable || formData.cliente || 'Cliente Colorlink',
+                color: formData.colorAcabado || 'Blanco Puro',
+                tipoPintura: formData.tipoPintura || 'Pintura Tipo 1 Exterior',
+                ciudad: formData.ciudad || 'Medellín',
+                totalCOP: presupuesto.totalPresupuesto,
+                cuñetes: technicalCalc.cuñetesRequeridos
+              });
+
+              const topBannerTheme = {
+                aceptado: {
+                  bg: 'from-amber-500 via-orange-500 to-amber-600 border-amber-300/40',
+                  badge: `📋 ESTADO 1/4: PEDIDO CONFIRMADO (${orderNumber})`,
+                  title: '1. Pedido Confirmado • En Espera de Tintometría (2 seg)',
+                  desc: `Tu pedido de ${formData.tipoPintura || 'Tipo 1'} (Color: ${formData.colorAcabado || 'Blanco'}) fue registrado en la sede ${formData.ciudad}. Ingresará automáticamente al laboratorio de tintometría computarizada en 2 segundos.`
+                },
+                preparando: {
+                  bg: 'from-sky-500 via-sky-600 to-blue-700 border-sky-300/40',
+                  badge: `🎨 ESTADO 2/4: EN LABORATORIO DE TINTOMETRÍA (${liveStateMsg.lote})`,
+                  title: '2. ¡Tu Pintura está en el Laboratorio de Tintometría!',
+                  desc: `A los 2 segundos de aprobado, tu pedido #${orderNumber} ingresó a dosificación computarizada del color "${formData.colorAcabado || 'Seleccionado'}" sobre base ${formData.tipoPintura || 'Tipo 1'} (Norma NTC 1335). Próximo avance: Despacho en 20 minutos.`
+                },
+                en_ruta: {
+                  bg: 'from-indigo-700 via-purple-700 to-blue-700 border-purple-300/40',
+                  badge: `🚚 ESTADO 3/4: DESPACHANDO EN RUTA (PLACA ${liveStateMsg.logistica.placa})`,
+                  title: `3. ¡Se Está Despachando tu Pedido hacia ${formData.ciudad}!`,
+                  desc: `Tu pedido #${orderNumber} completó tintometría a los 20 minutos y salió hacia tu obra en el ${liveStateMsg.logistica.vehiculo} (Placa ${liveStateMsg.logistica.placa}) con el conductor ${liveStateMsg.logistica.conductor} por ${liveStateMsg.logistica.corredorRuta}. Remisión oficial #${liveStateMsg.remision}.`
+                },
+                entregado: {
+                  bg: 'from-emerald-600 via-emerald-700 to-teal-700 border-emerald-300/40',
+                  badge: `✅ ESTADO 4/4: ENTREGADO CON ÉXITO (REMISIÓN #${liveStateMsg.remision})`,
+                  title: `4. ¡Pedido Entregado con Éxito en tu Obra en ${formData.ciudad}!`,
+                  desc: `El conductor ${liveStateMsg.logistica.conductor} entregó satisfactoriamente los ${technicalCalc.cuñetesRequeridos} cuñete(s) y ${technicalCalc.galonesSueltosRequeridos} galón(es) en obra. Se firmó la remisión #${liveStateMsg.remision} y quedó activo el Certificado de Calidad NTC 1335 (${liveStateMsg.lote}).`
+                }
+              }[orderLifecyclePhase];
+
+              return (
               <div className="space-y-4 animate-fadeIn">
-                <div className="bg-gradient-to-r from-sky-500 via-sky-600 to-blue-700 text-white rounded-3xl p-6 sm:p-7 shadow-lg border border-sky-300/40 space-y-4">
+                <div className={`bg-gradient-to-r ${topBannerTheme.bg} text-white rounded-3xl p-6 sm:p-7 shadow-lg border space-y-4 transition-all duration-500`}>
                   <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                     <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 rounded-2xl bg-white/15 backdrop-blur-xs flex items-center justify-center font-bold text-white shadow-inner shrink-0">
-                        <CheckCheck className="w-7 h-7 text-white" />
+                      <div className="w-14 h-14 rounded-2xl bg-white/15 backdrop-blur-xs flex items-center justify-center font-bold text-white shadow-inner shrink-0 text-2xl">
+                        {orderLifecyclePhase === 'aceptado' ? '📋' : orderLifecyclePhase === 'preparando' ? '🎨' : orderLifecyclePhase === 'en_ruta' ? '🚚' : '✅'}
                       </div>
                       <div className="space-y-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="bg-white text-sky-900 font-mono text-xs px-3 py-1 rounded-full font-black shadow-xs">
-                            ORDEN AUTORIZADA: {orderNumber}
+                          <span className="bg-white text-slate-900 font-mono text-xs px-3 py-1 rounded-full font-black shadow-xs">
+                            {topBannerTheme.badge}
                           </span>
-                          <span className="text-xs bg-white/15 text-white/90 px-2.5 py-0.5 rounded-full font-semibold">
-                            Aceptada: {decisionTimestamp}
+                          <span className="text-xs bg-white/15 text-white/95 px-2.5 py-0.5 rounded-full font-semibold">
+                            Actualizado: {decisionTimestamp}
                           </span>
                         </div>
                         <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                          Cotización aceptada
+                          {topBannerTheme.title}
                         </h3>
-                        <p className="text-xs sm:text-sm text-sky-100 leading-relaxed max-w-2xl">
-                          Su orden de pintura con especificación <strong>{formData.tipoPintura || 'Tipo 1'}</strong> ha sido confirmada y transmitida a la planta de Tintometría Colorlink en Medellín. Se ha emitido su recibo oficial a continuación.
+                        <p className="text-xs sm:text-sm text-white/95 leading-relaxed max-w-2xl">
+                          {topBannerTheme.desc}
                         </p>
                       </div>
                     </div>
@@ -2236,10 +2316,10 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       <button
                         type="button"
                         onClick={() => setShowEmailModal(true)}
-                        className="px-5 py-3 bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-110 text-white text-xs font-black rounded-2xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
+                        className="px-5 py-3 bg-slate-950/30 hover:bg-slate-950/45 border border-white/30 text-white text-xs font-black rounded-2xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
                       >
                         <Mail className="w-4 h-4 text-white" />
-                        <span>Ver Recibo por Correo</span>
+                        <span>Ver Correo de este Estado</span>
                       </button>
                       <button
                         type="button"
@@ -2315,31 +2395,47 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                     </div>
                   </div>
 
-                  {/* STEPPER VISUAL DE 4 ETAPAS */}
+                  {/* STEPPER VISUAL INTERACTIVO DE 4 ETAPAS (Haz clic en cualquier etapa para probar el cambio de mensaje inmediatamente) */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
                     {/* Etapa 1: Aceptado */}
-                    <div className="p-3.5 rounded-2xl border-2 bg-emerald-50/80 border-emerald-400 text-emerald-950 space-y-1 relative overflow-hidden">
+                    <div
+                      onClick={() => orderNumber && triggerClientLifecycleTransition('aceptado', orderNumber)}
+                      className={`p-3.5 rounded-2xl border-2 space-y-1 relative overflow-hidden cursor-pointer transition-all ${
+                        orderLifecyclePhase === 'aceptado'
+                          ? 'bg-amber-50 border-amber-500 text-amber-950 shadow-sm ring-2 ring-amber-400/20'
+                          : 'bg-emerald-50/80 border-emerald-400 text-emerald-950 hover:brightness-98'
+                      }`}
+                      title="Haz clic para ver el mensaje de Estado 1: Pedido Confirmado"
+                    >
                       <div className="flex items-center justify-between">
-                        <span className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black text-xs">
-                          ✓
+                        <span className={`w-6 h-6 rounded-lg text-white flex items-center justify-center font-black text-xs ${
+                          orderLifecyclePhase === 'aceptado' ? 'bg-amber-500 animate-pulse' : 'bg-emerald-600'
+                        }`}>
+                          {orderLifecyclePhase === 'aceptado' ? '1' : '✓'}
                         </span>
-                        <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full">
-                          Completado
+                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                          orderLifecyclePhase === 'aceptado' ? 'bg-amber-200 text-amber-950 font-black' : 'bg-emerald-200 text-emerald-900'
+                        }`}>
+                          {orderLifecyclePhase === 'aceptado' ? '● Estado Actual' : 'Completado'}
                         </span>
                       </div>
-                      <strong className="block font-black text-sm text-emerald-950 mt-1">1. Pedido Confirmado</strong>
-                      <p className="text-[11px] text-emerald-800 leading-tight">Total liquidado y orden oficial generada.</p>
+                      <strong className="block font-black text-sm text-slate-900 mt-1">1. Pedido Confirmado</strong>
+                      <p className="text-[11px] text-slate-600 leading-tight">Orden radicada • En cola para tintometría (2s).</p>
                       <span className="text-[10px] text-emerald-700 font-mono block pt-1">Pago: {formData.metodoPago || 'Bancolombia'}</span>
                     </div>
 
                     {/* Etapa 2: Tintometría (A los 2s) */}
-                    <div className={`p-3.5 rounded-2xl border-2 space-y-1 relative overflow-hidden transition-all ${
-                      orderLifecyclePhase === 'preparando'
-                        ? 'bg-sky-50 border-sky-500 text-sky-950 shadow-sm ring-2 ring-sky-400/20'
-                        : orderLifecyclePhase === 'en_ruta' || orderLifecyclePhase === 'entregado'
-                        ? 'bg-emerald-50/80 border-emerald-400 text-emerald-950'
-                        : 'bg-slate-50 border-slate-200 text-slate-400'
-                    }`}>
+                    <div
+                      onClick={() => orderNumber && triggerClientLifecycleTransition('preparando', orderNumber)}
+                      className={`p-3.5 rounded-2xl border-2 space-y-1 relative overflow-hidden cursor-pointer transition-all ${
+                        orderLifecyclePhase === 'preparando'
+                          ? 'bg-sky-50 border-sky-500 text-sky-950 shadow-sm ring-2 ring-sky-400/20'
+                          : orderLifecyclePhase === 'en_ruta' || orderLifecyclePhase === 'entregado'
+                          ? 'bg-emerald-50/80 border-emerald-400 text-emerald-950'
+                          : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-sky-300'
+                      }`}
+                      title="Haz clic para ver el mensaje de Estado 2: En Tintometría"
+                    >
                       <div className="flex items-center justify-between">
                         <span className={`w-6 h-6 rounded-lg flex items-center justify-center font-black text-xs ${
                           orderLifecyclePhase === 'preparando'
@@ -2357,22 +2453,26 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                             ? 'bg-emerald-200 text-emerald-900 font-bold'
                             : 'bg-slate-100 text-slate-500'
                         }`}>
-                          {orderLifecyclePhase === 'preparando' ? '● En Proceso' : orderLifecyclePhase === 'en_ruta' || orderLifecyclePhase === 'entregado' ? 'Completado' : 'Espera (2s)'}
+                          {orderLifecyclePhase === 'preparando' ? '● En Tintometría' : orderLifecyclePhase === 'en_ruta' || orderLifecyclePhase === 'entregado' ? 'Completado' : 'A los 2 seg'}
                         </span>
                       </div>
                       <strong className="block font-black text-sm text-slate-900 mt-1">2. En Tintometría</strong>
-                      <p className="text-[11px] text-slate-600 leading-tight">A los 2s: Formulación computarizada de color.</p>
-                      <span className="text-[10px] text-sky-700 font-bold block pt-1 truncate">{formData.colorAcabado || 'Color Específico'}</span>
+                      <p className="text-[11px] text-slate-600 leading-tight">A los 2s: Dosificación de pigmentos y lote.</p>
+                      <span className="text-[10px] text-sky-700 font-bold block pt-1 truncate">{formData.colorAcabado || 'Color Específico'} ({liveStateMsg.lote})</span>
                     </div>
 
                     {/* Etapa 3: Despachando (A los 20 min) */}
-                    <div className={`p-3.5 rounded-2xl border-2 space-y-1 relative overflow-hidden transition-all ${
-                      orderLifecyclePhase === 'en_ruta'
-                        ? 'bg-purple-50 border-purple-500 text-purple-950 shadow-sm ring-2 ring-purple-400/20'
-                        : orderLifecyclePhase === 'entregado'
-                        ? 'bg-emerald-50/80 border-emerald-400 text-emerald-950'
-                        : 'bg-slate-50 border-slate-200 text-slate-400'
-                    }`}>
+                    <div
+                      onClick={() => orderNumber && triggerClientLifecycleTransition('en_ruta', orderNumber)}
+                      className={`p-3.5 rounded-2xl border-2 space-y-1 relative overflow-hidden cursor-pointer transition-all ${
+                        orderLifecyclePhase === 'en_ruta'
+                          ? 'bg-purple-50 border-purple-500 text-purple-950 shadow-sm ring-2 ring-purple-400/20'
+                          : orderLifecyclePhase === 'entregado'
+                          ? 'bg-emerald-50/80 border-emerald-400 text-emerald-950'
+                          : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-purple-300'
+                      }`}
+                      title="Haz clic para ver el mensaje de Estado 3: Despachando en Ruta"
+                    >
                       <div className="flex items-center justify-between">
                         <span className={`w-6 h-6 rounded-lg flex items-center justify-center font-black text-xs ${
                           orderLifecyclePhase === 'en_ruta'
@@ -2390,20 +2490,24 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                             ? 'bg-emerald-200 text-emerald-900 font-bold'
                             : 'bg-slate-100 text-slate-500'
                         }`}>
-                          {orderLifecyclePhase === 'en_ruta' ? '● Despachando' : orderLifecyclePhase === 'entregado' ? 'Completado' : 'Espera (20 min)'}
+                          {orderLifecyclePhase === 'en_ruta' ? '● Despachando' : orderLifecyclePhase === 'entregado' ? 'Completado' : 'A los 20 min'}
                         </span>
                       </div>
                       <strong className="block font-black text-sm text-slate-900 mt-1">3. Despachando en Ruta</strong>
-                      <p className="text-[11px] text-slate-600 leading-tight">A los 20 min: Mensaje de salida y vehículo asignado.</p>
-                      <span className="text-[10px] text-purple-700 font-bold block pt-1">Unidad Turbo NHR (TZW-402)</span>
+                      <p className="text-[11px] text-slate-600 leading-tight">A los 20 min: Salida de camión y remisión en ruta.</p>
+                      <span className="text-[10px] text-purple-700 font-bold block pt-1 truncate">{liveStateMsg.logistica.vehiculo} ({liveStateMsg.logistica.placa})</span>
                     </div>
 
                     {/* Etapa 4: Entregado (A los 20 min) */}
-                    <div className={`p-3.5 rounded-2xl border-2 space-y-1 relative overflow-hidden transition-all ${
-                      orderLifecyclePhase === 'entregado'
-                        ? 'bg-emerald-50 border-emerald-500 text-emerald-950 shadow-sm ring-2 ring-emerald-400/20'
-                        : 'bg-slate-50 border-slate-200 text-slate-400'
-                    }`}>
+                    <div
+                      onClick={() => orderNumber && triggerClientLifecycleTransition('entregado', orderNumber)}
+                      className={`p-3.5 rounded-2xl border-2 space-y-1 relative overflow-hidden cursor-pointer transition-all ${
+                        orderLifecyclePhase === 'entregado'
+                          ? 'bg-emerald-50 border-emerald-500 text-emerald-950 shadow-sm ring-2 ring-emerald-400/20'
+                          : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-emerald-300'
+                      }`}
+                      title="Haz clic para ver el mensaje de Estado 4: Entregado en Obra"
+                    >
                       <div className="flex items-center justify-between">
                         <span className={`w-6 h-6 rounded-lg flex items-center justify-center font-black text-xs ${
                           orderLifecyclePhase === 'entregado' ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'
@@ -2413,62 +2517,49 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
                           orderLifecyclePhase === 'entregado' ? 'bg-emerald-200 text-emerald-900 font-black' : 'bg-slate-100 text-slate-500'
                         }`}>
-                          {orderLifecyclePhase === 'entregado' ? '● Entregado' : 'Espera (20 min)'}
+                          {orderLifecyclePhase === 'entregado' ? '● Entregado' : 'A los 20 min'}
                         </span>
                       </div>
                       <strong className="block font-black text-sm text-slate-900 mt-1">4. Entregado en Obra</strong>
-                      <p className="text-[11px] text-slate-600 leading-tight">A los 20 min: Remisión física y garantía NTC 1335.</p>
-                      <span className="text-[10px] text-emerald-700 font-bold block pt-1">Entrega satisfactoria</span>
+                      <p className="text-[11px] text-slate-600 leading-tight">A los 20 min: Remisión #{liveStateMsg.remision} y garantía NTC.</p>
+                      <span className="text-[10px] text-emerald-700 font-bold block pt-1">Garantía NTC 1335 Activa</span>
                     </div>
                   </div>
 
-                  {/* MENSAJE VIVO DE ESTADO CON EL REQUERIMIENTO DEL USUARIO */}
-                  <div className={`p-4 rounded-2xl border-2 text-xs transition-all space-y-1.5 ${
+                  {/* MENSAJE VIVO DE ESTADO CON CONTENIDO DIFERENTE SEGÚN EL ESTADO */}
+                  <div className={`p-4 sm:p-5 rounded-2xl border-2 text-xs transition-all space-y-2 ${
                     orderLifecyclePhase === 'en_ruta'
-                      ? 'bg-gradient-to-r from-purple-50 via-sky-50 to-blue-50 border-purple-300 text-purple-950 shadow-xs'
+                      ? 'bg-gradient-to-r from-purple-50 via-indigo-50 to-sky-50 border-purple-400 text-purple-950 shadow-xs'
                       : orderLifecyclePhase === 'preparando'
-                      ? 'bg-gradient-to-r from-sky-50 to-blue-50 border-sky-300 text-sky-950'
+                      ? 'bg-gradient-to-r from-sky-50 via-cyan-50 to-blue-50 border-sky-400 text-sky-950 shadow-xs'
                       : orderLifecyclePhase === 'entregado'
-                      ? 'bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-300 text-emerald-950'
-                      : 'bg-amber-50 border-amber-300 text-amber-950'
+                      ? 'bg-gradient-to-r from-emerald-50 via-teal-50 to-green-50 border-emerald-400 text-emerald-950 shadow-xs'
+                      : 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-400 text-amber-950 shadow-xs'
                   }`}>
-                    <div className="flex items-center gap-2">
-                      <span className="text-base">
-                        {orderLifecyclePhase === 'en_ruta' ? '🚚' : orderLifecyclePhase === 'preparando' ? '🎨' : orderLifecyclePhase === 'entregado' ? '✅' : '⏳'}
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-current/15 pb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">
+                          {orderLifecyclePhase === 'en_ruta' ? '🚚' : orderLifecyclePhase === 'preparando' ? '🎨' : orderLifecyclePhase === 'entregado' ? '✅' : '📋'}
+                        </span>
+                        <strong className="font-black text-sm sm:text-base">
+                          {liveStateMsg.tituloNotificacion}
+                        </strong>
+                      </div>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-white/90 border border-current/20">
+                        Estado Actual: {liveStateMsg.statusLabel}
                       </span>
-                      <strong className="font-black text-sm">
-                        {orderLifecyclePhase === 'en_ruta'
-                          ? '¡Se está Despachando tu Pedido Colorlink®!'
-                          : orderLifecyclePhase === 'preparando'
-                          ? 'Tu Pedido ha Ingresado al Laboratorio de Tintometría (A los 2s)'
-                          : orderLifecyclePhase === 'entregado'
-                          ? '¡Tu Pedido ha sido Entregado con Éxito en Obra!'
-                          : 'Procesando confirmación del pedido...'}
-                      </strong>
                     </div>
 
-                    <p className="leading-relaxed text-[13px] font-medium pl-6">
-                      {orderLifecyclePhase === 'en_ruta' && (
-                        <span>
-                          Tu pedido <strong>#{orderNumber}</strong> se está despachando en este momento hacia la obra en <strong>{formData.ciudad}</strong> ({formData.direccionEntrega || 'Dirección de obra'}). Asignado a <strong>Camión Turbo NHR 4.5 Ton Colorlink (Placa TZW-402)</strong> conducido por <strong>Carlos Restrepo</strong>. Se ha enviado notificación formal a <strong>{formData.emailResponsable}</strong>.
-                        </span>
-                      )}
-                      {orderLifecyclePhase === 'preparando' && (
-                        <span>
-                          A los 2 segundos de tu aprobación, tu orden <strong>#{orderNumber}</strong> ingresó al laboratorio central de tintometría Colorlink®. Se están calibrando los pigmentos para dosificar el acabado <strong>"{formData.colorAcabado}"</strong> con base <strong>{formData.tipoPintura}</strong>. En 20 minutos se notificará el despacho hacia tu obra.
-                        </span>
-                      )}
-                      {orderLifecyclePhase === 'entregado' && (
-                        <span>
-                          El conductor <strong>Carlos Restrepo</strong> ha completado la entrega de tu pedido <strong>#{orderNumber}</strong> en tu obra en <strong>{formData.ciudad}</strong>. Se ha entregado la remisión física y el certificado de garantía técnica NTC 1335.
-                        </span>
-                      )}
-                      {orderLifecyclePhase === 'aceptado' && (
-                        <span>
-                          Orden <strong>#{orderNumber}</strong> registrada. Entrando a tintometría para formulación del color en <strong>{phaseSecondsLeft} segundos</strong>...
-                        </span>
-                      )}
+                    <p className="leading-relaxed text-[13px] font-medium">
+                      {liveStateMsg.mensajeNotificacion}
                     </p>
+
+                    <div className="pt-1 flex flex-wrap items-center gap-3 text-[11px] font-bold opacity-90">
+                      <span>• Lote Técnico: {liveStateMsg.lote}</span>
+                      <span>• Remisión: #{liveStateMsg.remision}</span>
+                      <span>• Unidad Asignada ({formData.ciudad}): {liveStateMsg.logistica.vehiculo} ({liveStateMsg.logistica.placa})</span>
+                      <span>• Conductor: {liveStateMsg.logistica.conductor}</span>
+                    </div>
                   </div>
 
                   {/* HISTORIAL DE MENSAJES Y NOTIFICACIONES ENVIADAS */}
@@ -2566,46 +2657,70 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                   )}
 
                   {supabaseSavedNotice && (
-                    <div className="p-3 bg-emerald-50/80 rounded-2xl border border-emerald-200 text-xs text-emerald-900 flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <div className={`p-3 rounded-2xl border text-xs flex items-center gap-2 ${
+                      orderLifecyclePhase === 'entregado'
+                        ? 'bg-emerald-50/90 border-emerald-300 text-emerald-950'
+                        : orderLifecyclePhase === 'en_ruta'
+                        ? 'bg-purple-50/90 border-purple-300 text-purple-950'
+                        : orderLifecyclePhase === 'preparando'
+                        ? 'bg-sky-50/90 border-sky-300 text-sky-950'
+                        : 'bg-amber-50/90 border-amber-300 text-amber-950'
+                    }`}>
+                      <CheckCircle2 className="w-4 h-4 shrink-0" />
                       <span>
-                        ✓ <strong>Cotización Aprobada:</strong> Pedido <code>#{orderNumber}</code> confirmado y registrado para <code>{formData.cliente}</code>.
+                        <strong>{liveStateMsg.statusLabel}:</strong> {liveStateMsg.mensajeServidor}
                       </span>
                     </div>
                   )}
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
                     <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 space-y-1">
-                      <span className="text-[10px] font-bold uppercase text-slate-400 block">Contacto Responsable</span>
-                      <strong className="text-xs font-bold text-slate-900 block break-words">{formData.responsable || formData.emailResponsable}</strong>
+                      <span className="text-[10px] font-bold uppercase text-slate-400 block">Estado Operativo Actual</span>
+                      <strong className="text-xs font-bold text-slate-900 block break-words">{liveStateMsg.statusLabel}</strong>
                       <span className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1 break-all">
                         <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" /> {formData.emailResponsable}
                       </span>
                     </div>
 
                     <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 space-y-1">
-                      <span className="text-[10px] font-bold uppercase text-slate-400 block">Recibo Oficial Emitido</span>
-                      <strong className="text-xs font-bold text-slate-900 block font-mono">Recibo_{orderNumber}.pdf</strong>
+                      <span className="text-[10px] font-bold uppercase text-slate-400 block">Lote & Remisión Oficial</span>
+                      <strong className="text-xs font-bold text-slate-900 block font-mono">
+                        {orderLifecyclePhase === 'en_ruta' || orderLifecyclePhase === 'entregado'
+                          ? `Remisión #${liveStateMsg.remision}`
+                          : `Lote ${liveStateMsg.lote}`}
+                      </strong>
                       <span className="text-[11px] text-slate-600">
                         Total: <strong>{formatCOP(presupuesto.totalPresupuesto)} COP</strong>
                       </span>
                     </div>
 
                     <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 space-y-1">
-                      <span className="text-[10px] font-bold uppercase text-slate-400 block">¿En qué vehículo viaja?</span>
-                      <strong className="text-xs font-bold text-purple-950 block">Furgón Colorlink #08</strong>
+                      <span className="text-[10px] font-bold uppercase text-slate-400 block">
+                        {orderLifecyclePhase === 'entregado'
+                          ? 'Vehículo que Entregó en Obra'
+                          : orderLifecyclePhase === 'en_ruta'
+                          ? 'Vehículo en Ruta Activa'
+                          : 'Vehículo Reservado en Flota'}
+                      </span>
+                      <strong className="text-xs font-bold text-purple-950 block">{liveStateMsg.logistica.vehiculo}</strong>
                       <span className="text-[11px] text-slate-600">
-                        Placa: <strong>WLL-482</strong> (Conductor: Carlos Restrepo)
+                        Placa: <strong>{liveStateMsg.logistica.placa}</strong> ({liveStateMsg.logistica.conductor})
                       </span>
                     </div>
 
                     <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 space-y-1">
-                      <span className="text-[10px] font-bold uppercase text-slate-400 block">¿Cuándo llega y a qué hora?</span>
+                      <span className="text-[10px] font-bold uppercase text-slate-400 block">
+                        {orderLifecyclePhase === 'entregado' ? 'Estado de Entrega' : 'Corredor Vial & Tiempo'}
+                      </span>
                       <strong className="text-xs font-bold text-purple-950 block">
-                        {getEstimatedArrivalDate(presupuesto.tiempoEntregaDias)}
+                        {orderLifecyclePhase === 'entregado'
+                          ? 'Entrega 100% Completada ✓'
+                          : liveStateMsg.logistica.corredorRuta}
                       </strong>
                       <span className="text-[11px] text-slate-600">
-                        Hora aprox: <strong>10:30 AM - 12:30 PM</strong>
+                        {orderLifecyclePhase === 'entregado'
+                          ? `Garantía NTC 1335 Activa (${liveStateMsg.lote})`
+                          : `Tiempo estimado: ${liveStateMsg.logistica.tiempoEstimado}`}
                       </span>
                     </div>
                   </div>
@@ -2619,12 +2734,13 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       onClick={() => setShowEmailModal(true)}
                       className="text-xs font-bold text-sky-600 hover:underline flex items-center gap-1 shrink-0 cursor-pointer"
                     >
-                      Ver Recibo en Correo →
+                      Ver Correo del Estado Actual →
                     </button>
                   </div>
                 </div>
               </div>
-            )}
+              );
+            })()}
 
             {/* 3. SI LA COTIZACIÓN FUE RECHAZADA */}
             {quotationDecision === 'rejected' && (
@@ -4955,6 +5071,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
         orderNumber={orderNumber}
         decisionTimestamp={decisionTimestamp}
         onDownloadPDF={handleDownloadPDF}
+        currentPhase={orderLifecyclePhase}
       />
 
       {/* MODAL: CÁMARA EN VIVO / FOTOGRAFÍA DE OBRA */}

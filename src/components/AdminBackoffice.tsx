@@ -48,6 +48,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { sendOrderStatusUpdateEmail } from '../utils/emailService';
+import { buildOrderStateMessage } from '../utils/orderStateMessages';
 import { ProjectFormData } from '../types/form';
 import { formatCOP } from '../utils/calculator';
 import { PenguinLogo } from './PenguinLogo';
@@ -1016,17 +1017,30 @@ export function AdminBackoffice({
         prev.map((o) => {
           if (o.status === 'pendiente') {
             const autoAssigned = generateAiAutoAssignment(o);
-            const notifMsg = `🎨 [Tintometría Automática - 2s] El pedido #${o.id} ingresó al laboratorio de tintometría Colorlink®. Formulación computarizada de pigmentos para "${o.color}" iniciada.`;
+            const stateMsg = buildOrderStateMessage({
+              status: 'preparando',
+              orderId: o.id,
+              cliente: o.cliente,
+              responsable: o.responsable,
+              color: o.color,
+              tipoPintura: o.tipoPintura,
+              ciudad: o.ciudad,
+              totalCOP: o.totalCOP,
+              vehiculo: autoAssigned.vehiculoAsignado,
+              conductor: autoAssigned.conductor,
+              placa: autoAssigned.placa
+            });
 
-            // Enviar correo transaccional de actualización a Tintometría
+            // Enviar correo transaccional de actualización a Tintometría con mensaje exclusivo de tintometría
             sendOrderStatusUpdateEmail({
               orderId: o.id,
               cliente: o.cliente,
               responsable: o.responsable,
               email: o.email,
               status: 'preparando',
-              statusLabel: 'Pedido en Tintometría (Formulación del Color)',
-              mensaje: `Estimado(a) ${o.responsable},\n\nLe confirmamos que su pedido #${o.id} ha ingresado a los 2 segundos de registrado al laboratorio de tintometría Colorlink®.\n\nSe inició la formulación y dosificación computarizada del color "${o.color}" con base ${o.tipoPintura}.\n\nTotal liquidado: ${formatCOP(o.totalCOP)} COP.`,
+              statusLabel: stateMsg.statusLabel,
+              mensaje: stateMsg.mensajeEmail,
+              ciudad: o.ciudad,
               totalCOP: o.totalCOP
             }).catch(() => {});
 
@@ -1042,7 +1056,7 @@ export function AdminBackoffice({
                 ciudad: o.ciudad,
                 status: 'preparando',
                 totalCOP: o.totalCOP,
-                mensaje: notifMsg
+                mensaje: stateMsg.mensajeNotificacion
               })
             }).catch(() => {});
 
@@ -1052,8 +1066,8 @@ export function AdminBackoffice({
               notificaciones: [
                 {
                   tipo: 'email',
-                  texto: notifMsg,
-                  fecha: 'Ahora mismo (2 seg)'
+                  texto: stateMsg.mensajeNotificacion,
+                  fecha: 'Ahora mismo (2 seg - Tintometría)'
                 },
                 ...(o.notificaciones || [])
               ]
@@ -1062,7 +1076,7 @@ export function AdminBackoffice({
           return o;
         })
       );
-      showToast('🎨 [2s] Pedido(s) ingresaron automáticamente a Tintometría (formulación iniciada).');
+      showToast('🎨 [Estado: En Tintometría - 2s] Pedido(s) ingresaron al laboratorio con mensaje de dosificación.');
     }, 2000);
 
     return () => clearTimeout(timer);
@@ -1073,14 +1087,25 @@ export function AdminBackoffice({
     let advancedCount = 0;
     setOrders((prev) =>
       prev.map((o) => {
-        // A) De Tintometría ('preparando') -> Despachando ('en_ruta') a los 20 minutos con mensaje oficial
+        // A) De Tintometría ('preparando') -> Despachando ('en_ruta') a los 20 minutos con mensaje oficial de despacho
         if (o.status === 'preparando') {
           advancedCount++;
-          const vehiculo = o.vehiculoAsignado || 'Camión Turbo NHR 4.5 Ton Colorlink';
-          const placa = o.placa || 'TZW-402';
-          const conductor = o.conductor || 'Carlos Restrepo';
-          const eta = o.rutaOptima?.horaEstimada || 'Hoy en 45 min';
-          const notifTexto = `🚚 [Despacho en Ruta - 20 min] ¡El pedido #${o.id} se está despachando hacia la obra! Asignado a ${vehiculo} (${placa}) con conductor ${conductor}.`;
+          const stateMsg = buildOrderStateMessage({
+            status: 'en_ruta',
+            orderId: o.id,
+            cliente: o.cliente,
+            responsable: o.responsable,
+            color: o.color,
+            tipoPintura: o.tipoPintura,
+            ciudad: o.ciudad,
+            totalCOP: o.totalCOP,
+            vehiculo: o.vehiculoAsignado,
+            conductor: o.conductor,
+            placa: o.placa
+          });
+          const vehiculo = stateMsg.logistica.vehiculo;
+          const placa = stateMsg.logistica.placa;
+          const conductor = stateMsg.logistica.conductor;
 
           sendOrderStatusUpdateEmail({
             orderId: o.id,
@@ -1088,8 +1113,8 @@ export function AdminBackoffice({
             responsable: o.responsable,
             email: o.email,
             status: 'en_ruta',
-            statusLabel: 'Pedido Despachando y En Ruta a Obra',
-            mensaje: `Estimado(a) ${o.responsable},\n\n¡Excelentes noticias! Le confirmamos que su pedido #${o.id} completó su preparación en tintometría y SE ESTÁ DESPACHANDO hacia su obra en ${o.ciudad}.\n\n• Vehículo Asignado: ${vehiculo}\n• Placa del Vehículo: ${placa}\n• Conductor Asignado: ${conductor}\n• Hora Estimada de Llegada (ETA): ${eta}\n\nEl conductor cuenta con remisión física y certificado de calidad Colorlink®.`,
+            statusLabel: stateMsg.statusLabel,
+            mensaje: stateMsg.mensajeEmail,
             vehiculo,
             conductor,
             placa,
@@ -1112,7 +1137,7 @@ export function AdminBackoffice({
               conductor,
               placa,
               totalCOP: o.totalCOP,
-              mensaje: notifTexto
+              mensaje: stateMsg.mensajeNotificacion
             })
           }).catch(() => {});
 
@@ -1125,19 +1150,31 @@ export function AdminBackoffice({
             notificaciones: [
               {
                 tipo: 'email',
-                texto: notifTexto,
-                fecha: 'Ahora mismo (20 min)'
+                texto: stateMsg.mensajeNotificacion,
+                fecha: 'Ahora mismo (20 min - En Ruta)'
               },
               ...(o.notificaciones || [])
             ]
           };
         }
 
-        // B) De Despachando ('en_ruta') -> Entregado ('entregado') a los siguientes 20 minutos con mensaje de confirmación
+        // B) De Despachando ('en_ruta') -> Entregado ('entregado') a los siguientes 20 minutos con mensaje de entrega final
         if (o.status === 'en_ruta') {
           advancedCount++;
-          const conductor = o.conductor || 'Carlos Restrepo';
-          const notifTexto = `✅ [Entrega Exitosa - 20 min] El pedido #${o.id} ha sido entregado exitosamente en la obra por el conductor ${conductor}. Remisión técnica y certificado de calidad NTC 1335 emitidos.`;
+          const stateMsg = buildOrderStateMessage({
+            status: 'entregado',
+            orderId: o.id,
+            cliente: o.cliente,
+            responsable: o.responsable,
+            color: o.color,
+            tipoPintura: o.tipoPintura,
+            ciudad: o.ciudad,
+            totalCOP: o.totalCOP,
+            vehiculo: o.vehiculoAsignado,
+            conductor: o.conductor,
+            placa: o.placa
+          });
+          const conductor = stateMsg.logistica.conductor;
 
           sendOrderStatusUpdateEmail({
             orderId: o.id,
@@ -1145,8 +1182,10 @@ export function AdminBackoffice({
             responsable: o.responsable,
             email: o.email,
             status: 'entregado',
-            statusLabel: 'Pedido Entregado con Éxito en Obra',
-            mensaje: `Estimado(a) ${o.responsable},\n\nLe confirmamos que su pedido #${o.id} ha sido ENTREGADO con satisfacción en su obra en ${o.ciudad} por el conductor ${conductor}.\n\nSe ha emitido el certificado oficial de calidad bajo la norma técnica NTC 1335.\n\n¡Gracias por pintar con Colorlink® Pinturas!`,
+            statusLabel: stateMsg.statusLabel,
+            mensaje: stateMsg.mensajeEmail,
+            vehiculo: stateMsg.logistica.vehiculo,
+            placa: stateMsg.logistica.placa,
             conductor,
             ciudad: o.ciudad,
             totalCOP: o.totalCOP
@@ -1165,7 +1204,7 @@ export function AdminBackoffice({
               status: 'entregado',
               conductor,
               totalCOP: o.totalCOP,
-              mensaje: notifTexto
+              mensaje: stateMsg.mensajeNotificacion
             })
           }).catch(() => {});
 
@@ -1175,8 +1214,8 @@ export function AdminBackoffice({
             notificaciones: [
               {
                 tipo: 'email',
-                texto: notifTexto,
-                fecha: 'Ahora mismo (+20 min)'
+                texto: stateMsg.mensajeNotificacion,
+                fecha: 'Ahora mismo (+20 min - Entregado)'
               },
               ...(o.notificaciones || [])
             ]
@@ -1189,7 +1228,7 @@ export function AdminBackoffice({
 
     setSecondsToNextCycle(fastDemoMode ? 20 : 1200);
     if (advancedCount > 0) {
-      showToast(`⏱️ Actualización de 20 min ejecutada: ${advancedCount} pedido(s) avanzaron a su siguiente fase.`);
+      showToast(`⏱️ Actualización de 20 min ejecutada: ${advancedCount} pedido(s) cambiaron de estado y generaron su nuevo mensaje.`);
     } else {
       showToast('⏱️ Ciclo de 20 min: No hay pedidos en Tintometría o En Camino pendientes de avanzar.');
     }
@@ -1360,45 +1399,42 @@ export function AdminBackoffice({
     }
   };
 
-  // Dictamen de Auditoría Inteligente de IA y Gestión con Notificación Automática por Correo
+  // Dictamen de Auditoría Inteligente de IA y Gestión con Notificación Automática por Correo según el Estado
   const handleAiOrderDecision = async (
     orderId: string,
-    decision: 'aceptar' | 'espera' | 'rechazar' | 'despachar' | 'entregar',
+    decision: 'pendiente' | 'aceptar' | 'espera' | 'rechazar' | 'despachar' | 'entregar',
     customVehiculo?: { tipo: string; placa: string; conductor: string; horaEstimada?: string }
   ) => {
     const order = orders.find((o) => o.id === orderId);
     if (!order) return;
 
     let newStatus: OrderItem['status'] = 'preparando';
-    let statusLabel = '';
-    let emailMsg = '';
+    if (decision === 'pendiente') newStatus = 'pendiente';
+    else if (decision === 'aceptar') newStatus = 'preparando';
+    else if (decision === 'espera') newStatus = 'en_espera';
+    else if (decision === 'rechazar') newStatus = 'rechazado';
+    else if (decision === 'despachar') newStatus = 'en_ruta';
+    else if (decision === 'entregar') newStatus = 'entregado';
 
-    const assignedVeh = customVehiculo?.tipo || order.vehiculoAsignado || 'Camión Turbo NHR 4.5 Ton Colorlink';
-    const assignedPlaca = customVehiculo?.placa || order.placa || 'TZW-402';
-    const assignedCond = customVehiculo?.conductor || order.conductor || 'Carlos Mario Henao';
-    const assignedETA = customVehiculo?.horaEstimada || order.rutaOptima?.horaEstimada || 'Hoy en 2 horas';
+    const stateMsg = buildOrderStateMessage({
+      status: newStatus,
+      orderId: order.id,
+      cliente: order.cliente,
+      responsable: order.responsable,
+      color: order.color,
+      tipoPintura: order.tipoPintura,
+      ciudad: order.ciudad,
+      totalCOP: order.totalCOP,
+      vehiculo: customVehiculo?.tipo || order.vehiculoAsignado,
+      conductor: customVehiculo?.conductor || order.conductor,
+      placa: customVehiculo?.placa || order.placa
+    });
 
-    if (decision === 'aceptar') {
-      newStatus = 'preparando';
-      statusLabel = 'Pedido Aceptado e Ingresado a Tintometría';
-      emailMsg = `Estimado(a) ${order.responsable},\n\nLe confirmamos que su pedido #${order.id} para la obra en ${order.ciudad} ha sido auditado por nuestra IA de planta, verificado en stock (insumos 100% disponibles) y ACEPTADO.\n\nHa ingresado al laboratorio de tintometría para formulación y dosificación del color "${order.color}".\n\nTotal liquidado: ${formatCOP(order.totalCOP)} COP.`;
-    } else if (decision === 'espera') {
-      newStatus = 'en_espera';
-      statusLabel = 'Pedido en Espera • Verificación Técnica';
-      emailMsg = `Estimado(a) ${order.responsable},\n\nLe informamos que su pedido #${order.id} para la obra en ${order.ciudad} ha sido puesto temporalmente EN ESPERA por nuestro sistema de auditoría.\n\nMotivo: Validación de lote de pigmentos y confirmación de arribo de cuñetes desde CEDI regional para garantizar la máxima durabilidad del acabado.\n\nLe notificaremos en cuanto su pedido sea liberado para preparación.`;
-    } else if (decision === 'rechazar') {
-      newStatus = 'rechazado';
-      statusLabel = 'Pedido Rechazado por Incompatibilidad';
-      emailMsg = `Estimado(a) ${order.responsable},\n\nLe informamos que su pedido #${order.id} no pudo ser aprobado automáticamente debido a incompatibilidad técnica del recubrimiento solicitado con las condiciones de exposición reportadas en ${order.ciudad} o falta de cobertura en la zona.\n\nUno de nuestros asesores técnicos de Colorlink se comunicará con usted al ${order.telefono} para brindarle una formulación adecuada.`;
-    } else if (decision === 'despachar') {
-      newStatus = 'en_ruta';
-      statusLabel = 'Pedido Asignado a Vehículo y En Camino a Obra';
-      emailMsg = `Estimado(a) ${order.responsable},\n\n¡Excelentes noticias! Su pedido #${order.id} ya fue formulado, envasado y ASIGNADO a despacho:\n\n• Vehículo Asignado: ${assignedVeh}\n• Placa del Vehículo: ${assignedPlaca}\n• Conductor: ${assignedCond}\n• Destino: Obra en ${order.ciudad} (${order.obra})\n• Hora Estimada de Llegada (ETA): ${assignedETA}\n\nEl conductor lleva la remisión física de entrega y certificado de calidad de fábrica Colorlink.`;
-    } else if (decision === 'entregar') {
-      newStatus = 'entregado';
-      statusLabel = 'Pedido Entregado con Éxito en Obra';
-      emailMsg = `Estimado(a) ${order.responsable},\n\nConfirmamos que su pedido #${order.id} ha sido ENTREGADO con éxito en la obra de ${order.ciudad} (${order.obra}) por el conductor ${assignedCond}.\n\n¡Gracias por confiar en Colorlink® Pinturas! Recuerde que su pedido cuenta con garantía técnica oficial NTC 1335.`;
-    }
+    const assignedVeh = stateMsg.logistica.vehiculo;
+    const assignedPlaca = stateMsg.logistica.placa;
+    const assignedCond = stateMsg.logistica.conductor;
+    const statusLabel = stateMsg.statusLabel;
+    const emailMsg = stateMsg.mensajeEmail;
 
     setOrders((prev) =>
       prev.map((o) => {
@@ -1412,8 +1448,8 @@ export function AdminBackoffice({
             notificaciones: [
               {
                 tipo: 'email',
-                texto: `[Notificación Automática IA] ${statusLabel}`,
-                fecha: 'Ahora mismo'
+                texto: stateMsg.mensajeNotificacion,
+                fecha: `Ahora mismo (${statusLabel})`
               },
               ...o.notificaciones
             ]
@@ -1423,7 +1459,26 @@ export function AdminBackoffice({
       })
     );
 
-    showToast(`✓ Estado: "${statusLabel}". Enviando correo a ${order.email}...`);
+    showToast(`✓ Estado actualizado: "${statusLabel}". Mensaje dinámico generado para ${order.email}`);
+
+    // Sincronizar cambio de estado y su mensaje con Vercel Serverless
+    fetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        orderNumber: order.id,
+        cliente: order.cliente,
+        responsable: order.responsable,
+        email: order.email,
+        ciudad: order.ciudad,
+        status: newStatus,
+        vehiculo: assignedVeh,
+        conductor: assignedCond,
+        placa: assignedPlaca,
+        totalCOP: order.totalCOP,
+        mensaje: stateMsg.mensajeNotificacion
+      })
+    }).catch(() => {});
 
     try {
       await sendOrderStatusUpdateEmail({
@@ -1440,27 +1495,28 @@ export function AdminBackoffice({
         ciudad: order.ciudad,
         totalCOP: order.totalCOP
       });
-      showToast(`✓ Correo oficial enviado exitosamente a ${order.email}`);
     } catch (err) {
       console.warn('[Email] Error al enviar correo:', err);
-      showToast(`✓ Estado registrado y correo procesado para ${order.email}`);
     }
   };
 
-  // Enviar mensaje oficial por Correo Electrónico
+  // Enviar mensaje oficial por Correo Electrónico (Cambia dinámicamente según el estado actual del pedido)
   const handleTriggerNotification = (order: OrderItem) => {
-    const statusLabel =
-      order.status === 'preparando'
-        ? 'En Tintometría & Preparación'
-        : order.status === 'en_ruta'
-        ? 'En Ruta de Despacho a Obra'
-        : order.status === 'entregado'
-        ? 'Entregado a Satisfacción'
-        : 'Aprobado para Despacho';
+    const stateMsg = buildOrderStateMessage({
+      status: order.status,
+      orderId: order.id,
+      cliente: order.cliente,
+      responsable: order.responsable,
+      color: order.color,
+      tipoPintura: order.tipoPintura,
+      ciudad: order.ciudad,
+      totalCOP: order.totalCOP,
+      vehiculo: order.vehiculoAsignado,
+      conductor: order.conductor,
+      placa: order.placa
+    });
 
-    const msg = `Estimado(a) ${order.responsable || order.cliente},\n\nLe notificamos formalmente que su orden de pintura #${order.id} se encuentra en estado: ${statusLabel}.\n\nDetalles del Despacho:\n• Obra / Destino: ${order.obra || order.ciudad}\n• Producto: ${order.tipoPintura} (Color: ${order.color})\n• Vehículo Asignado: ${order.vehiculoAsignado || 'Camión Colorlink'} (Placa: ${order.placa || 'CLK-789'})\n• Conductor: ${order.conductor || 'Juan Camilo Pérez'}\n• Hora Estimada: ${order.rutaOptima?.horaEstimada || 'Hoy en el transcurso del día'}\n• Total de la Orden: ${formatCOP(order.totalCOP)} COP\n\nAtentamente,\nEquipo de Despachos y Logística • Colorlink Pinturas`;
-
-    setModalNotificationData({ tipo: 'email', order, mensaje: msg });
+    setModalNotificationData({ tipo: 'email', order, mensaje: stateMsg.mensajeEmail });
     setShowNotificationModal(true);
   };
 
@@ -1468,11 +1524,29 @@ export function AdminBackoffice({
     if (!modalNotificationData) return;
     const { order, mensaje } = modalNotificationData;
 
+    const stateMsg = buildOrderStateMessage({
+      status: order.status,
+      orderId: order.id,
+      cliente: order.cliente,
+      responsable: order.responsable,
+      color: order.color,
+      tipoPintura: order.tipoPintura,
+      ciudad: order.ciudad,
+      totalCOP: order.totalCOP,
+      vehiculo: order.vehiculoAsignado,
+      conductor: order.conductor,
+      placa: order.placa
+    });
+
     setOrders((prev) =>
       prev.map((o) => {
         if (o.id === order.id) {
           const newNotifs = [...o.notificaciones];
-          newNotifs.unshift({ tipo: 'email', texto: mensaje, fecha: 'Ahora mismo' });
+          newNotifs.unshift({
+            tipo: 'email',
+            texto: stateMsg.mensajeNotificacion,
+            fecha: `Ahora mismo (${stateMsg.statusLabel})`
+          });
           return {
             ...o,
             notificaciones: newNotifs
@@ -1484,48 +1558,39 @@ export function AdminBackoffice({
 
     setShowNotificationModal(false);
 
-    const statusLabel =
-      order.status === 'preparando'
-        ? 'En Tintometría y Preparación'
-        : order.status === 'en_ruta'
-        ? 'En Ruta de Despacho'
-        : order.status === 'entregado'
-        ? 'Entregado a Satisfacción'
-        : 'Aprobado y Confirmado';
-
-    showToast(`Enviando actualización por correo a ${order.email}...`);
+    showToast(`Enviando correo específico de "${stateMsg.statusLabel}" a ${order.email}...`);
     try {
       const emailRes = await sendOrderStatusUpdateEmail({
         orderId: order.id,
         cliente: order.cliente,
         responsable: order.responsable,
         email: order.email,
-        status: order.status === 'preparando' ? 'preparando' : order.status === 'en_ruta' ? 'en_ruta' : 'entregado',
-        statusLabel,
+        status: order.status,
+        statusLabel: stateMsg.statusLabel,
         mensaje,
-        vehiculo: order.vehiculoAsignado,
-        conductor: order.conductor,
-        placa: order.placa,
+        vehiculo: stateMsg.logistica.vehiculo,
+        conductor: stateMsg.logistica.conductor,
+        placa: stateMsg.logistica.placa,
         ciudad: order.ciudad,
         totalCOP: order.totalCOP
       });
 
       if (emailRes.success) {
-        showToast(`✓ Correo enviado exitosamente a ${order.email}`);
+        showToast(`✓ Correo de "${stateMsg.statusLabel}" enviado a ${order.email}`);
       } else {
         await fetch('/api/send-email', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             to: order.email,
-            subject: `🎨 COLORLINK® • Notificación de Despacho Pedido #${order.id}: ${statusLabel}`,
+            subject: `🎨 COLORLINK® • Pedido #${order.id} [${stateMsg.statusLabel}]`,
             text: mensaje
           })
         });
-        showToast(`✓ Correo procesado para ${order.email}`);
+        showToast(`✓ Correo de "${stateMsg.statusLabel}" procesado para ${order.email}`);
       }
     } catch (err) {
-      showToast(`✓ Notificación de correo registrada para ${order.email}`);
+      showToast(`✓ Notificación de "${stateMsg.statusLabel}" registrada para ${order.email}`);
     }
   };
 
@@ -2031,7 +2096,7 @@ export function AdminBackoffice({
                         </div>
 
                         {ord.vehiculoAsignado && (
-                          <div className="mt-2.5 pt-2 border-t border-slate-200/70 flex items-center justify-between text-[10px] text-slate-600">
+                          <div className="mt-2 pt-2 border-t border-slate-200/70 flex items-center justify-between text-[10px] text-slate-600">
                             <span className="flex items-center gap-1 font-semibold text-[#009FE3]">
                               <Truck className="w-3 h-3 text-[#009FE3]" />
                               {ord.vehiculoAsignado} ({ord.placa})
@@ -2041,6 +2106,23 @@ export function AdminBackoffice({
                             </span>
                           </div>
                         )}
+
+                        {/* Resumen del mensaje específico según el estado actual de este pedido */}
+                        <div className="mt-2 p-2 rounded-xl bg-slate-50 border border-slate-200/80 text-[10px] text-slate-700 leading-snug line-clamp-2">
+                          {buildOrderStateMessage({
+                            status: ord.status,
+                            orderId: ord.id,
+                            cliente: ord.cliente,
+                            responsable: ord.responsable,
+                            color: ord.color,
+                            tipoPintura: ord.tipoPintura,
+                            ciudad: ord.ciudad,
+                            totalCOP: ord.totalCOP,
+                            vehiculo: ord.vehiculoAsignado,
+                            conductor: ord.conductor,
+                            placa: ord.placa
+                          }).mensajeNotificacion}
+                        </div>
                       </div>
                     );
                   })}
@@ -2100,28 +2182,55 @@ export function AdminBackoffice({
                       <Sparkles className="w-5 h-5 text-amber-200 animate-pulse" />
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">
                           Resolución y Gestión Logística Colorlink®
                         </h4>
-                        {activeOrder.status === 'pendiente' ? (
+                        {activeOrder.status === 'pendiente' && (
                           <span className="px-2.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-extrabold rounded-full border border-amber-300">
-                            ⏳ Por Aprobar • Decisión: Aceptar o Rechazar
+                            ⏳ Estado 1/4: Pedido Recibido • En espera de Tintometría (2s)
                           </span>
-                        ) : activeOrder.status === 'rechazado' ? (
+                        )}
+                        {activeOrder.status === 'preparando' && (
+                          <span className="px-2.5 py-0.5 bg-sky-100 text-sky-900 text-[10px] font-extrabold rounded-full border border-sky-300">
+                            🎨 Estado 2/4: En Laboratorio de Tintometría (Despacho en 20m)
+                          </span>
+                        )}
+                        {activeOrder.status === 'en_ruta' && (
+                          <span className="px-2.5 py-0.5 bg-purple-100 text-purple-900 text-[10px] font-extrabold rounded-full border border-purple-300">
+                            🚚 Estado 3/4: Despachando en Ruta a Obra (Entrega en 20m)
+                          </span>
+                        )}
+                        {activeOrder.status === 'entregado' && (
+                          <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-900 text-[10px] font-extrabold rounded-full border border-emerald-300">
+                            ✅ Estado 4/4: Pedido Entregado con Éxito en Obra
+                          </span>
+                        )}
+                        {activeOrder.status === 'en_espera' && (
+                          <span className="px-2.5 py-0.5 bg-orange-100 text-orange-950 text-[10px] font-extrabold rounded-full border border-orange-300">
+                            📦 En Espera de Transferencia CEDI
+                          </span>
+                        )}
+                        {activeOrder.status === 'rechazado' && (
                           <span className="px-2.5 py-0.5 bg-rose-100 text-rose-900 text-[10px] font-extrabold rounded-full border border-rose-300">
-                            ✕ Pedido Rechazado
-                          </span>
-                        ) : (
-                          <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-extrabold rounded-full border border-emerald-200">
-                            ✓ Pedido Aprobado & En Proceso
+                            ⚠️ Rechazado por Auditoría Técnica
                           </span>
                         )}
                       </div>
-                      <p className="text-[11px] text-slate-600">
-                        {activeOrder.status === 'pendiente'
-                          ? 'El cliente ya definió su método de pago. La IA verificó existencias y formulación. Evalúe para Aceptar o Rechazar.'
-                          : 'La IA evaluó existencias, formuló el producto, calculó la ruta óptima y gestiona los despachos.'}
+                      <p className="text-[11px] text-slate-600 mt-0.5">
+                        {buildOrderStateMessage({
+                          status: activeOrder.status,
+                          orderId: activeOrder.id,
+                          cliente: activeOrder.cliente,
+                          responsable: activeOrder.responsable,
+                          color: activeOrder.color,
+                          tipoPintura: activeOrder.tipoPintura,
+                          ciudad: activeOrder.ciudad,
+                          totalCOP: activeOrder.totalCOP,
+                          vehiculo: activeOrder.vehiculoAsignado,
+                          conductor: activeOrder.conductor,
+                          placa: activeOrder.placa
+                        }).mensajeServidor}
                       </p>
                     </div>
                   </div>
@@ -2137,6 +2246,84 @@ export function AdminBackoffice({
                     </button>
                   </div>
                 </div>
+
+                {/* MENSAJE DINÁMICO EXCLUSIVO SEGÚN EL ESTADO ACTUAL DEL PEDIDO SELECCIONADO */}
+                {(() => {
+                  const activeStateMsg = buildOrderStateMessage({
+                    status: activeOrder.status,
+                    orderId: activeOrder.id,
+                    cliente: activeOrder.cliente,
+                    responsable: activeOrder.responsable,
+                    color: activeOrder.color,
+                    tipoPintura: activeOrder.tipoPintura,
+                    ciudad: activeOrder.ciudad,
+                    totalCOP: activeOrder.totalCOP,
+                    vehiculo: activeOrder.vehiculoAsignado,
+                    conductor: activeOrder.conductor,
+                    placa: activeOrder.placa
+                  });
+
+                  const bannerColor =
+                    activeOrder.status === 'entregado'
+                      ? 'bg-emerald-50 border-emerald-400 text-emerald-950'
+                      : activeOrder.status === 'en_ruta'
+                      ? 'bg-purple-50 border-purple-400 text-purple-950'
+                      : activeOrder.status === 'preparando'
+                      ? 'bg-sky-50 border-sky-400 text-sky-950'
+                      : activeOrder.status === 'en_espera'
+                      ? 'bg-orange-50 border-orange-400 text-orange-950'
+                      : activeOrder.status === 'rechazado'
+                      ? 'bg-rose-50 border-rose-400 text-rose-950'
+                      : 'bg-amber-50 border-amber-400 text-amber-950';
+
+                  return (
+                    <div className={`p-4 rounded-2xl border-2 space-y-2.5 transition-all ${bannerColor}`}>
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-current/15">
+                        <div>
+                          <span className="text-[10px] font-black uppercase tracking-wider opacity-75 block">
+                            Mensaje Oficial según el Estado Actual ({activeStateMsg.statusLabel})
+                          </span>
+                          <strong className="text-xs sm:text-sm font-black block">
+                            {activeStateMsg.tituloNotificacion}
+                          </strong>
+                        </div>
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {[
+                            { dec: 'pendiente', st: 'pendiente', label: '1. Pendiente' },
+                            { dec: 'aceptar', st: 'preparando', label: '2. Tintometría' },
+                            { dec: 'despachar', st: 'en_ruta', label: '3. Despachando' },
+                            { dec: 'entregar', st: 'entregado', label: '4. Entregado' },
+                            { dec: 'espera', st: 'en_espera', label: 'En Espera' },
+                            { dec: 'rechazar', st: 'rechazado', label: 'Rechazado' }
+                          ].map((btn) => (
+                            <button
+                              key={btn.st}
+                              type="button"
+                              onClick={() => handleAiOrderDecision(activeOrder.id, btn.dec as any)}
+                              className={`px-2 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer ${
+                                activeOrder.status === btn.st
+                                  ? 'bg-slate-900 text-white shadow-2xs'
+                                  : 'bg-white/80 hover:bg-white text-slate-700 border border-slate-300'
+                              }`}
+                              title={`Cambiar a estado "${btn.label}" y ver su mensaje específico`}
+                            >
+                              {btn.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <p className="text-xs leading-relaxed font-medium">
+                        {activeStateMsg.mensajeNotificacion}
+                      </p>
+
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-[11px] font-bold opacity-90">
+                        <span>Lote: {activeStateMsg.lote} • Remisión: #{activeStateMsg.remision}</span>
+                        <span>Vehículo: {activeStateMsg.logistica.vehiculo} ({activeStateMsg.logistica.placa}) • Conductor: {activeStateMsg.logistica.conductor}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* 4 TARJETAS CLAVE SOLICITADAS POR EL USUARIO */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
@@ -2222,28 +2409,55 @@ export function AdminBackoffice({
                     </div>
                   </div>
 
-                  {/* 4. ¿QUÉ MENSAJES SE MANDARON? */}
+                  {/* 4. ¿QUÉ MENSAJES SE MANDARON SEGÚN EL ESTADO? */}
                   <div className="p-4 rounded-xl bg-white border border-sky-200 shadow-2xs space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] font-black uppercase text-sky-950 flex items-center gap-1.5">
                         <Send className="w-4 h-4 text-emerald-600" />
-                        4. Mensajes Notificados al Cliente
+                        4. Mensaje Notificado según Estado ({activeOrder.status.toUpperCase()})
                       </span>
                       <span className="text-[9px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-200">
-                        Enviados Automáticamente
+                        Dinámico por Fase
                       </span>
                     </div>
                     <div className="bg-sky-50/50 p-2.5 rounded-lg border border-sky-100 space-y-1.5 text-xs">
                       <div className="flex items-center gap-1.5 text-[11px] text-slate-700">
                         <Mail className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                        <span>Correo: <strong>{activeOrder.email}</strong> (Notificación oficial de flete y remisión)</span>
+                        <span>
+                          <strong>{activeOrder.email}:</strong>{' '}
+                          {buildOrderStateMessage({
+                            status: activeOrder.status,
+                            orderId: activeOrder.id,
+                            cliente: activeOrder.cliente,
+                            responsable: activeOrder.responsable,
+                            color: activeOrder.color,
+                            tipoPintura: activeOrder.tipoPintura,
+                            ciudad: activeOrder.ciudad,
+                            totalCOP: activeOrder.totalCOP,
+                            vehiculo: activeOrder.vehiculoAsignado,
+                            conductor: activeOrder.conductor,
+                            placa: activeOrder.placa
+                          }).tituloNotificacion}
+                        </span>
                       </div>
-                      <div className="flex items-center gap-1.5 text-[11px] text-slate-700">
-                        <Phone className="w-3.5 h-3.5 text-slate-600 shrink-0" />
-                        <span>Teléfono Contacto: <strong>{activeOrder.telefono}</strong></span>
-                      </div>
-                      <div className="text-[10px] text-slate-500 pt-0.5">
-                        Hora estimada de arribo (ETA): <strong className="text-slate-900">{activeOrder.rutaOptima?.horaEstimada || 'Hoy en 2 horas'}</strong>
+                      <p className="text-[11px] text-slate-600 leading-snug">
+                        {buildOrderStateMessage({
+                          status: activeOrder.status,
+                          orderId: activeOrder.id,
+                          cliente: activeOrder.cliente,
+                          responsable: activeOrder.responsable,
+                          color: activeOrder.color,
+                          tipoPintura: activeOrder.tipoPintura,
+                          ciudad: activeOrder.ciudad,
+                          totalCOP: activeOrder.totalCOP,
+                          vehiculo: activeOrder.vehiculoAsignado,
+                          conductor: activeOrder.conductor,
+                          placa: activeOrder.placa
+                        }).mensajeServidor}
+                      </p>
+                      <div className="text-[10px] text-slate-500 pt-0.5 flex items-center justify-between">
+                        <span>Contacto: <strong>{activeOrder.telefono}</strong></span>
+                        <span>ETA: <strong className="text-slate-900">{activeOrder.rutaOptima?.horaEstimada || 'Hoy en 45 min'}</strong></span>
                       </div>
                     </div>
                   </div>

@@ -73,11 +73,11 @@ export function ColorlinkLoginLanding({
     e.preventDefault();
     setErrorMessage(null);
 
-    const emailToUse = username.trim();
+    const emailToUse = username.trim().toLowerCase();
     const passToUse = password.trim();
 
     if (!emailToUse || !passToUse) {
-      setErrorMessage('Por favor ingresa tu correo y contraseña, o entra como invitado.');
+      setErrorMessage('Por favor ingresa tu correo electrónico y contraseña, o entra como invitado.');
       return;
     }
 
@@ -376,17 +376,17 @@ export function ColorlinkLoginLanding({
         {mode === 'login' ? (
           /* FORMULARIO DE INICIO DE SESIÓN CON TOQUES COLORIDOS */
           <form onSubmit={handleLogin} className="space-y-4">
-            {/* Campo Username */}
+            {/* Campo Correo Electrónico */}
             <div className="space-y-1.5 text-left">
               <label className="block text-xs font-bold text-slate-600 pl-2">
-                Username *
+                Correo Electrónico *
               </label>
               <div className="relative">
                 <input
-                  type="text"
+                  type="email"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Enter your Username (ej: Constructora Horizonte)"
+                  placeholder="Ingresa tu correo electrónico (ej: proyectos@empresa.com)"
                   className="w-full bg-[#f8fafc] hover:bg-slate-100 focus:bg-white text-slate-800 placeholder:text-slate-400 text-sm font-medium px-5 py-3.5 rounded-full border border-slate-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 transition-all outline-none"
                 />
               </div>
