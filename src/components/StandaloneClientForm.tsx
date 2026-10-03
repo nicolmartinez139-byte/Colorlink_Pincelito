@@ -498,8 +498,9 @@ export function StandaloneClientForm({
   const validateStep = (stepNumber: number) => {
     const err: Record<string, string> = {};
     if (stepNumber === 1) {
-      // Paso 1: Ubicación, Área y Fechas
+      // Paso 1: Ubicación, Área y Fechas (Aquí se define la ciudad y la dirección de entrega)
       if (!formData.ciudad?.trim()) err.ciudad = 'Seleccione la ciudad de entrega';
+      if (!formData.direccionEntrega?.trim()) err.direccionEntrega = 'Indique la dirección exacta donde quieres que llegue el pedido';
       if (!formData.tipoObra?.trim()) err.tipoObra = 'Seleccione el tipo de obra';
       if (!formData.areaM2 || formData.areaM2 <= 0) err.areaM2 = 'El área debe ser mayor a 0 m²';
       if (!formData.fechaRequerida) err.fechaRequerida = 'Indique la fecha estimada de inicio';
@@ -513,13 +514,7 @@ export function StandaloneClientForm({
         formData.colorAcabado = 'Blanco Puro (Mate)';
       }
     } else if (stepNumber === 3) {
-      // Paso 3: Diagnóstico, Evidencias, Dirección de Entrega y Envío
-      if (!formData.direccionEntrega?.trim()) {
-        err.direccionEntrega = 'Indique la dirección exacta donde quieres que llegue el pedido';
-      }
-      if (!formData.ciudad?.trim()) {
-        err.ciudad = 'Seleccione la ciudad de entrega';
-      }
+      // Paso 3: Diagnóstico IA, Evidencias Fotográficas y Emisión (La ubicación ya se definió en el Paso 1)
       if (!formData.descripcionLibre?.trim()) {
         const autoDesc = `Mantenimiento preventivo y aplicación técnica de ${formData.tipoPintura || 'Pintura Colorlink'} sobre ${formData.superficie || 'superficie arquitectónica'} en ${formData.ciudad || 'Medellín'}. Área total a cubrir: ${formData.areaM2 || 0} m² en acabado color ${formData.colorAcabado || 'Blanco Puro'}. Despacho solicitado a la dirección indicada.`;
         formData.descripcionLibre = autoDesc;
@@ -3603,9 +3598,9 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       <div>
                         <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
                           <Sparkles className="w-5 h-5 text-amber-500" />
-                          <span>3. Diagnóstico Técnico con IA, Dirección de Entrega & Emisión</span>
+                          <span>3. Diagnóstico Técnico con IA & Emisión Oficial</span>
                         </h3>
-                        <p className="text-xs text-slate-500">Dictamen técnico automatizado de la superficie, dirección exacta para despacho y registro de evidencias.</p>
+                        <p className="text-xs text-slate-500">Dictamen técnico de viabilidad, dosificación calculada bajo norma NTC 1335 y registro de evidencias de obra.</p>
                       </div>
                       <span className="text-xs font-bold text-sky-700 bg-sky-50 px-3 py-1 rounded-full border border-sky-200/80">Paso 3 de 3</span>
                     </div>
@@ -3701,7 +3696,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                           <span className="text-[10px] uppercase font-bold text-slate-400 block">Herramientas Seleccionadas</span>
                           {formData.herramientasSeleccionadas && formData.herramientasSeleccionadas.length > 0 ? (
                             <strong className="text-sky-300 block text-xs">
-                              {formData.herramientasSeleccionadas.reduce((acc, h) => acc + h.cantidad, 0)} accesorio(s) de pintura agregados
+                              {formData.herramientasSeleccionadas.reduce((acc, h) => acc + h.cantidad, 0)} accesorio(s) agregados
                             </strong>
                           ) : (
                             <span className="text-slate-300 block text-xs">
@@ -3709,129 +3704,13 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                             </span>
                           )}
                           <span className="text-[10px] text-slate-400">
-                            Color: {formData.colorAcabado || 'Gris'}
+                            Color: {formData.colorAcabado || 'Blanco Puro'}
                           </span>
                         </div>
                       </div>
                     </div>
 
-                    {/* 2. DIRECCIÓN EXACTA DONDE SE QUIERE QUE LLEGUE EL PEDIDO (OBLIGATORIA & DESTACADA) */}
-                    <div className="p-5 sm:p-6 bg-gradient-to-r from-sky-50/80 via-blue-50/50 to-white rounded-3xl border-2 border-sky-400/60 shadow-sm space-y-4">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-sky-200/80">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-500 to-blue-600 text-white flex items-center justify-center font-bold shadow-xs shrink-0">
-                            <MapPin className="w-5 h-5 text-white" />
-                          </div>
-                          <div>
-                            <h4 className="text-sm font-black text-slate-900">
-                              Dirección de Entrega donde quieres que llegue el pedido <span className="text-rose-500">*</span>
-                            </h4>
-                            <p className="text-[11px] text-slate-600">
-                              Datos exactos de destino para la remisión, flete y despacho en furgón con conductor.
-                            </p>
-                          </div>
-                        </div>
-                        <span className="text-[11px] font-bold text-sky-800 bg-sky-100/80 px-2.5 py-1 rounded-lg border border-sky-300/60 flex items-center gap-1 w-fit">
-                          <Truck className="w-3.5 h-3.5 text-sky-700" />
-                          Despacho en 24h a 48h
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* Ciudad de Entrega */}
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
-                            <span>Ciudad de destino <span className="text-rose-500">*</span></span>
-                            <span className="text-[10px] text-slate-400 font-normal">Flete: {formatCOP(technicalCalc.presupuesto.fleteEnvio)}</span>
-                          </label>
-                          <select
-                            id="step3-select-ciudad"
-                            value={formData.ciudad}
-                            onChange={(e) => handleInputChange('ciudad', e.target.value)}
-                            className={`w-full px-4 py-3 text-sm bg-white border ${
-                              errors.ciudad ? 'border-rose-400 ring-2 ring-rose-300 bg-rose-50/20' : 'border-slate-300 focus:ring-sky-500'
-                            } rounded-2xl focus:outline-none focus:ring-2 font-semibold text-slate-800 transition-all shadow-2xs`}
-                          >
-                            <option value="">-- Seleccionar Ciudad de Entrega --</option>
-                            <option value="Medellín">Medellín (Área Metropolitana)</option>
-                            <option value="Bogotá D.C.">Bogotá D.C.</option>
-                            <option value="Cali">Cali</option>
-                            <option value="Barranquilla">Barranquilla</option>
-                            <option value="Cartagena">Cartagena</option>
-                            <option value="Bucaramanga">Bucaramanga</option>
-                            <option value="Pereira">Pereira (Eje Cafetero)</option>
-                            <option value="Otra Ciudad">Otra ciudad o municipio</option>
-                          </select>
-                          {errors.ciudad && <p className="text-xs text-rose-600 mt-1">{errors.ciudad}</p>}
-                        </div>
-
-                        {/* Dirección Exacta */}
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
-                            <span>Dirección exacta donde quieres que llegue el pedido <span className="text-rose-500">*</span></span>
-                            <span className="text-[10px] text-amber-600 font-semibold">Calle / Carrera / Número</span>
-                          </label>
-                          <div className="relative">
-                            <input
-                              id="step3-input-direccion"
-                              type="text"
-                              placeholder="Ej. Calle 48 # 65-34, Obra Torre del Valle, Piso 5"
-                              value={formData.direccionEntrega || ''}
-                              onChange={(e) => handleInputChange('direccionEntrega', e.target.value)}
-                              className={`w-full pl-10 pr-4 py-3 text-sm bg-white border ${
-                                errors.direccionEntrega ? 'border-rose-400 ring-2 ring-rose-300 bg-rose-50/20' : 'border-slate-300 focus:ring-sky-500'
-                              } rounded-2xl focus:outline-none focus:ring-2 font-medium text-slate-900 transition-all shadow-2xs`}
-                            />
-                            <MapPin className="w-4 h-4 text-sky-600 absolute left-3.5 top-3.5" />
-                          </div>
-                          {errors.direccionEntrega && <p className="text-xs text-rose-600 mt-1">{errors.direccionEntrega}</p>}
-                        </div>
-
-                        {/* Punto de Referencia / Edificio */}
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                            Punto de referencia o nombre de la obra / edificio (Opcional)
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="Ej. Portería principal Torre Norte, al lado del centro comercial"
-                            value={formData.puntoReferencia || ''}
-                            onChange={(e) => handleInputChange('puntoReferencia', e.target.value)}
-                            className="w-full px-4 py-2.5 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 transition-all shadow-2xs"
-                          />
-                        </div>
-
-                        {/* Quién recibe en obra */}
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                            Contacto que recibe en el lugar de entrega (Opcional)
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="Ej. Ing. Carlos Mendoza / Arq. Valentina Gómez (Cel: 312 456 7890)"
-                            value={formData.contactoObra || ''}
-                            onChange={(e) => handleInputChange('contactoObra', e.target.value)}
-                            className="w-full px-4 py-2.5 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 transition-all shadow-2xs"
-                          />
-                        </div>
-
-                        {/* Indicaciones para el camión repartidor */}
-                        <div className="md:col-span-2">
-                          <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                            Indicaciones especiales para el furgón repartidor Colorlink (Opcional)
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="Ej. Acceso vehicular por rampa de descargue de Carrera 65. Horario de recepción: 08:00 AM a 05:00 PM."
-                            value={formData.indicacionesEntrega || ''}
-                            onChange={(e) => handleInputChange('indicacionesEntrega', e.target.value)}
-                            className="w-full px-4 py-2.5 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 transition-all shadow-2xs"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* 3. DESCRIPCIÓN DEL PROYECTO CON BOTÓN DE SUGERENCIA IA */}
+                    {/* 2. DESCRIPCIÓN DEL PROYECTO CON BOTÓN DE SUGERENCIA IA */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <label className="block text-xs font-bold text-slate-700">

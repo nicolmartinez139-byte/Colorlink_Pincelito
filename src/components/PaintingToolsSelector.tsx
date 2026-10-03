@@ -3,19 +3,14 @@ import { OFFICIAL_TOOLS_INVENTORY, PaintingTool } from '../data/toolsInventory';
 import { ToolItemSelection } from '../types/form';
 import { formatCOP } from '../utils/calculator';
 import { fetchToolsInventoryFromSupabase } from '../utils/supabaseApi';
+import { ToolProductImage } from './ToolProductImage';
 import {
   Wrench,
   Plus,
   Minus,
   Check,
-  Package,
-  Sparkles,
-  AlertCircle,
   ShoppingBag,
-  Database,
-  Search,
-  RefreshCw,
-  CheckCircle2
+  Search
 } from 'lucide-react';
 
 interface PaintingToolsSelectorProps {
@@ -25,29 +20,18 @@ interface PaintingToolsSelectorProps {
 
 export function PaintingToolsSelector({ selectedTools = [], onChange }: PaintingToolsSelectorProps) {
   const [tools, setTools] = useState<PaintingTool[]>(OFFICIAL_TOOLS_INVENTORY);
-  const [isLoadingSupabase, setIsLoadingSupabase] = useState<boolean>(true);
-  const [isSyncedWithSupabase, setIsSyncedWithSupabase] = useState<boolean>(false);
   const [activeCategory, setActiveCategory] = useState<'todas' | 'brochas' | 'rodillos' | 'preparacion' | 'proteccion'>('todas');
   const [searchFilter, setSearchFilter] = useState('');
 
-  // Cargar inventario en vivo desde Supabase
-  const loadInventory = async () => {
-    setIsLoadingSupabase(true);
-    try {
-      const liveTools = await fetchToolsInventoryFromSupabase();
-      if (liveTools && liveTools.length > 0) {
-        setTools(liveTools);
-        setIsSyncedWithSupabase(true);
-      }
-    } catch (e) {
-      console.warn('[PaintingToolsSelector] Error al cargar inventario:', e);
-    } finally {
-      setIsLoadingSupabase(false);
-    }
-  };
-
+  // Cargar inventario en segundo plano para control de existencia interna
   useEffect(() => {
-    loadInventory();
+    let isMounted = true;
+    fetchToolsInventoryFromSupabase().then(liveTools => {
+      if (isMounted && liveTools && liveTools.length > 0) {
+        setTools(liveTools);
+      }
+    }).catch(() => {});
+    return () => { isMounted = false; };
   }, []);
 
   const filteredTools = tools.filter(tool => {
@@ -66,7 +50,9 @@ export function PaintingToolsSelector({ selectedTools = [], onChange }: Painting
 
   const handleUpdateQuantity = (tool: PaintingTool, delta: number) => {
     const currentQty = getToolQuantity(tool.id);
-    const newQty = Math.max(0, Math.min(tool.stock, currentQty + delta));
+    // Control de límite interno de stock sin mostrárselo al cliente
+    const maxAllowed = tool.stock > 0 ? tool.stock : 999;
+    const newQty = Math.max(0, Math.min(maxAllowed, currentQty + delta));
 
     let updatedList: ToolItemSelection[];
     if (newQty === 0) {
@@ -103,7 +89,7 @@ export function PaintingToolsSelector({ selectedTools = [], onChange }: Painting
 
   return (
     <div className="space-y-4 rounded-3xl p-5 sm:p-6 bg-slate-50/90 border border-slate-200">
-      {/* Encabezado con Indicador de Stock en Bodega & Supabase */}
+      {/* Encabezado sin 'de Pintor' y sin menciones técnicas de stock para el cliente */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
         <div className="space-y-0.5">
           <div className="flex items-center gap-2">
@@ -111,15 +97,11 @@ export function PaintingToolsSelector({ selectedTools = [], onChange }: Painting
               <Wrench className="w-4 h-4" />
             </span>
             <h4 className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
-              Herramientas y Accesorios de Pintor (Brochas, Rodillos y Cintas)
+              Herramientas y Accesorios (Brochas, Rodillos y Cintas)
             </h4>
-            <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
-              <Database className="w-3 h-3 text-emerald-600" />
-              <span>Inventario Supabase Activo</span>
-            </span>
           </div>
           <p className="text-xs text-slate-500">
-            Agrega brochas profesionales, rodillos antigoteo, lijas, plásticos y espátulas con stock en bodega garantizado para tu proyecto.
+            Agrega brochas profesionales, rodillos antigoteo, lijas, plásticos y espátulas para tu proyecto.
           </p>
         </div>
 
@@ -136,22 +118,20 @@ export function PaintingToolsSelector({ selectedTools = [], onChange }: Painting
             </div>
           </div>
         ) : (
-          <span className="text-[11px] font-bold text-slate-500 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shrink-0 flex items-center gap-1.5">
-            <Package className="w-3.5 h-3.5 text-slate-400" />
-            <span>Stock CEDI Central Listo</span>
+          <span className="text-[11px] font-bold text-slate-500 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shrink-0">
+            Adicionales para tu obra
           </span>
         )}
       </div>
 
-      {/* Barra de Filtros, Categorías y Búsqueda */}
+      {/* Barra de Filtros de Categorías y Buscador */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
-        {/* Selector de Categorías */}
         <div className="flex flex-wrap items-center gap-1.5">
           {[
             { id: 'todas', label: 'Todas las herramientas' },
-            { id: 'brochas', label: '🖌️ Brochas de Recorte' },
+            { id: 'brochas', label: '🖌️ Brochas (2", 3", Angular)' },
             { id: 'rodillos', label: '🪣 Rodillos y Mangos' },
-            { id: 'preparacion', label: '🛠️ Lijas, Espátulas y Cintas' },
+            { id: 'preparacion', label: '📏 Cintas, Lijas y Espátulas' },
             { id: 'proteccion', label: '🛡️ Plásticos y Varillas' }
           ].map(cat => (
             <button
@@ -169,11 +149,10 @@ export function PaintingToolsSelector({ selectedTools = [], onChange }: Painting
           ))}
         </div>
 
-        {/* Buscador Rápido de Herramientas */}
         <div className="relative min-w-[200px]">
           <input
             type="text"
-            placeholder="Buscar brocha, rodillo, SKU..."
+            placeholder="Buscar brocha, rodillo, cinta..."
             value={searchFilter}
             onChange={(e) => setSearchFilter(e.target.value)}
             className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0055FF] transition-all"
@@ -182,78 +161,76 @@ export function PaintingToolsSelector({ selectedTools = [], onChange }: Painting
         </div>
       </div>
 
-      {/* Grid de Productos con Stock y Control de Cantidad */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      {/* Grid de Productos con Imágenes de Referencia Realistas y SIN Stocks Visibles al Cliente */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
         {filteredTools.map(tool => {
           const qty = getToolQuantity(tool.id);
           const isSelected = qty > 0;
-          const isLowStock = tool.stock > 0 && tool.stock <= tool.stockMinimo;
-          const isOutOfStock = tool.stock <= 0;
 
           return (
             <div
               key={tool.id}
-              className={`p-3.5 rounded-2xl border transition-all flex flex-col justify-between ${
+              className={`p-4 rounded-3xl border transition-all flex flex-col justify-between group ${
                 isSelected
                   ? 'bg-white border-[#0055FF] ring-2 ring-[#0055FF]/20 shadow-md'
-                  : 'bg-white/80 border-slate-200 hover:border-slate-300 hover:bg-white shadow-2xs'
+                  : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-xs'
               }`}
             >
-              <div className="space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl shrink-0 p-1.5 bg-slate-50 rounded-xl border border-slate-100">{tool.icono}</span>
-                    <div>
-                      <span className="text-xs font-black text-slate-900 leading-snug block">
-                        {tool.nombre}
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-mono">
-                        SKU: {tool.sku}
+              <div className="space-y-3">
+                {/* Cabecera del producto: Imagen de Referencia Realista + Título y Badge */}
+                <div className="flex items-start gap-3">
+                  {/* IMAGEN DE REFERENCIA TÉCNICA VISUAL */}
+                  <div className="flex flex-col items-center gap-1 shrink-0">
+                    <ToolProductImage
+                      toolId={tool.id}
+                      name={tool.nombre}
+                      categoria={tool.categoria}
+                      className="w-20 h-20 sm:w-22 sm:h-22 transition-transform duration-200 group-hover:scale-105"
+                    />
+                    <span className="text-[9px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded text-center tracking-tight border border-slate-200/60">
+                      Foto de Ref.
+                    </span>
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-1 mb-1">
+                      <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 truncate">
+                        {tool.badge}
                       </span>
                     </div>
+                    <h5 className="text-xs sm:text-sm font-black text-slate-900 leading-snug">
+                      {tool.nombre}
+                    </h5>
+                    <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                      Presentación: {tool.unidad}
+                    </span>
                   </div>
-                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 shrink-0">
-                    {tool.badge}
-                  </span>
                 </div>
 
                 <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">
                   {tool.descripcion}
                 </p>
 
-                {/* Stock e Indicador en Bodega */}
-                <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-100">
-                  <div className="flex items-center gap-1.5">
-                    <Package className="w-3.5 h-3.5 text-slate-400" />
-                    {isOutOfStock ? (
-                      <span className="font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
-                        Agotado temporalmente
-                      </span>
-                    ) : isLowStock ? (
-                      <span className="font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
-                        Últimas {tool.stock} unidades en stock
-                      </span>
-                    ) : (
-                      <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                        {tool.stock} en stock en bodega
-                      </span>
-                    )}
-                  </div>
-                  <span className="text-xs font-black font-mono text-[#0055FF]">
+                {/* Precio Unitario Oficial */}
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                  <span className="text-[11px] text-slate-500 font-medium">
+                    Precio unitario:
+                  </span>
+                  <span className="text-sm font-black font-mono text-[#0055FF]">
                     {formatCOP(tool.precioCOP)} COP
                   </span>
                 </div>
               </div>
 
-              {/* Botón de Cantidad */}
-              <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between">
-                <span className="text-[11px] text-slate-500">
+              {/* Botón de Cantidad y Subtotal */}
+              <div className="mt-3.5 pt-2.5 border-t border-slate-100 flex items-center justify-between">
+                <span className="text-xs">
                   {qty > 0 ? (
                     <strong className="text-emerald-700 font-mono font-bold">
                       Subtotal: {formatCOP(qty * tool.precioCOP)}
                     </strong>
                   ) : (
-                    <span>Presentación: {tool.unidad}</span>
+                    <span className="text-slate-400 text-[11px]">0 seleccionadas</span>
                   )}
                 </span>
 
@@ -275,9 +252,8 @@ export function PaintingToolsSelector({ selectedTools = [], onChange }: Painting
                   <button
                     type="button"
                     onClick={() => handleUpdateQuantity(tool, 1)}
-                    disabled={qty >= tool.stock || isOutOfStock}
                     className="w-7 h-7 rounded-lg bg-gradient-to-tr from-[#FF5500] to-[#FF007A] text-white disabled:opacity-30 disabled:cursor-not-allowed hover:brightness-110 font-black flex items-center justify-center cursor-pointer transition-all shadow-2xs"
-                    title={qty >= tool.stock ? 'Límite de stock alcanzado' : 'Agregar'}
+                    title="Agregar"
                   >
                     <Plus className="w-3.5 h-3.5" />
                   </button>

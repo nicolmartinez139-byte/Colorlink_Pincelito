@@ -157,7 +157,7 @@ export const OFFICIAL_TOOLS_INVENTORY: PaintingTool[] = [
   },
   {
     id: 'bandeja-pintor-9',
-    nombre: 'Bandeja Plástica de Pintor Reforzada 9"',
+    nombre: 'Bandeja Plástica Reforzada 9"',
     categoria: 'preparacion',
     categoriaLabel: 'Preparación de Superficie',
     descripcion: 'Polipropileno de alta resistencia con textura estriada para escurrir el rodillo y dosificar la pintura eficientemente.',
