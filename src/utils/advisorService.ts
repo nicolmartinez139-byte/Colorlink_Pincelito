@@ -10,7 +10,7 @@ export interface AdvisorLeadData {
   obra: string;
   consulta: string;
   acuerdoAlcanzado?: string;
-  canal?: 'whatsapp' | 'llamada' | 'reunion' | 'visita_obra';
+  canal?: 'correo' | 'llamada' | 'reunion' | 'visita_obra';
   estado?: 'cotizado' | 'en_negociacion' | 'visita_agendada' | 'cerrado_exito' | 'seguimiento';
   montoCOP?: number;
   requerimientoPintura?: string;
@@ -61,7 +61,7 @@ export function saveAdvisorLead(lead: AdvisorLeadData): { success: boolean; lead
     ciudad: lead.ciudad || 'Medellín',
     obra: lead.obra || 'Obra / Proyecto Residencial',
     fechaHora: timeFormatted,
-    canal: lead.canal || 'whatsapp',
+    canal: lead.canal || 'correo',
     temaConversacion: lead.consulta || 'Consulta de asesoría técnica para cotización y despacho de pinturas.',
     acuerdoAlcanzado: lead.acuerdoAlcanzado || 'Contacto iniciado en vivo. Asesor técnico asignado para seguimiento inmediato y validación de flete.',
     estado: lead.estado || 'en_negociacion',

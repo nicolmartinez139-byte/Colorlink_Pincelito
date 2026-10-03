@@ -120,7 +120,7 @@ export function ClientAIAssistant({
       ciudad: clientCity,
       obra: clientWork,
       consulta: userQueryText || 'Solicitud de atención y asesoría técnica especializada desde chat Pincelito.',
-      canal: 'whatsapp',
+      canal: 'correo',
       estado: 'en_negociacion',
       montoCOP: currentFormData.areaM2 ? currentFormData.areaM2 * 28000 : 1850000,
       requerimientoPintura: clientPaint
@@ -140,7 +140,7 @@ export function ClientAIAssistant({
       const advisorGreeting: Message = {
         id: (Date.now() + 2).toString(),
         sender: 'asesor',
-        text: `¡Hola ${clientName}! Qué gusto saludarte, soy la **${savedLead.advisorName}** 👩‍💼 de Colorlink.\n\nHe recibido tus datos y requerimiento para **${clientWork}** en **${clientCity}**.\n\n• **Estado:** Ficha técnica registrada exitosamente (#${savedLead.leadId}).\n• **Siguiente paso:** Te puedo asesorar en este chat, o si lo prefieres, te marco a tu número **${clientPhone}** o coordinamos por WhatsApp.\n\n¿En qué te puedo asesorar ahora mismo?`,
+        text: `¡Hola ${clientName}! Qué gusto saludarte, soy la **${savedLead.advisorName}** 👩‍💼 de Colorlink.\n\nHe recibido tus datos y requerimiento para **${clientWork}** en **${clientCity}**.\n\n• **Estado:** Ficha técnica registrada exitosamente (#${savedLead.leadId}).\n• **Siguiente paso:** Te puedo asesorar en este chat, o si lo prefieres, te marco a tu número **${clientPhone}** o coordinamos por correo formal.\n\n¿En qué te puedo asesorar ahora mismo?`,
         timestamp: 'Ahora',
         options: [
           '¿Cuál es el mejor tipo de pintura para mi obra?',

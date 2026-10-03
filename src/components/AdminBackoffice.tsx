@@ -9,7 +9,6 @@ import {
   Eye,
   Filter,
   Search,
-  MessageCircle,
   Mail,
   Send,
   Navigation,
@@ -47,12 +46,6 @@ import {
   Zap
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import {
-  getWhatsAppRegistrationUrl,
-  getWhatsAppOrderStatusUrl,
-  formatWhatsAppPhone,
-  generateOrderStatusWhatsAppMessage
-} from '../utils/whatsappService';
 import { sendOrderStatusUpdateEmail } from '../utils/emailService';
 import { ProjectFormData } from '../types/form';
 import { formatCOP } from '../utils/calculator';
@@ -95,7 +88,6 @@ export interface OrderHistoryEntry {
   motivo?: string;
   mensajesEnviados?: {
     email?: string;
-    whatsapp?: string;
   };
 }
 
@@ -140,7 +132,6 @@ export interface OrderItem {
     };
     mensajesEnviados?: {
       email?: string;
-      whatsapp?: string;
       fechaEnvio?: string;
     };
     insumosVerificados?: {
@@ -164,7 +155,7 @@ export interface OrderItem {
     horaEstimada: string;
   };
   notificaciones: Array<{
-    tipo: 'whatsapp' | 'email' | 'ambos';
+    tipo: 'email';
     texto: string;
     fecha: string;
   }>;
@@ -258,7 +249,13 @@ export function AdminBackoffice({
   // Estados para Auditoría Inteligente con IA (Gemini 3.8 Flash)
   const [isAuditingWithAI, setIsAuditingWithAI] = useState<boolean>(false);
   const [isAutoPilotRunning, setIsAutoPilotRunning] = useState<boolean>(false);
-  const [aiAutoPilotEnabled, setAiAutoPilotEnabled] = useState<boolean>(true);
+  const [aiAutoPilotEnabled, setAiAutoPilotEnabled] = useState<boolean>(false);
+
+  // Estados para el Ciclo de Actualización Automática de Pedidos cada 20 Minutos
+  // (2s -> Tintometría | 20m -> Despachando con mensaje | 20m -> Entregado con mensaje)
+  const [autoLifecycleEnabled, setAutoLifecycleEnabled] = useState<boolean>(true);
+  const [fastDemoMode, setFastDemoMode] = useState<boolean>(false); // 20s para demostración rápida vs 20 min reales (1200s)
+  const [secondsToNextCycle, setSecondsToNextCycle] = useState<number>(1200);
   const [showAiAuditModal, setShowAiAuditModal] = useState<boolean>(false);
   const [currentAiAudit, setCurrentAiAudit] = useState<{
     orderId: string;
@@ -288,7 +285,6 @@ export function AdminBackoffice({
       horaEstimada: string;
     };
     mensajeCorreoCliente: string;
-    mensajeWhatsAppCliente?: string;
     recomendacionAdicional?: string;
   } | null>(null);
 
@@ -347,71 +343,8 @@ export function AdminBackoffice({
       metodoPago: 'Transferencia Bancolombia / QR',
       color: 'Gris Cemento (Mate)',
       totalCOP: 18450000,
-      status: 'preparando',
-      vehiculoAsignado: 'Buseta Logística Colorlink #04',
-      placa: 'WLL-482',
-      conductor: 'Carlos Restrepo',
-      rutaOptima: {
-        origen: 'Planta Central Colorlink (Itagüí)',
-        destino: 'Obra Edificio Horizonte - Cra 43A # 18 Sur, El Poblado, Medellín',
-        recorrido: 'Autopista Sur ➔ Av. Las Vegas ➔ Puente 4 Sur ➔ Cra 43A',
-        distanciaKm: 13.4,
-        tiempoMin: 32,
-        ahorroMin: 22,
-        horaEstimada: '11:15 AM'
-      },
-      dictamenIA: {
-        decision: 'aceptar',
-        motivo: 'Insumos 100% verificados en CEDI Medellín (38 cuñetes disp. vs 18 req.). Formulación tintométrica autorizada.',
-        porQueSeAcepto: 'Aceptado automáticamente por la IA: Insumos verificados al 100% en CEDI Medellín (38 cuñetes en existencia vs 18 requeridos), formulación tintométrica aprobada y flete programado sin demoras.',
-        fechaAuditoria: 'Hoy, 09:28 AM',
-        modo: 'Automático por IA',
-        busAsignado: {
-          tipo: 'Buseta Logística Colorlink #04',
-          placa: 'WLL-482',
-          conductor: 'Carlos Restrepo',
-          capacidad: '45 cuñetes (2.5 Ton)'
-        },
-        rutaAsignada: {
-          origen: 'Planta Central Colorlink (Itagüí)',
-          destino: 'Obra Edificio Horizonte - Cra 43A # 18 Sur, El Poblado, Medellín',
-          recorrido: 'Autopista Sur ➔ Av. Las Vegas ➔ Puente 4 Sur ➔ Cra 43A',
-          distanciaKm: 13.4,
-          tiempoMin: 32,
-          ahorroMin: 22,
-          horaEstimada: '11:15 AM'
-        },
-        mensajesEnviados: {
-          email: 'vgomez@constructorahorizonte.com.co',
-          whatsapp: '+57 312 845 6721',
-          fechaEnvio: 'Hoy, 09:30 AM'
-        },
-        insumosVerificados: {
-          pinturaValida: true,
-          colorFormulado: true,
-          stockSuficiente: true,
-          cuñetesFaltantes: 0
-        }
-      },
-      historialCambios: [
-        {
-          fecha: 'Hoy, 09:30 AM',
-          estado: 'preparando',
-          autor: 'IA (Pincelito Inspector)',
-          motivo: 'IA aceptó el pedido por stock 100% verificado en CEDI Medellín. Asignó Buseta Logística Colorlink #04 y corredor Autopista Sur.',
-          mensajesEnviados: {
-            email: 'Confirmación de despacho enviada a vgomez@constructorahorizonte.com.co',
-            whatsapp: 'Notificación de preparación enviada a +57 312 845 6721'
-          }
-        }
-      ],
-      notificaciones: [
-        {
-          tipo: 'whatsapp',
-          texto: 'Su pedido #PED-2026-081 está en preparación en almacén y laboratorio de tintometría. Asignado a Buseta Logística Colorlink #04 (WLL-482).',
-          fecha: 'Hoy, 09:30 AM'
-        }
-      ]
+      status: 'pendiente',
+      notificaciones: []
     },
     {
       id: 'PED-2026-085',
@@ -463,7 +396,6 @@ export function AdminBackoffice({
         },
         mensajesEnviados: {
           email: 'fsamper@consorciometropolitano.co',
-          whatsapp: '+57 311 987 6543',
           fechaEnvio: 'Hoy, 08:46 AM'
         },
         insumosVerificados: {
@@ -475,8 +407,8 @@ export function AdminBackoffice({
       },
       notificaciones: [
         {
-          tipo: 'ambos',
-          texto: 'Pedido despachado en Camión Distribución Bogotá #03 (DEX-712). ETA 02:30 PM.',
+          tipo: 'email',
+          texto: 'Pedido despachado en Camión Distribución Bogotá #03 (DEX-712). ETA 02:30 PM. Notificación por correo enviada.',
           fecha: 'Hoy, 08:46 AM'
         }
       ]
@@ -639,8 +571,8 @@ export function AdminBackoffice({
       },
       notificaciones: [
         {
-          tipo: 'whatsapp',
-          texto: 'Su pedido va en camino en el Camión #02 con el conductor Mauricio Vélez.',
+          tipo: 'email',
+          texto: 'Su pedido va en camino en el Camión #02 con el conductor Mauricio Vélez. Notificación oficial por correo.',
           fecha: 'Hoy, 10:15 AM'
         }
       ]
@@ -926,7 +858,6 @@ export function AdminBackoffice({
         rutaAsignada: rutaInfo,
         mensajesEnviados: {
           email: order.email,
-          whatsapp: order.telefono,
           fechaEnvio: 'Hoy en automático'
         },
         insumosVerificados: {
@@ -938,8 +869,8 @@ export function AdminBackoffice({
       },
       notificaciones: [
         {
-          tipo: 'ambos',
-          texto: `[IA Auto-Piloto] Pedido aceptado automáticamente. Asignado ${busInfo.tipo} (${busInfo.placa}) por ${rutaInfo.recorrido}. Notificaciones enviadas por correo (${order.email}) y WhatsApp (${order.telefono}).`,
+          tipo: 'email',
+          texto: `[IA Auto-Piloto] Pedido aceptado automáticamente. Asignado ${busInfo.tipo} (${busInfo.placa}) por ${rutaInfo.recorrido}. Notificación oficial enviada por correo (${order.email}).`,
           fecha: 'Ahora mismo'
         },
         ...(order.notificaciones || [])
@@ -1008,10 +939,179 @@ export function AdminBackoffice({
       showToast(`🤖 IA Auto-Piloto: ${count > 0 ? count : 'Todos los'} pedidos pendientes fueron auto-asignados con su bus y ruta.`);
     }, 600);
   };
+
+  // =========================================================================
+  // CICLO DE ACTUALIZACIÓN AUTOMÁTICA CADA 20 MINUTOS PARA TODOS LOS PEDIDOS
+  // Requirement: 2s -> Tintometría | 20 min -> Despachando con mensaje | 20 min -> Entregado
+  // =========================================================================
+
+  // 1. Temporizador de 2 segundos: Pedidos pendientes ingresan a Tintometría ('preparando')
+  useEffect(() => {
+    if (!autoLifecycleEnabled) return;
+    const pendingOrders = orders.filter((o) => o.status === 'pendiente');
+    if (pendingOrders.length === 0) return;
+
+    const timer = setTimeout(() => {
+      setOrders((prev) =>
+        prev.map((o) => {
+          if (o.status === 'pendiente') {
+            const autoAssigned = generateAiAutoAssignment(o);
+            const notifMsg = `🎨 [Tintometría Automática - 2s] El pedido #${o.id} ingresó al laboratorio de tintometría Colorlink®. Formulación computarizada de pigmentos para "${o.color}" iniciada.`;
+
+            // Enviar correo transaccional de actualización a Tintometría
+            sendOrderStatusUpdateEmail({
+              orderId: o.id,
+              cliente: o.cliente,
+              responsable: o.responsable,
+              email: o.email,
+              status: 'preparando',
+              statusLabel: 'Pedido en Tintometría (Formulación del Color)',
+              mensaje: `Estimado(a) ${o.responsable},\n\nLe confirmamos que su pedido #${o.id} ha ingresado a los 2 segundos de registrado al laboratorio de tintometría Colorlink®.\n\nSe inició la formulación y dosificación computarizada del color "${o.color}" con base ${o.tipoPintura}.\n\nTotal liquidado: ${formatCOP(o.totalCOP)} COP.`,
+              totalCOP: o.totalCOP
+            }).catch(() => {});
+
+            return {
+              ...autoAssigned,
+              status: 'preparando',
+              notificaciones: [
+                {
+                  tipo: 'email',
+                  texto: notifMsg,
+                  fecha: 'Ahora mismo (2 seg)'
+                },
+                ...(o.notificaciones || [])
+              ]
+            };
+          }
+          return o;
+        })
+      );
+      showToast('🎨 [2s] Pedido(s) ingresaron automáticamente a Tintometría (formulación iniciada).');
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [orders, autoLifecycleEnabled]);
+
+  // 2. Función para avanzar el ciclo de 20 minutos en todos los pedidos
+  const advanceAllOrdersCycle = () => {
+    let advancedCount = 0;
+    setOrders((prev) =>
+      prev.map((o) => {
+        // A) De Tintometría ('preparando') -> Despachando ('en_ruta') a los 20 minutos con mensaje oficial
+        if (o.status === 'preparando') {
+          advancedCount++;
+          const vehiculo = o.vehiculoAsignado || 'Camión Turbo NHR 4.5 Ton Colorlink';
+          const placa = o.placa || 'TZW-402';
+          const conductor = o.conductor || 'Carlos Restrepo';
+          const eta = o.rutaOptima?.horaEstimada || 'Hoy en 45 min';
+          const notifTexto = `🚚 [Despacho en Ruta - 20 min] ¡El pedido #${o.id} se está despachando hacia la obra! Asignado a ${vehiculo} (${placa}) con conductor ${conductor}.`;
+
+          sendOrderStatusUpdateEmail({
+            orderId: o.id,
+            cliente: o.cliente,
+            responsable: o.responsable,
+            email: o.email,
+            status: 'en_ruta',
+            statusLabel: 'Pedido Despachando y En Ruta a Obra',
+            mensaje: `Estimado(a) ${o.responsable},\n\n¡Excelentes noticias! Le confirmamos que su pedido #${o.id} completó su preparación en tintometría y SE ESTÁ DESPACHANDO hacia su obra en ${o.ciudad}.\n\n• Vehículo Asignado: ${vehiculo}\n• Placa del Vehículo: ${placa}\n• Conductor Asignado: ${conductor}\n• Hora Estimada de Llegada (ETA): ${eta}\n\nEl conductor cuenta con remisión física y certificado de calidad Colorlink®.`,
+            vehiculo,
+            conductor,
+            placa,
+            ciudad: o.ciudad,
+            totalCOP: o.totalCOP
+          }).catch(() => {});
+
+          return {
+            ...o,
+            status: 'en_ruta',
+            vehiculoAsignado: vehiculo,
+            placa,
+            conductor,
+            notificaciones: [
+              {
+                tipo: 'email',
+                texto: notifTexto,
+                fecha: 'Ahora mismo (20 min)'
+              },
+              ...(o.notificaciones || [])
+            ]
+          };
+        }
+
+        // B) De Despachando ('en_ruta') -> Entregado ('entregado') a los siguientes 20 minutos con mensaje de confirmación
+        if (o.status === 'en_ruta') {
+          advancedCount++;
+          const conductor = o.conductor || 'Carlos Restrepo';
+          const notifTexto = `✅ [Entrega Exitosa - 20 min] El pedido #${o.id} ha sido entregado exitosamente en la obra por el conductor ${conductor}. Remisión técnica y certificado de calidad NTC 1335 emitidos.`;
+
+          sendOrderStatusUpdateEmail({
+            orderId: o.id,
+            cliente: o.cliente,
+            responsable: o.responsable,
+            email: o.email,
+            status: 'entregado',
+            statusLabel: 'Pedido Entregado con Éxito en Obra',
+            mensaje: `Estimado(a) ${o.responsable},\n\nLe confirmamos que su pedido #${o.id} ha sido ENTREGADO con satisfacción en su obra en ${o.ciudad} por el conductor ${conductor}.\n\nSe ha emitido el certificado oficial de calidad bajo la norma técnica NTC 1335.\n\n¡Gracias por pintar con Colorlink® Pinturas!`,
+            conductor,
+            ciudad: o.ciudad,
+            totalCOP: o.totalCOP
+          }).catch(() => {});
+
+          return {
+            ...o,
+            status: 'entregado',
+            notificaciones: [
+              {
+                tipo: 'email',
+                texto: notifTexto,
+                fecha: 'Ahora mismo (+20 min)'
+              },
+              ...(o.notificaciones || [])
+            ]
+          };
+        }
+
+        return o;
+      })
+    );
+
+    setSecondsToNextCycle(fastDemoMode ? 20 : 1200);
+    if (advancedCount > 0) {
+      showToast(`⏱️ Actualización de 20 min ejecutada: ${advancedCount} pedido(s) avanzaron a su siguiente fase.`);
+    } else {
+      showToast('⏱️ Ciclo de 20 min: No hay pedidos en Tintometría o En Camino pendientes de avanzar.');
+    }
+  };
+
+  // 3. Intervalo de actualización cada 20 minutos (o 20 segundos en modo demostración rápida)
+  useEffect(() => {
+    if (!autoLifecycleEnabled) return;
+    const interval = setInterval(() => {
+      setSecondsToNextCycle((prev) => {
+        if (prev <= 1) {
+          advanceAllOrdersCycle();
+          return fastDemoMode ? 20 : 1200;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [autoLifecycleEnabled, fastDemoMode]);
+
+  // Función para alternar modo demostración rápida (20s) vs tiempo real (20 min)
+  const handleToggleFastDemoMode = () => {
+    setFastDemoMode((prev) => {
+      const next = !prev;
+      setSecondsToNextCycle(next ? 20 : 1200);
+      showToast(next ? '⚡ Modo Demostración Rápida Activado: Actualizaciones cada 20 segundos.' : '⏱️ Modo Tiempo Real Activado: Actualizaciones cada 20 minutos (1200 seg).');
+      return next;
+    });
+  };
   const [notificationToast, setNotificationToast] = useState<string | null>(null);
   const [showNotificationModal, setShowNotificationModal] = useState<boolean>(false);
   const [modalNotificationData, setModalNotificationData] = useState<{
-    tipo: 'whatsapp' | 'email' | 'ambos';
+    tipo: 'email';
     order: OrderItem;
     mensaje: string;
   } | null>(null);
@@ -1235,8 +1335,8 @@ export function AdminBackoffice({
     }
   };
 
-  // Enviar mensaje WhatsApp o Correo simulado
-  const handleTriggerNotification = (order: OrderItem, tipo: 'whatsapp' | 'email' | 'ambos') => {
+  // Enviar mensaje oficial por Correo Electrónico
+  const handleTriggerNotification = (order: OrderItem) => {
     const statusLabel =
       order.status === 'preparando'
         ? 'En Tintometría & Preparación'
@@ -1246,41 +1346,21 @@ export function AdminBackoffice({
         ? 'Entregado a Satisfacción'
         : 'Aprobado para Despacho';
 
-    const msg = generateOrderStatusWhatsAppMessage({
-      orderId: order.id,
-      cliente: order.cliente,
-      responsable: order.responsable,
-      telefono: order.telefono,
-      email: order.email,
-      ciudad: order.ciudad,
-      status: order.status === 'preparando' ? 'preparando' : order.status === 'en_ruta' ? 'en_ruta' : order.status === 'entregado' ? 'entregado' : 'aprobado',
-      producto: order.tipoPintura,
-      color: order.color,
-      totalCOP: order.totalCOP,
-      vehiculo: order.vehiculoAsignado,
-      placa: order.placa,
-      conductor: order.conductor,
-      horaEstimada: order.rutaOptima?.horaEstimada
-    });
+    const msg = `Estimado(a) ${order.responsable || order.cliente},\n\nLe notificamos formalmente que su orden de pintura #${order.id} se encuentra en estado: ${statusLabel}.\n\nDetalles del Despacho:\n• Obra / Destino: ${order.obra || order.ciudad}\n• Producto: ${order.tipoPintura} (Color: ${order.color})\n• Vehículo Asignado: ${order.vehiculoAsignado || 'Camión Colorlink'} (Placa: ${order.placa || 'CLK-789'})\n• Conductor: ${order.conductor || 'Juan Camilo Pérez'}\n• Hora Estimada: ${order.rutaOptima?.horaEstimada || 'Hoy en el transcurso del día'}\n• Total de la Orden: ${formatCOP(order.totalCOP)} COP\n\nAtentamente,\nEquipo de Despachos y Logística • Colorlink Pinturas`;
 
-    setModalNotificationData({ tipo, order, mensaje: msg });
+    setModalNotificationData({ tipo: 'email', order, mensaje: msg });
     setShowNotificationModal(true);
   };
 
   const handleConfirmSendNotification = async () => {
     if (!modalNotificationData) return;
-    const { tipo, order, mensaje } = modalNotificationData;
+    const { order, mensaje } = modalNotificationData;
 
     setOrders((prev) =>
       prev.map((o) => {
         if (o.id === order.id) {
           const newNotifs = [...o.notificaciones];
-          if (tipo === 'whatsapp' || tipo === 'ambos') {
-            newNotifs.unshift({ tipo: 'whatsapp', texto: mensaje, fecha: 'Ahora mismo' });
-          }
-          if (tipo === 'email' || tipo === 'ambos') {
-            newNotifs.unshift({ tipo: 'email', texto: mensaje, fecha: 'Ahora mismo' });
-          }
+          newNotifs.unshift({ tipo: 'email', texto: mensaje, fecha: 'Ahora mismo' });
           return {
             ...o,
             notificaciones: newNotifs
@@ -1301,65 +1381,39 @@ export function AdminBackoffice({
         ? 'Entregado a Satisfacción'
         : 'Aprobado y Confirmado';
 
-    // 1. Envío por Correo Electrónico
-    if (tipo === 'email' || tipo === 'ambos') {
-      showToast(`Enviando actualización por correo a ${order.email}...`);
-      try {
-        const emailRes = await sendOrderStatusUpdateEmail({
-          orderId: order.id,
-          cliente: order.cliente,
-          responsable: order.responsable,
-          email: order.email,
-          status: order.status === 'preparando' ? 'preparando' : order.status === 'en_ruta' ? 'en_ruta' : 'entregado',
-          statusLabel,
-          mensaje,
-          vehiculo: order.vehiculoAsignado,
-          conductor: order.conductor,
-          placa: order.placa,
-          ciudad: order.ciudad,
-          totalCOP: order.totalCOP
-        });
-
-        if (emailRes.success) {
-          showToast(`✓ Correo enviado exitosamente a ${order.email}`);
-        } else {
-          // Intento por backend si EmailJS falló
-          await fetch('/api/send-email', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              to: order.email,
-              subject: `🎨 COLORLINK® • Notificación de Despacho Pedido #${order.id}: ${statusLabel}`,
-              text: mensaje
-            })
-          });
-          showToast(`✓ Correo procesado para ${order.email}`);
-        }
-      } catch (err) {
-        showToast(`✓ Notificación de correo registrada para ${order.email}`);
-      }
-    }
-
-    // 2. Envío por WhatsApp
-    if (tipo === 'whatsapp' || tipo === 'ambos') {
-      const waUrl = getWhatsAppOrderStatusUrl({
+    showToast(`Enviando actualización por correo a ${order.email}...`);
+    try {
+      const emailRes = await sendOrderStatusUpdateEmail({
         orderId: order.id,
         cliente: order.cliente,
         responsable: order.responsable,
-        telefono: order.telefono,
         email: order.email,
-        ciudad: order.ciudad,
-        status: order.status === 'preparando' ? 'preparando' : order.status === 'en_ruta' ? 'en_ruta' : order.status === 'entregado' ? 'entregado' : 'aprobado',
-        producto: order.tipoPintura,
-        color: order.color,
-        totalCOP: order.totalCOP,
+        status: order.status === 'preparando' ? 'preparando' : order.status === 'en_ruta' ? 'en_ruta' : 'entregado',
+        statusLabel,
+        mensaje,
         vehiculo: order.vehiculoAsignado,
-        placa: order.placa,
         conductor: order.conductor,
-        horaEstimada: order.rutaOptima?.horaEstimada
+        placa: order.placa,
+        ciudad: order.ciudad,
+        totalCOP: order.totalCOP
       });
-      showToast(`✓ Abriendo WhatsApp para enviar actualización al ${order.telefono}`);
-      window.open(waUrl, '_blank');
+
+      if (emailRes.success) {
+        showToast(`✓ Correo enviado exitosamente a ${order.email}`);
+      } else {
+        await fetch('/api/send-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: order.email,
+            subject: `🎨 COLORLINK® • Notificación de Despacho Pedido #${order.id}: ${statusLabel}`,
+            text: mensaje
+          })
+        });
+        showToast(`✓ Correo procesado para ${order.email}`);
+      }
+    } catch (err) {
+      showToast(`✓ Notificación de correo registrada para ${order.email}`);
     }
   };
 
@@ -1593,6 +1647,107 @@ export function AdminBackoffice({
             </div>
           </div>
 
+          {/* PANEL OFICIAL DEL CICLO DE ACTUALIZACIÓN CADA 20 MINUTOS */}
+          <div className="p-4 sm:p-5 rounded-3xl bg-white border-2 border-sky-300 shadow-sm space-y-4">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-sky-500/10 text-sky-600 flex items-center justify-center shrink-0">
+                  <Clock className="w-5 h-5 text-sky-600" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-extrabold text-sm sm:text-base text-slate-900">
+                      Ciclo de Actualización Automática de Pedidos (Cada 20 Minutos)
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      ● Activo en Segundo Plano
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-sky-100 text-sky-900">
+                      Próximo avance en: <strong>{Math.floor(secondsToNextCycle / 60)}m {String(secondsToNextCycle % 60).padStart(2, '0')}s</strong>
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    1. Ingreso a <strong>Tintometría a los 2 segundos</strong> ➔ 2. Notificación y <strong>Despacho a los 20 min</strong> ➔ 3. <strong>Entrega en Obra a los 20 min</strong>.
+                  </p>
+                </div>
+              </div>
+
+              {/* Botones de Control del Ciclo */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={handleToggleFastDemoMode}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 ${
+                    fastDemoMode
+                      ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-500/25'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                  }`}
+                  title="Alternar entre 20 minutos reales o 20 segundos para pruebas de demostración"
+                >
+                  <Zap className={`w-3.5 h-3.5 ${fastDemoMode ? 'text-amber-200 fill-amber-200' : 'text-slate-500'}`} />
+                  <span>{fastDemoMode ? '⚡ Modo Rápido (20 seg)' : '⏱️ Tiempo Real (20 min)'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={advanceAllOrdersCycle}
+                  className="px-4 py-2 bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-110 text-white font-black text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  title="Avanzar manualmente 20 minutos en todos los pedidos de la planta"
+                >
+                  <ArrowRight className="w-3.5 h-3.5" />
+                  <span>Avanzar +20 Minutos Ahora</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Stepper visual de las 4 fases del ciclo */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-xs">
+              <div className="p-3 rounded-2xl bg-amber-50/80 border border-amber-200 text-amber-950 flex items-start gap-2.5">
+                <span className="w-6 h-6 rounded-lg bg-amber-500 text-white flex items-center justify-center font-black text-xs shrink-0">1</span>
+                <div>
+                  <strong className="block font-black text-xs text-amber-900">Pedido Recibido</strong>
+                  <p className="text-[11px] text-amber-800 leading-tight">Espera 2s para entrar a dosificación.</p>
+                  <span className="text-[10px] font-mono text-amber-700 font-bold block mt-1">
+                    {orders.filter(o => o.status === 'pendiente').length} pedido(s)
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-sky-50/80 border border-sky-200 text-sky-950 flex items-start gap-2.5">
+                <span className="w-6 h-6 rounded-lg bg-sky-600 text-white flex items-center justify-center font-black text-xs shrink-0">2</span>
+                <div>
+                  <strong className="block font-black text-xs text-sky-900">En Tintometría</strong>
+                  <p className="text-[11px] text-sky-800 leading-tight">A los 2s: Formulación de color en laboratorio.</p>
+                  <span className="text-[10px] font-mono text-sky-700 font-bold block mt-1">
+                    {orders.filter(o => o.status === 'preparando').length} pedido(s)
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-purple-50/80 border border-purple-200 text-purple-950 flex items-start gap-2.5">
+                <span className="w-6 h-6 rounded-lg bg-purple-600 text-white flex items-center justify-center font-black text-xs shrink-0">3</span>
+                <div>
+                  <strong className="block font-black text-xs text-purple-900">Despachando en Ruta</strong>
+                  <p className="text-[11px] text-purple-800 leading-tight">A los 20 min: Mensaje formal de despacho enviado.</p>
+                  <span className="text-[10px] font-mono text-purple-700 font-bold block mt-1">
+                    {orders.filter(o => o.status === 'en_ruta').length} pedido(s)
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-emerald-50/80 border border-emerald-200 text-emerald-950 flex items-start gap-2.5">
+                <span className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black text-xs shrink-0">4</span>
+                <div>
+                  <strong className="block font-black text-xs text-emerald-900">Entregado en Obra</strong>
+                  <p className="text-[11px] text-emerald-800 leading-tight">A los 20 min: Remisión y garantía NTC 1335.</p>
+                  <span className="text-[10px] font-mono text-emerald-700 font-bold block mt-1">
+                    {orders.filter(o => o.status === 'entregado').length} pedido(s)
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Columna Izquierda: Lista de Pedidos Entrantes con Búsqueda y Filtros Ordenados */}
           <div className="lg:col-span-5 space-y-3">
@@ -1717,12 +1872,12 @@ export function AdminBackoffice({
                                     : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                                 }`}
                               >
-                                {ord.status === 'pendiente' && 'Por Aprobar'}
-                                {ord.status === 'preparando' && 'En Tintometría'}
-                                {ord.status === 'en_ruta' && 'En Camino'}
+                                {ord.status === 'pendiente' && '⏳ Entra a Tintometría (2s)'}
+                                {ord.status === 'preparando' && '🎨 En Tintometría (Despacho 20m)'}
+                                {ord.status === 'en_ruta' && '🚚 Despachando (Entrega 20m)'}
                                 {ord.status === 'en_espera' && 'En Espera'}
                                 {ord.status === 'rechazado' && 'Rechazado'}
-                                {ord.status === 'entregado' && 'Entregado'}
+                                {ord.status === 'entregado' && '✅ Entregado en Obra'}
                               </span>
                             </div>
 
@@ -1803,7 +1958,7 @@ export function AdminBackoffice({
                 </div>
               </div>
 
-              {/* PANEL DESTACADO: ASIGNACIÓN Y DICTAMEN AUTÓNOMO DE LA IA */}
+              {/* PANEL DESTACADO: ASIGNACIÓN Y DICTAMEN DE LA IA CON DECISIÓN ACEPTAR / RECHAZAR */}
               <div className="p-5 rounded-2xl bg-gradient-to-br from-sky-50 via-blue-50/60 to-cyan-50/40 border-2 border-sky-300 shadow-xs space-y-4">
                 {/* Header del Panel IA */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-sky-200">
@@ -1814,14 +1969,26 @@ export function AdminBackoffice({
                     <div>
                       <div className="flex items-center gap-2">
                         <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">
-                          Resolución y Despacho Autónomo IA (Pincelito Logístico)
+                          Resolución y Gestión Logística Colorlink®
                         </h4>
-                        <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-extrabold rounded-full border border-emerald-200">
-                          ✓ IA Asignó Bus y Ruta
-                        </span>
+                        {activeOrder.status === 'pendiente' ? (
+                          <span className="px-2.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-extrabold rounded-full border border-amber-300">
+                            ⏳ Por Aprobar • Decisión: Aceptar o Rechazar
+                          </span>
+                        ) : activeOrder.status === 'rechazado' ? (
+                          <span className="px-2.5 py-0.5 bg-rose-100 text-rose-900 text-[10px] font-extrabold rounded-full border border-rose-300">
+                            ✕ Pedido Rechazado
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-extrabold rounded-full border border-emerald-200">
+                            ✓ Pedido Aprobado & En Proceso
+                          </span>
+                        )}
                       </div>
                       <p className="text-[11px] text-slate-600">
-                        La IA evaluó existencias, formuló el producto, escogió el bus adecuado, calculó la ruta óptima y despachó los mensajes al cliente.
+                        {activeOrder.status === 'pendiente'
+                          ? 'El cliente ya definió su método de pago. La IA verificó existencias y formulación. Evalúe para Aceptar o Rechazar.'
+                          : 'La IA evaluó existencias, formuló el producto, calculó la ruta óptima y gestiona los despachos.'}
                       </p>
                     </div>
                   </div>
@@ -1833,7 +2000,7 @@ export function AdminBackoffice({
                       className="px-3.5 py-2 bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-110 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
                     >
                       <Sparkles className="w-3.5 h-3.5 text-amber-200" />
-                      <span>Re-asignar con IA</span>
+                      <span>Re-evaluar con IA</span>
                     </button>
                   </div>
                 </div>
@@ -1939,8 +2106,8 @@ export function AdminBackoffice({
                         <span>Correo: <strong>{activeOrder.email}</strong> (Notificación oficial de flete y remisión)</span>
                       </div>
                       <div className="flex items-center gap-1.5 text-[11px] text-slate-700">
-                        <MessageCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                        <span>WhatsApp: <strong>{activeOrder.telefono}</strong> (Alerta en tiempo real con bus y conductor)</span>
+                        <Phone className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+                        <span>Teléfono Contacto: <strong>{activeOrder.telefono}</strong></span>
                       </div>
                       <div className="text-[10px] text-slate-500 pt-0.5">
                         Hora estimada de arribo (ETA): <strong className="text-slate-900">{activeOrder.rutaOptima?.horaEstimada || 'Hoy en 2 horas'}</strong>
@@ -2037,8 +2204,68 @@ export function AdminBackoffice({
                   </p>
                 </div>
 
-                {/* MODO AUTÓNOMO VS INTERVENCIÓN POR ERROR */}
-                {!(activeOrder.status === 'en_espera' || activeOrder.status === 'rechazado' || (activeOrder.cunetes && activeOrder.cunetes > 18) || forceManualIntervention) ? (
+                {/* SI ESTÁ PENDIENTE: PANEL EXPLÍCITO PARA ACEPTAR O RECHAZAR */}
+                {activeOrder.status === 'pendiente' ? (
+                  <div className="p-4 sm:p-5 rounded-2xl bg-amber-50/80 border-2 border-amber-300 shadow-xs space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-amber-200">
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-5 h-5 text-amber-600 shrink-0" />
+                        <div>
+                          <h5 className="text-xs font-black text-amber-950 uppercase tracking-wide">
+                            Decisión Requerida: ¿Aceptar o Rechazar este Pedido?
+                          </h5>
+                          <p className="text-[11px] text-amber-900">
+                            El cliente seleccionó su método de pago (<strong>{activeOrder.metodoPago || 'Transferencia Bancolombia / QR'}</strong>). Revise insumos y elija si aprueba o rechaza el despacho.
+                          </p>
+                        </div>
+                      </div>
+                      <span className="px-2.5 py-0.5 bg-amber-200 text-amber-900 font-bold text-[10px] rounded-full shrink-0">
+                        Pendiente de Decisión
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1">
+                      <span className="text-xs font-extrabold text-slate-800">
+                        ¿Desea Aceptar o Rechazar este pedido?
+                      </span>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleAiOrderDecision(activeOrder.id, 'aceptar');
+                            setForceManualIntervention(false);
+                          }}
+                          className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                          title="Aceptar este pedido. Pasa a tintometría y notifica al cliente por correo."
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>Aceptar</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleAiOrderDecision(activeOrder.id, 'rechazar')}
+                          className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                          title="Rechazar este pedido e informar al cliente por correo."
+                        >
+                          <AlertCircle className="w-4 h-4" />
+                          <span>Rechazar</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleAiOrderDecision(activeOrder.id, 'espera')}
+                          className="px-3.5 py-2.5 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-bold text-xs rounded-xl transition-all flex items-center gap-1 cursor-pointer active:scale-95"
+                          title="Poner en espera por validación técnica."
+                        >
+                          <Clock className="w-3.5 h-3.5 text-amber-700" />
+                          <span>En Espera</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : !(activeOrder.status === 'en_espera' || activeOrder.status === 'rechazado' || (activeOrder.cunetes && activeOrder.cunetes > 18) || forceManualIntervention) ? (
                   <div className="p-4 rounded-xl bg-emerald-50/90 border border-emerald-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
                     <div className="flex items-center gap-2.5">
                       <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
@@ -2180,26 +2407,16 @@ export function AdminBackoffice({
                 )}
               </div>
 
-              {/* Botones de Notificación Manual al Cliente por WhatsApp y Correo */}
-              <div className="flex flex-wrap items-center gap-2.5 pt-1 border-t border-slate-100">
+              {/* Botón de Notificación Oficial al Cliente por Correo */}
+              <div className="flex items-center gap-2.5 pt-1 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => handleTriggerNotification(activeOrder, 'whatsapp')}
-                  className="flex-1 py-2.5 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                  title="Enviar actualización por WhatsApp al cliente"
-                >
-                  <MessageCircle className="w-4 h-4 text-emerald-600" />
-                  <span>Enviar WhatsApp Personalizado</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleTriggerNotification(activeOrder, 'email')}
-                  className="flex-1 py-2.5 px-3 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-300 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                  title="Enviar correo formal al cliente"
+                  onClick={() => handleTriggerNotification(activeOrder)}
+                  className="w-full py-2.5 px-3 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-300 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-98"
+                  title="Enviar correo formal al cliente con la actualización del pedido"
                 >
                   <Mail className="w-4 h-4 text-sky-600" />
-                  <span>Enviar Correo Formal</span>
+                  <span>Enviar Correo Formal al Cliente</span>
                 </button>
               </div>
 
@@ -2207,12 +2424,12 @@ export function AdminBackoffice({
               <div className="space-y-2">
                 <h4 className="text-xs font-bold text-slate-800 flex items-center justify-between">
                   <span>Mensajes Enviados al Cliente ({activeOrder.notificaciones.length})</span>
-                  <span className="text-[10px] text-slate-400">Canal WhatsApp & Correo</span>
+                  <span className="text-[10px] text-slate-400">Canal Oficial Correo Electrónico</span>
                 </h4>
 
                 {activeOrder.notificaciones.length === 0 ? (
                   <p className="text-xs text-slate-400 italic p-3 bg-slate-50 rounded-xl">
-                    No se han enviado notificaciones para este pedido aún. Usa los botones superiores para avisarle al cliente.
+                    No se han enviado notificaciones para este pedido aún. Usa el botón superior para avisarle al cliente por correo.
                   </p>
                 ) : (
                   <div className="space-y-2">
@@ -2223,17 +2440,8 @@ export function AdminBackoffice({
                       >
                         <div className="flex items-center justify-between">
                           <span className="font-bold text-slate-800 flex items-center gap-1.5 text-[11px]">
-                            {notif.tipo === 'whatsapp' ? (
-                              <>
-                                <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
-                                <span>WhatsApp al {activeOrder.telefono}</span>
-                              </>
-                            ) : (
-                              <>
-                                <Mail className="w-3.5 h-3.5 text-sky-600" />
-                                <span>Correo a {activeOrder.email}</span>
-                              </>
-                            )}
+                            <Mail className="w-3.5 h-3.5 text-sky-600" />
+                            <span>Correo a {activeOrder.email}</span>
                           </span>
                           <span className="text-[10px] text-slate-400">{notif.fecha}</span>
                         </div>
@@ -2321,7 +2529,7 @@ export function AdminBackoffice({
                     <th className="p-3.5">Correo Electrónico</th>
                     <th className="p-3.5">Teléfono</th>
                     <th className="p-3.5">Canal</th>
-                    <th className="p-3.5 text-center">Enviar WhatsApp</th>
+                    <th className="p-3.5 text-center">Enviar Correo</th>
                     <th className="p-3.5 pr-4 text-right">Fecha Registro</th>
                   </tr>
                 </thead>
@@ -2392,20 +2600,12 @@ export function AdminBackoffice({
                           </td>
                           <td className="p-3.5 text-center">
                             <a
-                              href={getWhatsAppRegistrationUrl({
-                                nombre: client.responsable,
-                                empresa: client.nombre_razon_social,
-                                nit: client.nit_documento,
-                                telefono: client.telefono_responsable || '',
-                                email: client.email_responsable
-                              })}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold text-[11px] shadow-2xs transition-all active:scale-95"
-                              title={`Enviar mensaje de registro a ${client.responsable} por WhatsApp`}
+                              href={`mailto:${client.email_responsable}?subject=Registro en Colorlink Pinturas&body=Hola ${client.responsable}, le contactamos desde el equipo corporativo de Colorlink.`}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-bold text-[11px] shadow-2xs transition-all active:scale-95"
+                              title={`Enviar correo oficial a ${client.responsable}`}
                             >
-                              <MessageCircle className="w-3 h-3 fill-current" />
-                              <span>WhatsApp</span>
+                              <Mail className="w-3 h-3" />
+                              <span>Enviar Correo</span>
                             </a>
                           </td>
                           <td className="p-3.5 pr-4 text-right text-slate-400 text-[11px] whitespace-nowrap">
@@ -2853,29 +3053,16 @@ export function AdminBackoffice({
                       </span>
                     </div>
 
-                    {/* Botones de Acción de Reabastecimiento */}
-                    <div className="flex items-center gap-2 pt-1">
+                    {/* Botón de Acción de Reabastecimiento */}
+                    <div className="pt-1">
                       <button
                         type="button"
                         onClick={() => handleRequestCitySupply(c.ciudad)}
-                        className="flex-1 py-2 px-3 bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-110 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                        className="w-full py-2 px-3 bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-110 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
                       >
                         <Boxes className="w-3.5 h-3.5" />
                         <span>Generar Orden de Reabastecimiento</span>
                       </button>
-
-                      <a
-                        href={`https://api.whatsapp.com/send?phone=573212460658&text=${encodeURIComponent(
-                          `📦 SOLICITUD DE REABASTECIMIENTO • COLORLINK PINTURAS\n\nCiudad Sede: ${c.ciudad}\nCEDI: ${c.cedi}\nRequerimientos Urgentes a Despachar:\n• Tipo 1: ${c.tipo1Cunetes} Cuñetes\n• Tipo 2: ${c.tipo2Cunetes} Cuñetes\n• Tipo 3: ${c.tipo3Cunetes} Cuñetes\n• Sellador: ${c.selladorGalones} Galones\n\nTotal Pedidos Activos en la ciudad: ${c.pedidosCount} (${formatCOP(c.totalCOP)})\nPor favor confirmar cargue y camión asignado.`
-                        )}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold text-xs rounded-xl transition-all flex items-center gap-1 cursor-pointer"
-                        title="Notificar al coordinador de bodega por WhatsApp"
-                      >
-                        <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>WhatsApp Sede</span>
-                      </a>
                     </div>
                   </div>
                 </div>
@@ -2975,17 +3162,11 @@ export function AdminBackoffice({
                         </td>
                         <td className="py-3 px-3 text-center">
                           <a
-                            href={`https://api.whatsapp.com/send?phone=${formatWhatsAppPhone(
-                              order.telefono
-                            )}&text=${encodeURIComponent(
-                              `Hola ${order.responsable}, le escribimos de Colorlink Pinturas en relación a su pedido #${order.id} en ${order.ciudad}.`
-                            )}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-1.5 inline-flex rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition-colors"
-                            title="Contactar al cliente por WhatsApp"
+                            href={`mailto:${order.email}?subject=Actualización de Pedido #${order.id} - Colorlink Pinturas&body=Hola ${order.responsable}, le escribimos de Colorlink Pinturas respecto a su pedido #${order.id} en ${order.ciudad}.`}
+                            className="p-1.5 inline-flex rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 transition-colors"
+                            title={`Contactar al cliente por correo (${order.email})`}
                           >
-                            <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                            <Mail className="w-3.5 h-3.5 text-sky-600" />
                           </a>
                         </td>
                       </tr>
@@ -2997,32 +3178,18 @@ export function AdminBackoffice({
         </div>
       )}
 
-      {/* MODAL DE SIMULACIÓN DE ENVÍO DE WHATSAPP / CORREO */}
+      {/* MODAL DE ENVÍO DE CORREO OFICIAL AL CLIENTE */}
       {showNotificationModal && modalNotificationData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fadeIn">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl border border-slate-200 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
-                {modalNotificationData.tipo === 'whatsapp' ? (
-                  <div className="w-10 h-10 rounded-2xl bg-emerald-500 text-white flex items-center justify-center shadow-xs">
-                    <MessageCircle className="w-5 h-5" />
-                  </div>
-                ) : modalNotificationData.tipo === 'email' ? (
-                  <div className="w-10 h-10 rounded-2xl bg-sky-600 text-white flex items-center justify-center shadow-xs">
-                    <Mail className="w-5 h-5" />
-                  </div>
-                ) : (
-                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-500 to-blue-600 text-white flex items-center justify-center shadow-xs">
-                    <Send className="w-5 h-5" />
-                  </div>
-                )}
+                <div className="w-10 h-10 rounded-2xl bg-sky-600 text-white flex items-center justify-center shadow-xs">
+                  <Mail className="w-5 h-5" />
+                </div>
                 <div>
                   <h3 className="text-sm font-black text-slate-900">
-                    {modalNotificationData.tipo === 'whatsapp'
-                      ? 'Vista Previa de Notificación por WhatsApp'
-                      : modalNotificationData.tipo === 'email'
-                      ? 'Vista Previa de Correo Oficial'
-                      : 'Envío Simultáneo por WhatsApp y Correo Oficial'}
+                    Vista Previa de Correo Oficial
                   </h3>
                   <p className="text-xs text-slate-500">
                     Destinatario: {modalNotificationData.order.cliente} ({modalNotificationData.order.responsable})
@@ -3038,48 +3205,15 @@ export function AdminBackoffice({
               </button>
             </div>
 
-            {/* Burbuja estilo WhatsApp o Tarjeta de Email */}
-            {modalNotificationData.tipo === 'whatsapp' ? (
-              <div className="p-4 rounded-2xl bg-[#EFEAE2] border border-slate-200 space-y-2 text-xs">
-                <div className="bg-[#DCF8C6] p-3.5 rounded-2xl shadow-xs text-slate-900 text-xs leading-relaxed max-w-[92%] ml-auto rounded-tr-xs whitespace-pre-line border border-emerald-200">
-                  {modalNotificationData.mensaje}
-                  <div className="text-right text-[10px] text-slate-500 mt-1 flex items-center justify-end gap-1">
-                    <span>Enviado al {modalNotificationData.order.telefono}</span>
-                    <span className="text-emerald-600 font-bold">✓✓</span>
-                  </div>
-                </div>
+            {/* Tarjeta de Email Oficial */}
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-2 leading-relaxed whitespace-pre-line text-slate-800">
+              <div className="text-[11px] text-slate-500 border-b border-slate-200 pb-2">
+                <strong>Para:</strong> {modalNotificationData.order.email}
+                <br />
+                <strong>Asunto:</strong> Actualización de Despacho • Pedido #{modalNotificationData.order.id} Colorlink®
               </div>
-            ) : modalNotificationData.tipo === 'email' ? (
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-2 leading-relaxed whitespace-pre-line text-slate-800">
-                <div className="text-[11px] text-slate-500 border-b border-slate-200 pb-2">
-                  <strong>Para:</strong> {modalNotificationData.order.email}
-                  <br />
-                  <strong>Asunto:</strong> Actualización de Despacho • Pedido #{modalNotificationData.order.id} Colorlink®
-                </div>
-                <div>{modalNotificationData.mensaje}</div>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs space-y-1">
-                  <div className="flex items-center gap-1.5 font-bold text-emerald-800">
-                    <MessageCircle className="w-4 h-4 text-emerald-600" />
-                    <span>Canal WhatsApp ({modalNotificationData.order.telefono})</span>
-                  </div>
-                  <p className="text-[11px] text-slate-600 line-clamp-3 italic">
-                    {modalNotificationData.mensaje}
-                  </p>
-                </div>
-                <div className="p-3 bg-sky-50 border border-sky-200 rounded-2xl text-xs space-y-1">
-                  <div className="flex items-center gap-1.5 font-bold text-sky-700">
-                    <Mail className="w-4 h-4 text-sky-600" />
-                    <span>Canal Correo Electrónico ({modalNotificationData.order.email})</span>
-                  </div>
-                  <p className="text-[11px] text-slate-600">
-                    Se enviará el correo formal con el estado actual del pedido y la trazabilidad logística.
-                  </p>
-                </div>
-              </div>
-            )}
+              <div>{modalNotificationData.mensaje}</div>
+            </div>
 
             <div className="flex items-center justify-end gap-2 pt-2">
               <button

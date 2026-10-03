@@ -25,7 +25,6 @@ import {
 } from 'lucide-react';
 import { formatCOP } from '../utils/calculator';
 import { PenguinLogo } from './PenguinLogo';
-import { formatWhatsAppPhone } from '../utils/whatsappService';
 import { getStoredAdvisorConversations } from '../utils/advisorService';
 
 export interface ClientConversation {
@@ -38,7 +37,7 @@ export interface ClientConversation {
   ciudad: string;
   obra: string;
   fechaHora: string;
-  canal: 'whatsapp' | 'llamada' | 'reunion' | 'visita_obra';
+  canal: 'correo' | 'llamada' | 'reunion' | 'visita_obra';
   temaConversacion: string;
   acuerdoAlcanzado: string;
   estado: 'cotizado' | 'en_negociacion' | 'visita_agendada' | 'cerrado_exito' | 'seguimiento';
@@ -124,7 +123,7 @@ const INITIAL_CONVERSATIONS: Record<string, ClientConversation[]> = {
       ciudad: 'Medellín',
       obra: 'Edificio Residencial Horizonte (El Poblado, Cra 43A)',
       fechaHora: 'Hoy, 09:30 AM',
-      canal: 'whatsapp',
+      canal: 'correo',
       temaConversacion: 'Mantenimiento preventivo de fachada de 5 pisos (85 m²). Presenta microfisuras leves y humedad por exposición directa a lluvias. Preguntó por formulación Gris Cemento mate y si el Sellamur hidrófugo viene incluido en la cotización.',
       acuerdoAlcanzado: 'Se confirmó cotización de 4 cuñetes Tipo 1 Exterior Gris + 1 galón Sellamur hidrófugo ($1.681.500 COP). Se acordó envío de muestra física de color hoy a las 2:00 PM y despacho prioritario el viernes.',
       estado: 'en_negociacion',
@@ -177,7 +176,7 @@ const INITIAL_CONVERSATIONS: Record<string, ClientConversation[]> = {
       ciudad: 'Bogotá D.C.',
       obra: 'Complejo Empresarial Calle 100 con Autopista Norte',
       fechaHora: 'Hoy, 08:45 AM',
-      canal: 'whatsapp',
+      canal: 'correo',
       temaConversacion: 'Licitación de 320 m² de fachada institucional. Comparó cotización de Pintuco® vs Colorlink® Pro de fábrica. Solicitó desglose de ahorro del 15% y certificado NTC 1335 para interventoría IDU.',
       acuerdoAlcanzado: 'Se enviaron fichas técnicas NTC 1335 y comparativo formal de precios. El cliente confirmó que si mantenemos despacho gratuito desde Mosquera firman orden de compra por $12.800.000 COP.',
       estado: 'en_negociacion',
@@ -230,7 +229,7 @@ const INITIAL_CONVERSATIONS: Record<string, ClientConversation[]> = {
       ciudad: 'Barranquilla',
       obra: 'Torres del Malecón (Frente al Río Magdalena)',
       fechaHora: '26 Sep 2026, 02:00 PM',
-      canal: 'whatsapp',
+      canal: 'correo',
       temaConversacion: 'Consulta por pinturas con resistencia a alta salinidad marina, humedad relativa del 90% y sol caribeño para balcones expuestos.',
       acuerdoAlcanzado: 'Recomendada Pintura 100% Acrílica Tipo 1 con fungicida antialgas reforzado. Muestra enviada por Servientrega.',
       estado: 'en_negociacion',
@@ -288,7 +287,7 @@ export function AdvisorPortal({ currentAdvisor, onLogout, onSwitchAdvisor }: Adv
   const [newEmail, setNewEmail] = useState('');
   const [newCiudad, setNewCiudad] = useState(currentAdvisor.territory.split(' ')[0] || 'Medellín');
   const [newObra, setNewObra] = useState('');
-  const [newCanal, setNewCanal] = useState<'whatsapp' | 'llamada' | 'reunion' | 'visita_obra'>('whatsapp');
+  const [newCanal, setNewCanal] = useState<'correo' | 'llamada' | 'reunion' | 'visita_obra'>('correo');
   const [newTema, setNewTema] = useState('');
   const [newAcuerdo, setNewAcuerdo] = useState('');
   const [newMonto, setNewMonto] = useState('');
@@ -613,17 +612,15 @@ export function AdvisorPortal({ currentAdvisor, onLogout, onSwitchAdvisor }: Adv
               {/* Botones de Comunicación Inmediata con el Cliente */}
               <div className="flex flex-wrap items-center gap-2.5">
                 <a
-                  href={`https://api.whatsapp.com/send?phone=${formatWhatsAppPhone(
-                    selectedConversation.telefono
-                  )}&text=${encodeURIComponent(
+                  href={`mailto:${selectedConversation.email}?subject=${encodeURIComponent(
+                    `Seguimiento Técnico Colorlink® • Obra ${selectedConversation.obra}`
+                  )}&body=${encodeURIComponent(
                     `Hola ${selectedConversation.responsable}, le habla ${currentAdvisor.name} de Colorlink® Pinturas respecto al proyecto "${selectedConversation.obra}". ¿Cómo avanza la revisión de la cotización?`
                   )}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                  className="flex-1 py-3 px-4 bg-sky-600 hover:bg-sky-700 text-white text-xs font-black rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
                 >
-                  <Send className="w-4 h-4 text-emerald-200" />
-                  <span>Chatear por WhatsApp ({selectedConversation.telefono})</span>
+                  <Mail className="w-4 h-4 text-sky-200" />
+                  <span>Contactar por Correo ({selectedConversation.email})</span>
                 </a>
 
                 <a
@@ -631,17 +628,7 @@ export function AdvisorPortal({ currentAdvisor, onLogout, onSwitchAdvisor }: Adv
                   className="py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
                 >
                   <Phone className="w-4 h-4 text-slate-600" />
-                  <span>Llamar</span>
-                </a>
-
-                <a
-                  href={`mailto:${selectedConversation.email}?subject=${encodeURIComponent(
-                    `Seguimiento Técnico Colorlink® • Obra ${selectedConversation.obra}`
-                  )}`}
-                  className="py-3 px-4 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Mail className="w-4 h-4 text-sky-600" />
-                  <span>Correo</span>
+                  <span>Llamar ({selectedConversation.telefono})</span>
                 </a>
               </div>
 
@@ -759,7 +746,7 @@ export function AdvisorPortal({ currentAdvisor, onLogout, onSwitchAdvisor }: Adv
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1">
-                  <label className="font-bold text-slate-700">Teléfono / WhatsApp *</label>
+                  <label className="font-bold text-slate-700">Teléfono de Contacto *</label>
                   <input
                     type="text"
                     required
@@ -795,7 +782,7 @@ export function AdvisorPortal({ currentAdvisor, onLogout, onSwitchAdvisor }: Adv
                     onChange={(e) => setNewCanal(e.target.value as any)}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-semibold cursor-pointer"
                   >
-                    <option value="whatsapp">WhatsApp</option>
+                    <option value="correo">Correo Electrónico</option>
                     <option value="llamada">Llamada Telefónica</option>
                     <option value="visita_obra">Visita en Obra</option>
                     <option value="reunion">Reunión Virtual</option>

@@ -3,11 +3,24 @@ import autoTable from 'jspdf-autotable';
 import { ProjectFormData, TechnicalCalculationResult } from '../types/form';
 import { formatCOP } from './calculator';
 
+export interface PDFDecisionInfo {
+  decision: 'accepted' | 'rejected' | 'pending';
+  orderNumber?: string;
+  decisionTimestamp?: string;
+  rejectionReason?: string;
+  rejectionNotes?: string;
+  metodoPago?: string;
+}
+
 /**
  * Generates an official, high-quality vector PDF document for Colorlink cotizaciones.
  * Background: Crisp white with authentic Colorlink signature paint splashes and rainbow bar.
  */
-export function createColorlinkPDFDoc(formData: ProjectFormData, technicalCalc: TechnicalCalculationResult): jsPDF {
+export function createColorlinkPDFDoc(
+  formData: ProjectFormData,
+  technicalCalc: TechnicalCalculationResult,
+  decisionInfo?: PDFDecisionInfo
+): jsPDF {
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -159,7 +172,26 @@ export function createColorlinkPDFDoc(formData: ProjectFormData, technicalCalc: 
   doc.text(`Fecha de Emisión: ${todayStr}`, pageWidth - margin, currentY + 11, { align: 'right' });
   doc.text('Validez Comercial: 15 Días Calendario', pageWidth - margin, currentY + 15.5, { align: 'right' });
 
-  currentY += 21;
+  if (decisionInfo) {
+    if (decisionInfo.decision === 'accepted') {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(5, 150, 105); // emerald-600
+      doc.text(`ESTADO: TOTAL ACEPTADO (${decisionInfo.orderNumber || 'AUTORIZADO'})`, pageWidth - margin, currentY + 19.5, { align: 'right' });
+    } else if (decisionInfo.decision === 'rejected') {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(225, 29, 72); // rose-600
+      doc.text('ESTADO: TOTAL RECHAZADO', pageWidth - margin, currentY + 19.5, { align: 'right' });
+    } else {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(217, 119, 6); // amber-600
+      doc.text('ESTADO: TOTAL PENDIENTE', pageWidth - margin, currentY + 19.5, { align: 'right' });
+    }
+  }
+
+  currentY += 23;
 
   // --- 3. RAINBOW PAINT BAR ---
   const colors = [
@@ -451,7 +483,68 @@ export function createColorlinkPDFDoc(formData: ProjectFormData, technicalCalc: 
   doc.setTextColor(5, 150, 105); // emerald-600
   doc.text(formatCOP(technicalCalc.presupuesto.totalPresupuesto), rightValX, summaryY, { align: 'right' });
 
-  currentY += 42;
+  currentY += 41;
+
+  // --- 7.5 CONFORMIDAD DEL CLIENTE: ACEPTACIÓN O RECHAZO DEL TOTAL ---
+  const statusBoxHeight = 15;
+  const isAccepted = decisionInfo?.decision === 'accepted';
+  const isRejected = decisionInfo?.decision === 'rejected';
+
+  if (isAccepted) {
+    doc.setFillColor(236, 253, 245); // emerald-50
+    doc.setDrawColor(16, 185, 129); // emerald-500
+    doc.roundedRect(margin, currentY, contentWidth, statusBoxHeight, 2, 2, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(6, 95, 70); // emerald-800
+    doc.text('✓ CONFORMIDAD DEL CLIENTE: TOTAL ACEPTADO Y APROBADO', margin + 4, currentY + 5);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(4, 120, 87);
+    const authText = `Autorizado por: ${formData.responsable || formData.cliente} • Orden #${decisionInfo?.orderNumber || 'ORD-CLK-2026'} • Registrado: ${decisionInfo?.decisionTimestamp || todayStr}`;
+    doc.text(authText, margin + 4, currentY + 9);
+
+    const payText = `Método de pago: ${(decisionInfo?.metodoPago || formData.metodoPago || 'Bancolombia').toUpperCase()} • Monto Total Autorizado: ${formatCOP(technicalCalc.presupuesto.totalPresupuesto)} COP`;
+    doc.text(payText, margin + 4, currentY + 12.5);
+  } else if (isRejected) {
+    doc.setFillColor(254, 242, 242); // rose-50
+    doc.setDrawColor(244, 63, 94); // rose-500
+    doc.roundedRect(margin, currentY, contentWidth, statusBoxHeight, 2, 2, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(159, 18, 57); // rose-800
+    doc.text('✕ CONFORMIDAD DEL CLIENTE: TOTAL RECHAZADO', margin + 4, currentY + 5);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(190, 18, 60);
+    const rejText = `El cliente no autorizó el valor cotizado de ${formatCOP(technicalCalc.presupuesto.totalPresupuesto)} COP • Fecha: ${decisionInfo?.decisionTimestamp || todayStr}`;
+    doc.text(rejText, margin + 4, currentY + 9);
+
+    const reasonText = `Motivo de rechazo: ${decisionInfo?.rejectionReason || 'No especificado'}${decisionInfo?.rejectionNotes ? ` ("${decisionInfo.rejectionNotes}")` : ''}`;
+    doc.text(reasonText, margin + 4, currentY + 12.5);
+  } else {
+    // Pendiente
+    doc.setFillColor(254, 249, 195); // amber-50
+    doc.setDrawColor(245, 158, 11); // amber-500
+    doc.roundedRect(margin, currentY, contentWidth, statusBoxHeight, 2, 2, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(146, 64, 14); // amber-800
+    doc.text('⏳ CONFORMIDAD DEL CLIENTE: PENDIENTE DE ACEPTACIÓN DEL TOTAL', margin + 4, currentY + 5);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(180, 83, 9);
+    doc.text(`Valor total liquidado: ${formatCOP(technicalCalc.presupuesto.totalPresupuesto)} COP. Propuesta comercial sujeta a confirmación por parte del cliente.`, margin + 4, currentY + 9);
+    doc.text(`Emitida para: ${formData.responsable || formData.cliente} • Ciudad de Entrega: ${formData.ciudad}`, margin + 4, currentY + 12.5);
+  }
+
+  currentY += statusBoxHeight + 3;
 
   // --- 8. FOOTER: TERMS & CERTIFICATION BADGE ---
   doc.setDrawColor(226, 232, 240);
@@ -474,19 +567,28 @@ export function createColorlinkPDFDoc(formData: ProjectFormData, technicalCalc: 
 /**
  * Downloads the official Colorlink PDF directly
  */
-export function generateColorlinkPDF(formData: ProjectFormData, technicalCalc: TechnicalCalculationResult): void {
-  const doc = createColorlinkPDFDoc(formData, technicalCalc);
+export function generateColorlinkPDF(
+  formData: ProjectFormData,
+  technicalCalc: TechnicalCalculationResult,
+  decisionInfo?: PDFDecisionInfo
+): void {
+  const doc = createColorlinkPDFDoc(formData, technicalCalc, decisionInfo);
   const cleanClientName = (formData.cliente || 'Cliente').replace(/[^a-zA-Z0-9]/g, '_');
-  const fileName = `Cotizacion_Colorlink_${cleanClientName}_${formData.ciudad || 'Obra'}.pdf`;
+  const statusSuffix = decisionInfo?.decision === 'accepted' ? '_ACEPTADA' : decisionInfo?.decision === 'rejected' ? '_RECHAZADA' : '';
+  const fileName = `Cotizacion_Colorlink_${cleanClientName}_${formData.ciudad || 'Obra'}${statusSuffix}.pdf`;
   doc.save(fileName);
 }
 
 /**
  * Prints the official Colorlink PDF document seamlessly even inside iframes
  */
-export function printColorlinkPDF(formData: ProjectFormData, technicalCalc: TechnicalCalculationResult): void {
+export function printColorlinkPDF(
+  formData: ProjectFormData,
+  technicalCalc: TechnicalCalculationResult,
+  decisionInfo?: PDFDecisionInfo
+): void {
   try {
-    const doc = createColorlinkPDFDoc(formData, technicalCalc);
+    const doc = createColorlinkPDFDoc(formData, technicalCalc, decisionInfo);
     doc.autoPrint();
 
     const pdfBlob = doc.output('blob');

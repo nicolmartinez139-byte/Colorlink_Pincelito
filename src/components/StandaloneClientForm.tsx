@@ -46,6 +46,7 @@ import {
   QrCode,
   Camera,
   X,
+  XCircle,
   ThumbsUp,
   ThumbsDown,
   CheckCheck,
@@ -60,15 +61,16 @@ import {
   Database,
   User,
   LogOut,
-  MessageCircle,
   CreditCard,
   Copy,
   ZoomIn,
   Video,
-  VideoOff
+  VideoOff,
+  Zap
 } from 'lucide-react';
 import { ClientEmailPreviewModal } from './ClientEmailPreviewModal';
 import { sendRealOrderEmail } from '../lib/emailService';
+import { sendOrderStatusUpdateEmail } from '../utils/emailService';
 import { fetchClientOrders, ClientOrderItem } from '../utils/supabaseApi';
 import facadeRefImg from '../assets/images/paint_facade_ref_1790519863937.jpg';
 import exteriorT2RefImg from '../assets/images/exterior_t2_ref_1790522631426.jpg';
@@ -230,7 +232,7 @@ export function StandaloneClientForm({
   });
 
   // Flujo de Decisión del Cliente sobre la Cotización (Aceptar / Modificar / Rechazar)
-  const [quotationDecision, setQuotationDecision] = useState<'pending' | 'accepted' | 'rejected'>('accepted');
+  const [quotationDecision, setQuotationDecision] = useState<'pending' | 'accepted' | 'rejected'>('pending');
   const [orderNumber, setOrderNumber] = useState<string | null>(null);
   const [decisionTimestamp, setDecisionTimestamp] = useState<string>('');
   const [showRejectModal, setShowRejectModal] = useState<boolean>(false);
@@ -259,6 +261,21 @@ export function StandaloneClientForm({
   const [realEmailStatusNotice, setRealEmailStatusNotice] = useState<string | null>(null);
   const [supabaseSavedNotice, setSupabaseSavedNotice] = useState<boolean>(false);
 
+  // Estados para el ciclo automatizado de actualización de pedidos (2s -> Tintometría, 20m -> Despachando, 20m -> Entregado)
+  const [orderLifecyclePhase, setOrderLifecyclePhase] = useState<'aceptado' | 'preparando' | 'en_ruta' | 'entregado'>('aceptado');
+  const [phaseSecondsLeft, setPhaseSecondsLeft] = useState<number>(2);
+  const [lifecycleFastDemo, setLifecycleFastDemo] = useState<boolean>(false);
+  const [phaseNotificationLogs, setPhaseNotificationLogs] = useState<Array<{
+    stage: 'aceptado' | 'preparando' | 'en_ruta' | 'entregado';
+    titulo: string;
+    mensaje: string;
+    hora: string;
+    vehiculo?: string;
+    placa?: string;
+    conductor?: string;
+    email: string;
+  }>>([]);
+
   // Estados para Historial "Mis Pedidos" (Requirement 6)
   const [activeMainTab, setActiveMainTab] = useState<'cotizador' | 'pedidos'>('cotizador');
   const [clientOrders, setClientOrders] = useState<ClientOrderItem[]>([]);
@@ -286,7 +303,7 @@ export function StandaloneClientForm({
               color: formData.colorAcabado || 'Gris (Mate)',
               ciudad: formData.ciudad || 'Medellín'
             },
-            estado: 'en_ruta',
+            estado: orderLifecyclePhase === 'entregado' ? 'entregado' : orderLifecyclePhase === 'en_ruta' ? 'en_ruta' : 'preparando',
             total: technicalCalc.presupuesto.totalPresupuesto
           });
         }
@@ -304,6 +321,149 @@ export function StandaloneClientForm({
       loadClientOrders();
     }
   }, [activeSession, activeUser, orderNumber, quotationDecision]);
+
+  // Actualizar el estado del pedido actual en Mis Pedidos si cambia la fase
+  useEffect(() => {
+    if (orderNumber && quotationDecision === 'accepted') {
+      setClientOrders((prev) =>
+        prev.map((o) => {
+          if (o.orderNumber === orderNumber) {
+            return {
+              ...o,
+              estado: orderLifecyclePhase === 'entregado' ? 'entregado' : orderLifecyclePhase === 'en_ruta' ? 'en_ruta' : 'preparando'
+            };
+          }
+          return o;
+        })
+      );
+    }
+  }, [orderLifecyclePhase, orderNumber, quotationDecision]);
+
+  // =========================================================================
+  // CICLO AUTOMÁTICO DE ACTUALIZACIÓN DEL PEDIDO DEL CLIENTE:
+  // 1. A los 2 segundos del pedido -> Tintometría ('preparando')
+  // 2. A los 20 minutos (o 20s en modo demo) -> Despachando ('en_ruta') con mensaje de despacho
+  // 3. A los siguientes 20 minutos -> Entregado ('entregado') con remisión
+  // =========================================================================
+  useEffect(() => {
+    if (quotationDecision !== 'accepted' || !orderNumber) return;
+
+    const interval = setInterval(() => {
+      setPhaseSecondsLeft((prev) => {
+        if (prev <= 1) {
+          const nowStr = new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+
+          if (orderLifecyclePhase === 'aceptado') {
+            setOrderLifecyclePhase('preparando');
+            const notifMsg = `🎨 [Tintometría - 2s] Tu pedido #${orderNumber} ingresó al laboratorio de tintometría Colorlink®. Se inició la formulación computarizada del color "${formData.colorAcabado || 'Color Específico'}" con base ${formData.tipoPintura || 'Tipo 1'}.`;
+            setPhaseNotificationLogs((logs) => [
+              {
+                stage: 'preparando',
+                titulo: '🎨 Ingreso a Tintometría (A los 2 segundos del pedido)',
+                mensaje: notifMsg,
+                hora: nowStr,
+                email: formData.emailResponsable
+              },
+              ...logs
+            ]);
+
+            // Notificación por correo de ingreso a tintometría
+            sendOrderStatusUpdateEmail({
+              orderId: orderNumber,
+              cliente: formData.cliente,
+              responsable: formData.responsable,
+              email: formData.emailResponsable,
+              status: 'preparando',
+              statusLabel: 'Pedido en Tintometría (Formulación del Color)',
+              mensaje: `Estimado(a) ${formData.responsable},\n\nLe confirmamos que su pedido #${orderNumber} ha ingresado a los 2 segundos de confirmado al laboratorio de tintometría Colorlink®.\n\nFormulación computarizada de pigmentos para "${formData.colorAcabado}" en proceso.\n\nTotal liquidado: ${formatCOP(technicalCalc.presupuesto.totalPresupuesto)} COP.`,
+              totalCOP: technicalCalc.presupuesto.totalPresupuesto
+            }).catch(() => {});
+
+            return lifecycleFastDemo ? 20 : 1200;
+          } else if (orderLifecyclePhase === 'preparando') {
+            setOrderLifecyclePhase('en_ruta');
+            const veh = 'Camión Turbo NHR 4.5 Ton Colorlink';
+            const plc = 'TZW-402';
+            const cond = 'Carlos Restrepo';
+            const eta = 'Hoy en 45 min';
+            const notifMsg = `🚚 [Despacho en Ruta - 20 min] ¡Tu pedido #${orderNumber} se está despachando hacia la obra! Asignado a ${veh} (${plc}) conducido por ${cond}. ETA: ${eta}.`;
+
+            setPhaseNotificationLogs((logs) => [
+              {
+                stage: 'en_ruta',
+                titulo: '🚚 Despachando Pedido (A los 20 minutos)',
+                mensaje: notifMsg,
+                hora: nowStr,
+                vehiculo: veh,
+                placa: plc,
+                conductor: cond,
+                email: formData.emailResponsable
+              },
+              ...logs
+            ]);
+
+            // Enviar correo de despacho
+            sendOrderStatusUpdateEmail({
+              orderId: orderNumber,
+              cliente: formData.cliente,
+              responsable: formData.responsable,
+              email: formData.emailResponsable,
+              status: 'en_ruta',
+              statusLabel: 'Pedido Despachando y En Ruta a Obra',
+              mensaje: `Estimado(a) ${formData.responsable},\n\n¡Excelentes noticias! Le confirmamos que su pedido #${orderNumber} completó su preparación en tintometría y SE ESTÁ DESPACHANDO hacia su obra en ${formData.ciudad}.\n\n• Vehículo Asignado: ${veh}\n• Placa: ${plc}\n• Conductor: ${cond}\n• Hora Estimada: ${eta}.\n\nEl conductor lleva remisión física oficial y certificado de calidad Colorlink®.`,
+              vehiculo: veh,
+              conductor: cond,
+              placa: plc,
+              ciudad: formData.ciudad,
+              totalCOP: technicalCalc.presupuesto.totalPresupuesto
+            }).catch(() => {});
+
+            return lifecycleFastDemo ? 20 : 1200;
+          } else if (orderLifecyclePhase === 'en_ruta') {
+            setOrderLifecyclePhase('entregado');
+            const cond = 'Carlos Restrepo';
+            const notifMsg = `✅ [Entrega Exitosa - 20 min] ¡Tu pedido #${orderNumber} ha sido ENTREGADO con éxito en tu obra por el conductor ${cond}! Remisión física y certificado técnico NTC 1335 emitidos.`;
+
+            setPhaseNotificationLogs((logs) => [
+              {
+                stage: 'entregado',
+                titulo: '✅ Pedido Entregado con Éxito (A los 20 minutos)',
+                mensaje: notifMsg,
+                hora: nowStr,
+                conductor: cond,
+                email: formData.emailResponsable
+              },
+              ...logs
+            ]);
+
+            // Enviar correo de entrega
+            sendOrderStatusUpdateEmail({
+              orderId: orderNumber,
+              cliente: formData.cliente,
+              responsable: formData.responsable,
+              email: formData.emailResponsable,
+              status: 'entregado',
+              statusLabel: 'Pedido Entregado con Éxito en Obra',
+              mensaje: `Estimado(a) ${formData.responsable},\n\nLe confirmamos que su pedido #${orderNumber} ha sido ENTREGADO con total satisfacción en su obra en ${formData.ciudad} por el conductor ${cond}.\n\nSe ha emitido el certificado oficial de calidad bajo la norma técnica NTC 1335.\n\n¡Gracias por pintar con Colorlink® Pinturas!`,
+              conductor: cond,
+              ciudad: formData.ciudad,
+              totalCOP: technicalCalc.presupuesto.totalPresupuesto
+            }).catch(() => {});
+
+            return 0; // Completado
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [quotationDecision, orderNumber, orderLifecyclePhase, lifecycleFastDemo, formData]);
+
+  const handleAdvanceClientLifecycle = () => {
+    setPhaseSecondsLeft(1);
+  };
 
   const handleApplyAiData = (dataToApply: Partial<ProjectFormData>) => {
     setFormData(prev => ({
@@ -333,7 +493,19 @@ export function StandaloneClientForm({
     const generatedOrder = `ORD-CLK-2026-${Math.floor(1000 + Math.random() * 9000)}`;
     setOrderNumber(generatedOrder);
     setQuotationDecision('accepted');
+    setOrderLifecyclePhase('aceptado');
+    setPhaseSecondsLeft(2);
     const now = new Date();
+    const timeStr = now.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+    setPhaseNotificationLogs([
+      {
+        stage: 'aceptado',
+        titulo: '📝 Pedido Confirmado & Aprobado por el Cliente',
+        mensaje: `El pedido #${generatedOrder} ha sido formalmente confirmado con método de pago ${formData.metodoPago || 'Bancolombia'}. Ingresando al laboratorio de tintometría a los 2 segundos...`,
+        hora: timeStr,
+        email: formData.emailResponsable
+      }
+    ]);
     setDecisionTimestamp(
       now.toLocaleDateString('es-CO', {
         day: '2-digit',
@@ -420,11 +592,21 @@ export function StandaloneClientForm({
     setPdfSuccessMessage(null);
 
     try {
+      const decisionInfo = {
+        decision: quotationDecision,
+        orderNumber: orderNumber || 'ORD-CLK-2026',
+        decisionTimestamp: decisionTimestamp || new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        rejectionReason,
+        rejectionNotes,
+        metodoPago: formData.metodoPago || 'Bancolombia'
+      };
+
       // Direct high-fidelity vector PDF generation (100% immune to CSS oklch errors)
-      generateColorlinkPDF(formData, technicalCalc);
+      generateColorlinkPDF(formData, technicalCalc, decisionInfo);
 
       const cleanClientName = formData.cliente.replace(/[^a-zA-Z0-9]/g, '_') || 'Cliente';
-      const fileName = `Cotizacion_Colorlink_${cleanClientName}_${formData.ciudad}.pdf`;
+      const statusSuffix = quotationDecision === 'accepted' ? '_ACEPTADA' : quotationDecision === 'rejected' ? '_RECHAZADA' : '';
+      const fileName = `Cotizacion_Colorlink_${cleanClientName}_${formData.ciudad}${statusSuffix}.pdf`;
 
       setPdfSuccessMessage(`¡PDF Oficial descargado con éxito! (${fileName})`);
       setTimeout(() => setPdfSuccessMessage(null), 5000);
@@ -441,7 +623,16 @@ export function StandaloneClientForm({
     setPdfSuccessMessage(null);
 
     try {
-      printColorlinkPDF(formData, technicalCalc);
+      const decisionInfo = {
+        decision: quotationDecision,
+        orderNumber: orderNumber || 'ORD-CLK-2026',
+        decisionTimestamp: decisionTimestamp || new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        rejectionReason,
+        rejectionNotes,
+        metodoPago: formData.metodoPago || 'Bancolombia'
+      };
+
+      printColorlinkPDF(formData, technicalCalc, decisionInfo);
       setPdfSuccessMessage('Preparando impresión oficial...');
       setTimeout(() => setPdfSuccessMessage(null), 4000);
     } catch (err) {
@@ -573,8 +764,25 @@ export function StandaloneClientForm({
     }
 
     if (allValid) {
-      console.log('[Formulario] ✓ Validación exitosa (todos los pasos completos). Llamando a onSuccessSubmit(formData)...', formData);
+      console.log('[Formulario] ✓ Validación exitosa (todos los pasos completos). Emitiendo cotización en estado pendiente para decisión del cliente...');
       setIsSubmitted(true);
+      setQuotationDecision('pending');
+      if (!orderNumber) {
+        const generatedOrder = `ORD-CLK-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+        setOrderNumber(generatedOrder);
+      }
+      if (!decisionTimestamp) {
+        const now = new Date();
+        setDecisionTimestamp(
+          now.toLocaleDateString('es-CO', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })
+        );
+      }
       if (onSuccessSubmit) {
         onSuccessSubmit(formData);
       }
@@ -866,6 +1074,9 @@ export function StandaloneClientForm({
     setFormData(createCleanFormData(activeUser || activeSession));
     setErrors({});
     setIsSubmitted(false);
+    setQuotationDecision('accepted');
+    setOrderNumber(null);
+    setDecisionTimestamp('');
     setCurrentStep(1);
   };
 
@@ -1856,16 +2067,25 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                   <button
                     type="button"
                     onClick={handleAcceptQuotation}
-                    className="flex-1 py-3.5 px-6 bg-gradient-to-r from-[#10E57A] via-[#00D2FF] to-[#0055FF] hover:brightness-110 text-white font-black text-xs sm:text-sm rounded-2xl shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                    className="flex-1 py-3.5 px-6 bg-gradient-to-r from-emerald-500 to-teal-600 hover:brightness-110 text-white font-black text-xs sm:text-sm rounded-2xl shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
                   >
                     <CheckCircle2 className="w-4.5 h-4.5 text-white" />
-                    <span>Aceptar Cotización y Generar Recibo Oficial</span>
+                    <span>Aceptar ({formatCOP(presupuesto.totalPresupuesto)})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowRejectModal(true)}
+                    className="py-3.5 px-6 bg-rose-50 hover:bg-rose-100 text-rose-700 font-black text-xs sm:text-sm rounded-2xl border-2 border-rose-300 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                  >
+                    <ThumbsDown className="w-4 h-4 text-rose-600" />
+                    <span>Rechazar</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handleModifyQuotation(2)}
-                    className="py-3.5 px-5 bg-gradient-to-r from-[#FF007A] via-[#E00096] to-[#0055FF] hover:brightness-110 text-white font-black text-xs rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-pink-500/25 active:scale-95"
+                    className="py-3.5 px-5 bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-110 text-white font-black text-xs rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-sky-500/25 active:scale-95"
                   >
                     <Edit3 className="w-4 h-4 text-white" />
                     <span>Modificar</span>
@@ -1874,19 +2094,10 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                   <button
                     type="button"
                     onClick={resetForm}
-                    className="py-3.5 px-5 bg-gradient-to-r from-[#FF5500] via-[#FF7700] to-[#FFD000] hover:brightness-110 text-slate-950 font-black text-xs rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-orange-500/25 active:scale-95"
+                    className="py-3.5 px-5 bg-white hover:bg-slate-50 text-slate-800 font-bold text-xs rounded-2xl border border-slate-200 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs active:scale-95"
                   >
-                    <Sparkles className="w-4 h-4 text-slate-950" />
+                    <Sparkles className="w-4 h-4 text-amber-500" />
                     <span>Otra cotización</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setShowRejectModal(true)}
-                    className="py-3.5 px-5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold text-xs rounded-2xl border-2 border-rose-200 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
-                  >
-                    <ThumbsDown className="w-4 h-4 text-rose-500" />
-                    <span>Rechazar Cotización</span>
                   </button>
                 </div>
               </div>
@@ -1946,6 +2157,264 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       </button>
                     </div>
                   </div>
+                </div>
+
+                {/* TARJETA OFICIAL DE SEGUIMIENTO EN VIVO: CICLO CADA 20 MINUTOS (2s Tintometría -> 20m Despachando -> 20m Entregado) */}
+                <div className="bg-white rounded-3xl p-6 sm:p-7 border-2 border-sky-300 shadow-md space-y-5 text-slate-800 animate-fadeIn">
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#003882] to-[#009FE3] text-white flex items-center justify-center font-bold shrink-0 shadow-md shadow-sky-500/20">
+                        <Truck className="w-6 h-6 text-white" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-black text-base sm:text-lg text-slate-900">
+                            Seguimiento en Vivo de su Pedido #{orderNumber}
+                          </h4>
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            ● Ciclo Activo
+                          </span>
+                          {phaseSecondsLeft > 0 && orderLifecyclePhase !== 'entregado' && (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-sky-100 text-sky-900 border border-sky-200">
+                              Próxima actualización en: <strong>{Math.floor(phaseSecondsLeft / 60)}m {String(phaseSecondsLeft % 60).padStart(2, '0')}s</strong>
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-600 mt-0.5">
+                          Actualización automática cada 20 minutos: <strong>A los 2s en Tintometría</strong> ➔ <strong>A los 20 min Despachando con mensaje</strong> ➔ <strong>A los 20 min Entregado</strong>.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap self-end lg:self-auto">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLifecycleFastDemo(prev => {
+                            const next = !prev;
+                            setPhaseSecondsLeft(next ? 20 : 1200);
+                            return next;
+                          });
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 ${
+                          lifecycleFastDemo
+                            ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-500/20'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        }`}
+                        title="Alternar entre ciclo de 20 minutos reales o 20 segundos de demostración rápida"
+                      >
+                        <Zap className={`w-3.5 h-3.5 ${lifecycleFastDemo ? 'text-amber-200 fill-amber-200' : 'text-slate-500'}`} />
+                        <span>{lifecycleFastDemo ? '⚡ Modo Rápido (20 seg)' : '⏱️ Tiempo Real (20 min)'}</span>
+                      </button>
+
+                      {orderLifecyclePhase !== 'entregado' && (
+                        <button
+                          type="button"
+                          onClick={handleAdvanceClientLifecycle}
+                          className="px-3.5 py-1.5 bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-110 text-white font-black text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                          title="Avanzar 20 minutos inmediatamente para probar la siguiente fase"
+                        >
+                          <ArrowRight className="w-3.5 h-3.5" />
+                          <span>Avanzar +20 Minutos Ahora</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* STEPPER VISUAL DE 4 ETAPAS */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                    {/* Etapa 1: Aceptado */}
+                    <div className="p-3.5 rounded-2xl border-2 bg-emerald-50/80 border-emerald-400 text-emerald-950 space-y-1 relative overflow-hidden">
+                      <div className="flex items-center justify-between">
+                        <span className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black text-xs">
+                          ✓
+                        </span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full">
+                          Completado
+                        </span>
+                      </div>
+                      <strong className="block font-black text-sm text-emerald-950 mt-1">1. Pedido Confirmado</strong>
+                      <p className="text-[11px] text-emerald-800 leading-tight">Total liquidado y orden oficial generada.</p>
+                      <span className="text-[10px] text-emerald-700 font-mono block pt-1">Pago: {formData.metodoPago || 'Bancolombia'}</span>
+                    </div>
+
+                    {/* Etapa 2: Tintometría (A los 2s) */}
+                    <div className={`p-3.5 rounded-2xl border-2 space-y-1 relative overflow-hidden transition-all ${
+                      orderLifecyclePhase === 'preparando'
+                        ? 'bg-sky-50 border-sky-500 text-sky-950 shadow-sm ring-2 ring-sky-400/20'
+                        : orderLifecyclePhase === 'en_ruta' || orderLifecyclePhase === 'entregado'
+                        ? 'bg-emerald-50/80 border-emerald-400 text-emerald-950'
+                        : 'bg-slate-50 border-slate-200 text-slate-400'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <span className={`w-6 h-6 rounded-lg flex items-center justify-center font-black text-xs ${
+                          orderLifecyclePhase === 'preparando'
+                            ? 'bg-sky-600 text-white animate-pulse'
+                            : orderLifecyclePhase === 'en_ruta' || orderLifecyclePhase === 'entregado'
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-slate-200 text-slate-600'
+                        }`}>
+                          {orderLifecyclePhase === 'en_ruta' || orderLifecyclePhase === 'entregado' ? '✓' : '2'}
+                        </span>
+                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                          orderLifecyclePhase === 'preparando'
+                            ? 'bg-sky-200 text-sky-900 font-black animate-pulse'
+                            : orderLifecyclePhase === 'en_ruta' || orderLifecyclePhase === 'entregado'
+                            ? 'bg-emerald-200 text-emerald-900 font-bold'
+                            : 'bg-slate-100 text-slate-500'
+                        }`}>
+                          {orderLifecyclePhase === 'preparando' ? '● En Proceso' : orderLifecyclePhase === 'en_ruta' || orderLifecyclePhase === 'entregado' ? 'Completado' : 'Espera (2s)'}
+                        </span>
+                      </div>
+                      <strong className="block font-black text-sm text-slate-900 mt-1">2. En Tintometría</strong>
+                      <p className="text-[11px] text-slate-600 leading-tight">A los 2s: Formulación computarizada de color.</p>
+                      <span className="text-[10px] text-sky-700 font-bold block pt-1 truncate">{formData.colorAcabado || 'Color Específico'}</span>
+                    </div>
+
+                    {/* Etapa 3: Despachando (A los 20 min) */}
+                    <div className={`p-3.5 rounded-2xl border-2 space-y-1 relative overflow-hidden transition-all ${
+                      orderLifecyclePhase === 'en_ruta'
+                        ? 'bg-purple-50 border-purple-500 text-purple-950 shadow-sm ring-2 ring-purple-400/20'
+                        : orderLifecyclePhase === 'entregado'
+                        ? 'bg-emerald-50/80 border-emerald-400 text-emerald-950'
+                        : 'bg-slate-50 border-slate-200 text-slate-400'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <span className={`w-6 h-6 rounded-lg flex items-center justify-center font-black text-xs ${
+                          orderLifecyclePhase === 'en_ruta'
+                            ? 'bg-purple-600 text-white animate-pulse'
+                            : orderLifecyclePhase === 'entregado'
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-slate-200 text-slate-600'
+                        }`}>
+                          {orderLifecyclePhase === 'entregado' ? '✓' : '3'}
+                        </span>
+                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                          orderLifecyclePhase === 'en_ruta'
+                            ? 'bg-purple-200 text-purple-900 font-black animate-pulse'
+                            : orderLifecyclePhase === 'entregado'
+                            ? 'bg-emerald-200 text-emerald-900 font-bold'
+                            : 'bg-slate-100 text-slate-500'
+                        }`}>
+                          {orderLifecyclePhase === 'en_ruta' ? '● Despachando' : orderLifecyclePhase === 'entregado' ? 'Completado' : 'Espera (20 min)'}
+                        </span>
+                      </div>
+                      <strong className="block font-black text-sm text-slate-900 mt-1">3. Despachando en Ruta</strong>
+                      <p className="text-[11px] text-slate-600 leading-tight">A los 20 min: Mensaje de salida y vehículo asignado.</p>
+                      <span className="text-[10px] text-purple-700 font-bold block pt-1">Unidad Turbo NHR (TZW-402)</span>
+                    </div>
+
+                    {/* Etapa 4: Entregado (A los 20 min) */}
+                    <div className={`p-3.5 rounded-2xl border-2 space-y-1 relative overflow-hidden transition-all ${
+                      orderLifecyclePhase === 'entregado'
+                        ? 'bg-emerald-50 border-emerald-500 text-emerald-950 shadow-sm ring-2 ring-emerald-400/20'
+                        : 'bg-slate-50 border-slate-200 text-slate-400'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <span className={`w-6 h-6 rounded-lg flex items-center justify-center font-black text-xs ${
+                          orderLifecyclePhase === 'entregado' ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'
+                        }`}>
+                          {orderLifecyclePhase === 'entregado' ? '✓' : '4'}
+                        </span>
+                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                          orderLifecyclePhase === 'entregado' ? 'bg-emerald-200 text-emerald-900 font-black' : 'bg-slate-100 text-slate-500'
+                        }`}>
+                          {orderLifecyclePhase === 'entregado' ? '● Entregado' : 'Espera (20 min)'}
+                        </span>
+                      </div>
+                      <strong className="block font-black text-sm text-slate-900 mt-1">4. Entregado en Obra</strong>
+                      <p className="text-[11px] text-slate-600 leading-tight">A los 20 min: Remisión física y garantía NTC 1335.</p>
+                      <span className="text-[10px] text-emerald-700 font-bold block pt-1">Entrega satisfactoria</span>
+                    </div>
+                  </div>
+
+                  {/* MENSAJE VIVO DE ESTADO CON EL REQUERIMIENTO DEL USUARIO */}
+                  <div className={`p-4 rounded-2xl border-2 text-xs transition-all space-y-1.5 ${
+                    orderLifecyclePhase === 'en_ruta'
+                      ? 'bg-gradient-to-r from-purple-50 via-sky-50 to-blue-50 border-purple-300 text-purple-950 shadow-xs'
+                      : orderLifecyclePhase === 'preparando'
+                      ? 'bg-gradient-to-r from-sky-50 to-blue-50 border-sky-300 text-sky-950'
+                      : orderLifecyclePhase === 'entregado'
+                      ? 'bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-300 text-emerald-950'
+                      : 'bg-amber-50 border-amber-300 text-amber-950'
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">
+                        {orderLifecyclePhase === 'en_ruta' ? '🚚' : orderLifecyclePhase === 'preparando' ? '🎨' : orderLifecyclePhase === 'entregado' ? '✅' : '⏳'}
+                      </span>
+                      <strong className="font-black text-sm">
+                        {orderLifecyclePhase === 'en_ruta'
+                          ? '¡Se está Despachando tu Pedido Colorlink®!'
+                          : orderLifecyclePhase === 'preparando'
+                          ? 'Tu Pedido ha Ingresado al Laboratorio de Tintometría (A los 2s)'
+                          : orderLifecyclePhase === 'entregado'
+                          ? '¡Tu Pedido ha sido Entregado con Éxito en Obra!'
+                          : 'Procesando confirmación del pedido...'}
+                      </strong>
+                    </div>
+
+                    <p className="leading-relaxed text-[13px] font-medium pl-6">
+                      {orderLifecyclePhase === 'en_ruta' && (
+                        <span>
+                          Tu pedido <strong>#{orderNumber}</strong> se está despachando en este momento hacia la obra en <strong>{formData.ciudad}</strong> ({formData.direccionEntrega || 'Dirección de obra'}). Asignado a <strong>Camión Turbo NHR 4.5 Ton Colorlink (Placa TZW-402)</strong> conducido por <strong>Carlos Restrepo</strong>. Se ha enviado notificación formal a <strong>{formData.emailResponsable}</strong>.
+                        </span>
+                      )}
+                      {orderLifecyclePhase === 'preparando' && (
+                        <span>
+                          A los 2 segundos de tu aprobación, tu orden <strong>#{orderNumber}</strong> ingresó al laboratorio central de tintometría Colorlink®. Se están calibrando los pigmentos para dosificar el acabado <strong>"{formData.colorAcabado}"</strong> con base <strong>{formData.tipoPintura}</strong>. En 20 minutos se notificará el despacho hacia tu obra.
+                        </span>
+                      )}
+                      {orderLifecyclePhase === 'entregado' && (
+                        <span>
+                          El conductor <strong>Carlos Restrepo</strong> ha completado la entrega de tu pedido <strong>#{orderNumber}</strong> en tu obra en <strong>{formData.ciudad}</strong>. Se ha entregado la remisión física y el certificado de garantía técnica NTC 1335.
+                        </span>
+                      )}
+                      {orderLifecyclePhase === 'aceptado' && (
+                        <span>
+                          Orden <strong>#{orderNumber}</strong> registrada. Entrando a tintometría para formulación del color en <strong>{phaseSecondsLeft} segundos</strong>...
+                        </span>
+                      )}
+                    </p>
+                  </div>
+
+                  {/* HISTORIAL DE MENSAJES Y NOTIFICACIONES ENVIADAS */}
+                  {phaseNotificationLogs.length > 0 && (
+                    <div className="space-y-2 pt-2 border-t border-slate-100">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                          <Mail className="w-3.5 h-3.5 text-sky-600" />
+                          <span>Mensajes Transaccionales Enviados ({phaseNotificationLogs.length})</span>
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-mono">
+                          Destinatario: {formData.emailResponsable}
+                        </span>
+                      </div>
+
+                      <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                        {phaseNotificationLogs.map((log, idx) => (
+                          <div
+                            key={idx}
+                            className="p-3 rounded-xl bg-slate-50 border border-slate-200/90 text-xs text-slate-800 space-y-1"
+                          >
+                            <div className="flex items-center justify-between">
+                              <strong className="text-slate-900 font-bold text-xs">{log.titulo}</strong>
+                              <span className="text-[10px] text-slate-500 font-mono">{log.hora}</span>
+                            </div>
+                            <p className="text-[11px] text-slate-600 leading-relaxed">{log.mensaje}</p>
+                            {log.vehiculo && (
+                              <div className="flex items-center gap-2 text-[10px] font-semibold text-purple-700 pt-0.5">
+                                <span>Vehículo: {log.vehiculo}</span>
+                                <span>•</span>
+                                <span>Placa: {log.placa}</span>
+                                <span>•</span>
+                                <span>Conductor: {log.conductor}</span>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* TARJETA DE CONFIRMACIÓN DE ENVÍO DE CORREO, RECIBO & DETALLES DEL FURGÓN */}
@@ -2118,32 +2587,11 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
             )}
           </div>
 
-          {quotationDecision === 'rejected' && (
-            <div className="no-print bg-white rounded-3xl p-6 border border-slate-200 shadow-xs text-center space-y-3">
-              <div className="w-12 h-12 mx-auto rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
-                <FileText className="w-6 h-6 text-amber-600" />
-              </div>
-              <h4 className="text-sm font-black text-slate-900">Cotización Puesta en Espera / Modificación</h4>
-              <p className="text-xs text-slate-600 max-w-md mx-auto">
-                Has pausado esta cotización para ajustar requerimientos. Puedes reactivarla cuando desees.
-              </p>
-              <button
-                type="button"
-                onClick={() => setQuotationDecision('accepted')}
-                className="px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
-              >
-                Reactivar y Ver Recibo Oficial
-              </button>
-            </div>
-          )}
-
-          {quotationDecision !== 'rejected' && (
-            <>
-              {/* DOCUMENTO OFICIAL BLANCO CON MANCHAS DE COLORES ESTILO COLORLINK */}
-              <div
-                id="colorlink-official-quote-sheet"
-                className="print-only-container bg-white rounded-3xl border border-slate-200 shadow-md p-6 sm:p-10 text-slate-900 space-y-8 relative overflow-hidden"
-              >
+          {/* DOCUMENTO OFICIAL BLANCO CON MANCHAS DE COLORES ESTILO COLORLINK */}
+          <div
+            id="colorlink-official-quote-sheet"
+            className="print-only-container bg-white rounded-3xl border border-slate-200 shadow-md p-6 sm:p-10 text-slate-900 space-y-8 relative overflow-hidden"
+          >
             {/* Manchas de Pintura Orgánicas Colorlink de Fondo */}
             <ColorlinkPaintSplashes className="absolute inset-0 z-0" />
 
@@ -2190,6 +2638,116 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
 
                 {/* Barra de Colores Colorlink (Arcoíris Vibrante) */}
                 <ColorlinkRainbowBar className="h-2.5 my-2" />
+              </div>
+
+              {/* BANNER OFICIAL DE CONFORMIDAD DEL CLIENTE: ACEPTA O RECHAZA EL TOTAL */}
+              <div className="rounded-2xl overflow-hidden shadow-xs">
+                {quotationDecision === 'accepted' ? (
+                  <div className="p-4 sm:p-5 rounded-2xl bg-emerald-50/90 border-2 border-emerald-400 text-emerald-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black shrink-0 shadow-xs">
+                        <CheckCheck className="w-6 h-6 text-white" />
+                      </div>
+                      <div className="space-y-0.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-200 text-emerald-900 px-2.5 py-0.5 rounded-full border border-emerald-300">
+                            ✓ Estado de la Factura: Total Aceptado y Aprobado
+                          </span>
+                          <span className="text-xs text-emerald-800 font-mono font-bold">
+                            Orden Oficial: #{orderNumber}
+                          </span>
+                        </div>
+                        <h4 className="text-sm sm:text-base font-black text-emerald-950">
+                          El cliente ha ACEPTADO el valor total liquidado de {formatCOP(presupuesto.totalPresupuesto)} COP
+                        </h4>
+                        <p className="text-xs text-emerald-800">
+                          Autorizado por: <strong>{formData.responsable || formData.cliente}</strong> (NIT: {formData.nitDocumento}) • Registrado: {decisionTimestamp} • Método de Pago: <strong className="capitalize">{formData.metodoPago || 'Bancolombia'}</strong>
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 self-end sm:self-auto shrink-0 no-print">
+                      <span className="px-3 py-1.5 bg-emerald-600 text-white text-xs font-black rounded-xl shadow-xs flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4" /> Aprobado
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setQuotationDecision('pending')}
+                        className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 transition-all cursor-pointer"
+                        title="Reevaluar decisión sobre la cotización"
+                      >
+                        Reevaluar
+                      </button>
+                    </div>
+                  </div>
+                ) : quotationDecision === 'rejected' ? (
+                  <div className="p-4 sm:p-5 rounded-2xl bg-rose-50/90 border-2 border-rose-400 text-rose-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-xl bg-rose-600 text-white flex items-center justify-center font-black shrink-0 shadow-xs">
+                        <XCircle className="w-6 h-6 text-white" />
+                      </div>
+                      <div className="space-y-0.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-[10px] font-black uppercase tracking-wider bg-rose-200 text-rose-900 px-2.5 py-0.5 rounded-full border border-rose-300">
+                            ✕ Estado de la Factura: Total Rechazado por el Cliente
+                          </span>
+                          <span className="text-xs text-rose-700 font-mono">
+                            Fecha: {decisionTimestamp}
+                          </span>
+                        </div>
+                        <h4 className="text-sm sm:text-base font-black text-rose-950">
+                          El cliente ha RECHAZADO el valor total cotizado de {formatCOP(presupuesto.totalPresupuesto)} COP
+                        </h4>
+                        <p className="text-xs text-rose-800">
+                          Motivo de rechazo: <strong>{rejectionReason || 'No especificado'}</strong> {rejectionNotes ? `("${rejectionNotes}")` : ''}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 self-end sm:self-auto shrink-0 no-print">
+                      <button
+                        type="button"
+                        onClick={handleAcceptQuotation}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+                      >
+                        <CheckCheck className="w-4 h-4" /> Cambiar a Aceptado
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 sm:p-5 rounded-2xl bg-amber-50/90 border-2 border-amber-400 text-amber-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-xl bg-amber-500 text-white flex items-center justify-center font-black shrink-0 shadow-xs">
+                        <Clock className="w-6 h-6 text-white" />
+                      </div>
+                      <div className="space-y-0.5">
+                        <span className="text-[10px] font-black uppercase tracking-wider bg-amber-200 text-amber-900 px-2.5 py-0.5 rounded-full border border-amber-300 inline-block mb-0.5">
+                          ⏳ Decisión Requerida: Confirmación de Total
+                        </span>
+                        <h4 className="text-sm sm:text-base font-black text-amber-950">
+                          ¿El cliente acepta o rechaza el valor total liquidado de {formatCOP(presupuesto.totalPresupuesto)} COP?
+                        </h4>
+                        <p className="text-xs text-amber-800">
+                          Seleccione a continuación para que la factura refleje la decisión formal del cliente.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 self-end sm:self-auto shrink-0 no-print">
+                      <button
+                        type="button"
+                        onClick={handleAcceptQuotation}
+                        className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
+                      >
+                        <CheckCheck className="w-4 h-4" /> Aceptar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowRejectModal(true)}
+                        className="px-3.5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-black rounded-xl border border-rose-300 transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
+                      >
+                        <ThumbsDown className="w-4 h-4 text-rose-600" /> Rechazar
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* DATOS DEL CLIENTE Y UBICACIÓN DE OBRA */}
@@ -2380,6 +2938,81 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                           {formatCOP(presupuesto.totalPresupuesto)}
                         </span>
                       </div>
+
+                      {/* SELLO OFICIAL DE CONFORMIDAD DEL TOTAL */}
+                      <div className={`mt-3 p-3 rounded-2xl border text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 ${
+                        quotationDecision === 'accepted'
+                          ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                          : quotationDecision === 'rejected'
+                          ? 'bg-rose-50 border-rose-300 text-rose-900'
+                          : 'bg-amber-50 border-amber-300 text-amber-900'
+                      }`}>
+                        <div className="flex items-center gap-2">
+                          {quotationDecision === 'accepted' ? (
+                            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                          ) : quotationDecision === 'rejected' ? (
+                            <XCircle className="w-5 h-5 text-rose-600 shrink-0" />
+                          ) : (
+                            <Clock className="w-5 h-5 text-amber-600 shrink-0" />
+                          )}
+                          <div>
+                            <span className="font-black block uppercase text-[11px] tracking-tight">
+                              {quotationDecision === 'accepted' && '✓ TOTAL ACEPTADO Y APROBADO POR EL CLIENTE'}
+                              {quotationDecision === 'rejected' && '✕ TOTAL RECHAZADO POR EL CLIENTE'}
+                              {quotationDecision === 'pending' && '⏳ TOTAL PENDIENTE DE ACEPTACIÓN'}
+                            </span>
+                            <span className="text-[10px] text-slate-600 block">
+                              {quotationDecision === 'accepted' && `Orden #${orderNumber} • ${decisionTimestamp} • ${formData.responsable || formData.cliente}`}
+                              {quotationDecision === 'rejected' && `Motivo: ${rejectionReason || 'No aceptado'} • ${decisionTimestamp}`}
+                              {quotationDecision === 'pending' && `Monto: ${formatCOP(presupuesto.totalPresupuesto)} COP • Sujeto a confirmación`}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Botones de acción rápida si está en pantalla */}
+                        <div className="no-print flex items-center gap-1.5 self-end sm:self-auto shrink-0">
+                          {quotationDecision === 'pending' && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={handleAcceptQuotation}
+                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1 shadow-2xs active:scale-95"
+                                title="Aceptar formalmente este valor total"
+                              >
+                                <Check className="w-3.5 h-3.5" /> Aceptar Total
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setShowRejectModal(true)}
+                                className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1 shadow-2xs active:scale-95"
+                                title="Rechazar este valor total"
+                              >
+                                <X className="w-3.5 h-3.5 text-rose-500" /> Rechazar Total
+                              </button>
+                            </>
+                          )}
+                          {quotationDecision === 'accepted' && (
+                            <button
+                              type="button"
+                              onClick={() => setQuotationDecision('pending')}
+                              className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-bold text-[11px] rounded-lg transition-colors cursor-pointer"
+                              title="Reevaluar decisión sobre el total"
+                            >
+                              Reevaluar
+                            </button>
+                          )}
+                          {quotationDecision === 'rejected' && (
+                            <button
+                              type="button"
+                              onClick={() => setQuotationDecision('pending')}
+                              className="px-2.5 py-1 bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-300 font-bold text-[11px] rounded-lg transition-colors cursor-pointer"
+                              title="Volver a evaluar la cotización"
+                            >
+                              Reactivar
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2467,9 +3100,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
               </button>
             </div>
           </div>
-        </>
-      )}
-    </div>
+        </div>
   ) : (
         /* VISTA B: FORMULARIO DE CAPTURA PASO A PASO (LIMPIO, SIN PRECIOS PREMATUROS) */
         <div className="space-y-8">
@@ -2576,16 +3207,16 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                   },
                   {
                     step: 2,
-                    title: '2. Parámetros Técnicos',
-                    desc: 'Sustrato, Pintura y Color',
+                    title: '2. Parámetros & Pago',
+                    desc: 'Pintura, Accesorios y Pago',
                     icon: Sparkles,
                     activeBorder: 'border-[#00D2FF] ring-2 ring-[#00D2FF]/30 bg-sky-50/70',
                     activeIcon: 'bg-gradient-to-tr from-[#0055FF] via-[#0099FF] to-[#00D2FF] text-white shadow-md shadow-blue-500/30'
                   },
                   {
                     step: 3,
-                    title: '3. Diagnóstico & Envío',
-                    desc: 'Evidencias y Confirmación',
+                    title: '3. Diagnóstico IA & Decisión',
+                    desc: 'Auditoría IA y Decisión del Total',
                     icon: FileCheck,
                     activeBorder: 'border-[#10E57A] ring-2 ring-[#10E57A]/30 bg-emerald-50/70',
                     activeIcon: 'bg-gradient-to-tr from-[#10E57A] via-[#00D2FF] to-[#FF007A] text-white shadow-md shadow-emerald-500/30'
@@ -3571,6 +4202,165 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       />
                     </div>
 
+                    {/* Forma / Método de Pago Oficial (Previo al Diagnóstico con IA) */}
+                    <div className="pt-5 border-t border-slate-100 space-y-3.5">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <CreditCard className="w-4 h-4 text-sky-600" />
+                            <h4 className="text-sm font-black text-slate-900">
+                              Forma de Pago del Pedido
+                            </h4>
+                          </div>
+                          <p className="text-xs text-slate-500">
+                            Define tu método de pago antes del diagnóstico de la IA. No se cobra nada en este paso.
+                          </p>
+                        </div>
+                        <span className="text-[10px] font-bold text-sky-700 bg-sky-50 px-2.5 py-0.5 rounded-full border border-sky-200 w-fit">
+                          Paso previo a la auditoría IA
+                        </span>
+                      </div>
+
+                      {/* 6 Opciones de Métodos de Pago */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                        {/* 1. Bancolombia Transferencia / QR */}
+                        <div
+                          onClick={() => handleInputChange('metodoPago', 'bancolombia')}
+                          className={`p-3 rounded-2xl border-2 cursor-pointer transition-all ${
+                            (formData.metodoPago || 'bancolombia') === 'bancolombia'
+                              ? 'border-yellow-500 bg-yellow-50/60 shadow-xs ring-2 ring-yellow-400/20'
+                              : 'border-slate-200 hover:border-slate-300 bg-white'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-black text-xs text-slate-900">Bancolombia / QR</span>
+                            <span className="text-[9px] font-bold bg-yellow-500 text-slate-900 px-1.5 py-0.5 rounded">
+                              Sin comisión
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-600 leading-snug">
+                            Transferencia a Cuenta de Ahorros o QR oficial Colorlink.
+                          </p>
+                        </div>
+
+                        {/* 2. PSE Débito en Línea */}
+                        <div
+                          onClick={() => handleInputChange('metodoPago', 'pse')}
+                          className={`p-3 rounded-2xl border-2 cursor-pointer transition-all ${
+                            formData.metodoPago === 'pse'
+                              ? 'border-[#009FE3] bg-sky-50/60 shadow-xs ring-2 ring-[#009FE3]/20'
+                              : 'border-slate-200 hover:border-slate-300 bg-white'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-black text-xs text-slate-900">PSE Débito en Línea</span>
+                            <span className="text-[9px] font-bold bg-[#009FE3] text-white px-1.5 py-0.5 rounded">
+                              Todos los bancos
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-600 leading-snug">
+                            Débito bancario desde cuenta de ahorros o corriente.
+                          </p>
+                        </div>
+
+                        {/* 3. Nequi / Daviplata */}
+                        <div
+                          onClick={() => handleInputChange('metodoPago', 'nequi')}
+                          className={`p-3 rounded-2xl border-2 cursor-pointer transition-all ${
+                            formData.metodoPago === 'nequi'
+                              ? 'border-sky-600 bg-sky-50/60 shadow-xs ring-2 ring-sky-500/20'
+                              : 'border-slate-200 hover:border-slate-300 bg-white'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-black text-xs text-slate-900">Nequi / Daviplata</span>
+                            <span className="text-[9px] font-bold bg-sky-600 text-white px-1.5 py-0.5 rounded">
+                              Al instante
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-600 leading-snug">
+                            Envío rápido a la línea corporativa desde tu app móvil.
+                          </p>
+                        </div>
+
+                        {/* 4. Contra Entrega en Obra */}
+                        <div
+                          onClick={() => handleInputChange('metodoPago', 'contraentrega')}
+                          className={`p-3 rounded-2xl border-2 cursor-pointer transition-all ${
+                            formData.metodoPago === 'contraentrega'
+                              ? 'border-emerald-600 bg-emerald-50/60 shadow-xs ring-2 ring-emerald-500/20'
+                              : 'border-slate-200 hover:border-slate-300 bg-white'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-black text-xs text-slate-900">Contra Entrega en Obra</span>
+                            <span className="text-[9px] font-bold bg-emerald-600 text-white px-1.5 py-0.5 rounded">
+                              En sitio
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-600 leading-snug">
+                            Paga en efectivo o datáfono móvil al recibir el pedido.
+                          </p>
+                        </div>
+
+                        {/* 5. Crédito Corporativo 30 Días */}
+                        <div
+                          onClick={() => handleInputChange('metodoPago', 'credito')}
+                          className={`p-3 rounded-2xl border-2 cursor-pointer transition-all ${
+                            formData.metodoPago === 'credito'
+                              ? 'border-purple-600 bg-purple-50/60 shadow-xs ring-2 ring-purple-500/20'
+                              : 'border-slate-200 hover:border-slate-300 bg-white'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-black text-xs text-slate-900">Crédito 30 Días (NIT)</span>
+                            <span className="text-[9px] font-bold bg-purple-600 text-white px-1.5 py-0.5 rounded">
+                              Empresas
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-600 leading-snug">
+                            Facturación electrónica con plazo de 30 días para empresas.
+                          </p>
+                        </div>
+
+                        {/* 6. Tarjeta de Crédito / Débito */}
+                        <div
+                          onClick={() => handleInputChange('metodoPago', 'tarjeta')}
+                          className={`p-3 rounded-2xl border-2 cursor-pointer transition-all ${
+                            formData.metodoPago === 'tarjeta'
+                              ? 'border-indigo-600 bg-indigo-50/60 shadow-xs ring-2 ring-indigo-500/20'
+                              : 'border-slate-200 hover:border-slate-300 bg-white'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-black text-xs text-slate-900">Tarjeta Débito / Crédito</span>
+                            <span className="text-[9px] font-bold bg-indigo-600 text-white px-1.5 py-0.5 rounded">
+                              En línea
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-600 leading-snug">
+                            Procesamiento seguro para tarjetas Visa o Mastercard.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Tarjeta de Resumen Preliminar antes de pasar a la IA */}
+                      <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span className="text-slate-700">
+                            Método de pago seleccionado: <strong className="capitalize text-slate-900">{formData.metodoPago || 'Bancolombia'}</strong>
+                          </span>
+                        </div>
+                        <div className="text-left sm:text-right">
+                          <span className="text-[10px] text-slate-500 block">Total Estimado de la Orden:</span>
+                          <strong className="text-sm font-black bg-gradient-to-r from-sky-600 to-blue-700 bg-clip-text text-transparent font-mono">
+                            {formatCOP(technicalCalc.presupuesto.totalPresupuesto)} COP
+                          </strong>
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="flex items-center justify-between pt-4 border-t border-slate-100">
                       <button
                         type="button"
@@ -3707,6 +4497,21 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                             Color: {formData.colorAcabado || 'Blanco Puro'}
                           </span>
                         </div>
+
+                        <div className="p-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xs space-y-1">
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Forma de Pago Auditada</span>
+                          <strong className="text-emerald-300 block text-xs capitalize truncate">
+                            {formData.metodoPago === 'bancolombia' ? 'Bancolombia / QR' :
+                             formData.metodoPago === 'pse' ? 'PSE Débito Seguro' :
+                             formData.metodoPago === 'nequi' ? 'Nequi / Daviplata' :
+                             formData.metodoPago === 'contraentrega' ? 'Contra Entrega en Obra' :
+                             formData.metodoPago === 'credito' ? 'Crédito 30 Días (NIT)' :
+                             formData.metodoPago === 'tarjeta' ? 'Tarjeta Débito / Crédito' : 'Bancolombia / QR'}
+                          </strong>
+                          <span className="text-[10px] text-slate-300 block">
+                            Auditada por la IA previo a la emisión
+                          </span>
+                        </div>
                       </div>
                     </div>
 
@@ -3769,16 +4574,16 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         className="hidden"
                       />
 
-                      <div className="border-2 border-dashed border-slate-300 hover:border-purple-500 rounded-3xl p-5 text-center bg-slate-50/60 hover:bg-purple-50/20 transition-all">
+                      <div className="border-2 border-dashed border-sky-300 hover:border-sky-500 rounded-3xl p-6 text-center bg-sky-50/40 hover:bg-sky-50/70 transition-all">
                         <div className="max-w-lg mx-auto space-y-3">
-                          <div className="w-12 h-12 rounded-2xl bg-purple-100 text-purple-700 mx-auto flex items-center justify-center font-bold">
-                            <Upload className="w-6 h-6 text-purple-600" />
+                          <div className="w-12 h-12 rounded-2xl bg-sky-100 text-sky-700 mx-auto flex items-center justify-center font-bold shadow-xs">
+                            <Upload className="w-6 h-6 text-sky-600" />
                           </div>
                           <div>
-                            <p className="text-xs font-black text-slate-800">
+                            <p className="text-xs font-black text-slate-900">
                               Adjuntar Registro Fotográfico de la Superficie u Obra
                             </p>
-                            <p className="text-[11px] text-slate-500 mt-0.5">
+                            <p className="text-[11px] text-slate-600 mt-0.5">
                               Puedes subir fotos desde tu dispositivo, tomar fotos con la cámara o usar la foto técnica de muestra.
                             </p>
                           </div>
@@ -3788,9 +4593,9 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                             <button
                               type="button"
                               onClick={() => fileInputRef.current?.click()}
-                              className="px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-800 font-bold text-xs rounded-xl border border-slate-300 shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                              className="px-4 py-2.5 bg-white hover:bg-sky-50 text-slate-800 font-bold text-xs rounded-xl border border-sky-200 shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
                             >
-                              <Upload className="w-3.5 h-3.5 text-purple-600" />
+                              <Upload className="w-3.5 h-3.5 text-sky-600" />
                               <span>📁 Subir desde el Computador</span>
                             </button>
 
@@ -3798,7 +4603,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                             <button
                               type="button"
                               onClick={handleStartLiveCamera}
-                              className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                              className="px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
                             >
                               <Camera className="w-3.5 h-3.5 text-white" />
                               <span>📷 Tomar Foto con Cámara</span>
@@ -3815,7 +4620,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                               <span>✨ Usar Foto Técnica de Muestra</span>
                             </button>
                           </div>
-                          <p className="text-[11px] text-emerald-700 font-semibold flex items-center justify-center gap-1 mt-1">
+                          <p className="text-[11px] text-emerald-800 font-semibold flex items-center justify-center gap-1 mt-1">
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                             <span>Cualquier foto subida es revisada y validada automáticamente por IA para verificar compatibilidad de pintura</span>
                           </p>
@@ -3924,7 +4729,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         className="px-8 py-3.5 bg-gradient-to-r from-[#FF5500] via-[#FF007A] to-[#0055FF] hover:brightness-110 text-white font-black text-sm rounded-2xl shadow-xl shadow-orange-500/30 glow-orange transition-all flex items-center gap-2.5 active:scale-95 cursor-pointer"
                       >
                         <Send className="w-4 h-4" />
-                        <span>Emitir Cotización Oficial y Programar Despacho</span>
+                        <span>Emitir Cotización y Ver Factura para Decidir</span>
                       </button>
                     </div>
                   </div>

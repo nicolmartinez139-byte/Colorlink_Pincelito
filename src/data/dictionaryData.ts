@@ -47,14 +47,14 @@ export const FORM_SPECIFICATION: FormFieldSpec[] = [
   {
     id: 'id-4',
     module: 'Identificación',
-    name: 'Teléfono / WhatsApp de Contacto',
+    name: 'Teléfono de Contacto',
     technicalKey: 'telefono_contacto',
     dataType: 'Texto / Teléfono (String)',
     sqlType: 'VARCHAR(25)',
     required: true,
     validation: 'Formato numérico internacional E.164 o nacional (ej: +57 300 123 4567, 10 a 15 dígitos).',
-    businessRule: 'Canal prioritario para confirmación de entrega en obra y envío de cotización en PDF.',
-    automationRole: 'Enrutamiento del webhook a la pasarela de WhatsApp Business y SMS de confirmación logística.',
+    businessRule: 'Canal prioritario para confirmación de entrega en obra y coordinación telefónica.',
+    automationRole: 'Enrutamiento de alertas y llamadas de confirmación logística.',
     placeholder: 'Ej. +57 312 456 7890',
     exampleValue: '+57 312 456 7890'
   },

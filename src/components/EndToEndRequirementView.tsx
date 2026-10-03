@@ -58,7 +58,7 @@ export function EndToEndRequirementView({ onOpenClientForm }: EndToEndRequiremen
       icon: Camera,
       badge: 'Entrada',
       category: 'Entrada y Validación',
-      responsible: 'Formulario Web / WhatsApp',
+      responsible: 'Portal Web Oficial Colorlink',
       execTime: '0.4s',
       detailData: {
         cliente: 'Constructora Horizonte S.A.S.',
@@ -252,13 +252,13 @@ export function EndToEndRequirementView({ onOpenClientForm }: EndToEndRequiremen
       icon: MessageSquare,
       badge: 'Mensajería',
       category: 'Servicio & Campo',
-      responsible: 'Bot Transaccional WhatsApp & Email',
+      responsible: 'Servicio Transaccional Email Oficial',
       execTime: '0.6s',
       detailData: {
-        mensajeWhatsApp: 'Enviado al +57 312 845 6721: "Hola Valentina, tu cotización #COT-2026-CLK está lista con precio oficial de $1.000.790 COP."',
+        mensajeEmail: 'Enviado a vgomez@constructorahorizonte.com.co con notificación formal de cotización #COT-2026-CLK lista por $1.000.790 COP.',
         correoTransaccional: 'Enviado a vgomez@constructorahorizonte.com.co con PDF adjunto y ficha técnica.',
         linkTracking: 'https://colorlink.com.co/seguimiento/COT-2026-CLK-9082',
-        estadoNotificacion: 'ENTREGADO Y LEÍDO (Check azul confirmado)'
+        estadoNotificacion: 'ENTREGADO Y CONFIRMADO EN BANDEJA'
       }
     },
     {
@@ -361,7 +361,7 @@ export function EndToEndRequirementView({ onOpenClientForm }: EndToEndRequiremen
 9. Human-in-the-Loop: Aprobado por Ing. Carlos Restrepo.
 10. Logística: Despacho programado con flota propia Medellín.
 11. Servicio: Visita de asesor técnico agendada en obra.
-12. Comunicación: Notificación enviada a WhatsApp y Email.
+12. Comunicación: Notificación formal enviada por Correo Electrónico.
 13. Aplicación: Bitácora de aplicación y consumo real registrado.
 14. Calidad: Garantía de fábrica Colorlink 5 Años emitida.
 15. Analítica: Tiempo de ciclo reducido a 3.8 minutos.`;

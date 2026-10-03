@@ -283,22 +283,22 @@ export function ImageDiagnosisWidget({
 
   return (
     <div className="bg-white rounded-3xl border border-sky-200 shadow-xl overflow-hidden animate-fadeIn">
-      {/* HEADER DEL DIAGNÓSTICO IA */}
-      <div className="bg-gradient-to-r from-sky-500 via-sky-600 to-blue-700 text-white p-4 sm:p-5 flex items-center justify-between">
+      {/* HEADER DEL DIAGNÓSTICO IA CON COLORES CLAROS Y LUMINOSOS */}
+      <div className="bg-gradient-to-r from-sky-50 via-white to-blue-50 border-b border-sky-100 p-4 sm:p-5 flex items-center justify-between text-slate-900">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center text-amber-300 shadow-inner">
+          <div className="w-10 h-10 rounded-2xl bg-sky-100 text-sky-700 flex items-center justify-center font-bold shadow-xs">
             <Camera className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="font-extrabold text-sm sm:text-base tracking-tight text-white">
+              <h3 className="font-extrabold text-sm sm:text-base tracking-tight text-slate-900">
                 Diagnóstico de Imágenes con IA Colorlink®
               </h3>
-              <span className="px-2 py-0.5 bg-sky-300 text-slate-900 text-[10px] font-black rounded-md uppercase">
+              <span className="px-2 py-0.5 bg-sky-100 text-sky-800 border border-sky-200 text-[10px] font-black rounded-md uppercase">
                 Visión Artificial
               </span>
             </div>
-            <p className="text-xs text-sky-100">
+            <p className="text-xs text-slate-600">
               Analiza tu foto para detectar patologías, sustrato y el Tipo de Pintura requerido (Tipo 1, 2 o 3).
             </p>
           </div>
@@ -308,7 +308,7 @@ export function ImageDiagnosisWidget({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-xl text-sky-200 hover:text-white hover:bg-white/10 transition-colors"
+            className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -481,48 +481,48 @@ export function ImageDiagnosisWidget({
                   </span>
                 </div>
 
-                {/* Tarjeta Principal de Clasificación */}
-                <div className="p-5 rounded-3xl bg-gradient-to-br from-[#009FE3] via-blue-600 to-[#6A0DAD] text-white shadow-md relative overflow-hidden">
+                {/* Tarjeta Principal de Clasificación con Colores Claros y Límpidos */}
+                <div className="p-5 rounded-3xl bg-gradient-to-br from-sky-50 via-white to-blue-50/70 border-2 border-sky-300 text-slate-900 shadow-xs relative overflow-hidden">
                   <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div>
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="px-2.5 py-0.5 bg-blue-500 text-white text-[10px] font-black rounded-md">
+                        <span className="px-2.5 py-0.5 bg-sky-600 text-white text-[10px] font-black rounded-md shadow-2xs">
                           RECOMENDACIÓN QUÍMICA
                         </span>
-                        <span className="text-xs text-slate-300">
-                          Norma NTC 1335
+                        <span className="text-xs text-slate-600 font-semibold">
+                          Norma Técnica NTC 1335
                         </span>
                       </div>
-                      <h4 className="text-xl font-black text-white">
-                        Pintura Requerida: <span className="text-amber-300">{activeDiagnosis.tipoPinturaRecomendado}</span>
+                      <h4 className="text-xl font-black text-slate-950">
+                        Pintura Requerida: <span className="text-sky-700">{activeDiagnosis.tipoPinturaRecomendado}</span>
                       </h4>
-                      <p className="text-xs text-slate-300 mt-0.5">
+                      <p className="text-xs text-slate-700 font-medium mt-0.5">
                         {activeDiagnosis.productoRecomendado}
                       </p>
                     </div>
 
-                    <div className="bg-white/10 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/15 text-right shrink-0">
-                      <span className="text-[10px] text-slate-400 block uppercase tracking-wider">Severidad</span>
+                    <div className="bg-white px-4 py-2 rounded-2xl border border-sky-200 text-right shrink-0 shadow-2xs">
+                      <span className="text-[10px] text-slate-500 block uppercase tracking-wider font-bold">Severidad</span>
                       <span className={`text-xs font-black ${
-                        activeDiagnosis.nivelSeveridad.includes('Alta') ? 'text-rose-400' : 'text-amber-300'
+                        activeDiagnosis.nivelSeveridad.includes('Alta') ? 'text-rose-600' : 'text-amber-700'
                       }`}>
                         {activeDiagnosis.nivelSeveridad}
                       </span>
                     </div>
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-white/10 grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs text-slate-200">
-                    <div className="bg-white/5 p-2 rounded-xl">
-                      <span className="text-[10px] text-slate-400 block">Sustrato Detectado:</span>
-                      <strong>{activeDiagnosis.sustratoDetectado}</strong>
+                  <div className="mt-4 pt-3 border-t border-sky-100 grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                    <div className="bg-white p-2.5 rounded-xl border border-sky-100 shadow-2xs">
+                      <span className="text-[10px] text-slate-500 block font-semibold">Sustrato Detectado:</span>
+                      <strong className="text-slate-900 font-bold">{activeDiagnosis.sustratoDetectado}</strong>
                     </div>
-                    <div className="bg-white/5 p-2 rounded-xl">
-                      <span className="text-[10px] text-slate-400 block">Exposición / Ambiente:</span>
-                      <strong>{activeDiagnosis.ambienteDetectado}</strong>
+                    <div className="bg-white p-2.5 rounded-xl border border-sky-100 shadow-2xs">
+                      <span className="text-[10px] text-slate-500 block font-semibold">Exposición / Ambiente:</span>
+                      <strong className="text-slate-900 font-bold">{activeDiagnosis.ambienteDetectado}</strong>
                     </div>
-                    <div className="bg-white/5 p-2 rounded-xl">
-                      <span className="text-[10px] text-slate-400 block">Condición Principal:</span>
-                      <strong>{activeDiagnosis.condicionDetectada}</strong>
+                    <div className="bg-white p-2.5 rounded-xl border border-sky-100 shadow-2xs">
+                      <span className="text-[10px] text-slate-500 block font-semibold">Condición Principal:</span>
+                      <strong className="text-slate-900 font-bold">{activeDiagnosis.condicionDetectada}</strong>
                     </div>
                   </div>
                 </div>

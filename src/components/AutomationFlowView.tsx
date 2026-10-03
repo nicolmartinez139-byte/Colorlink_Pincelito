@@ -112,7 +112,7 @@ export function AutomationFlowView() {
       title: 'Comunicación',
       summary: 'Informa cambios de estado al cliente',
       module: 'Identificación (Responsable / Canal)',
-      tech: 'WhatsApp Business API / Email',
+      tech: 'Email Service API Oficial / Notificación Transaccional',
       detail: 'Envía notificaciones automáticas: "Su cotización fue generada", "Su pedido está en tintometría", "En camino a obra".'
     },
     {
