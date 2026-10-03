@@ -4395,112 +4395,112 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       <span className="text-xs font-bold text-sky-700 bg-sky-50 px-3 py-1 rounded-full border border-sky-200/80">Paso 3 de 3</span>
                     </div>
 
-                    {/* 1. TARJETA DE DIAGNÓSTICO TÉCNICO OFICIAL GENERADO POR IA */}
-                    <div className="rounded-3xl p-5 sm:p-6 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 text-white shadow-xl border border-sky-400/30 relative overflow-hidden space-y-4">
-                      {/* Manchas o brillos decorativos */}
-                      <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-[#00D2FF]/20 to-[#FF007A]/20 rounded-full blur-3xl pointer-events-none" />
+                    {/* 1. TARJETA DE DIAGNÓSTICO TÉCNICO OFICIAL GENERADO POR IA (COLORES CLAROS Y LUMINOSOS) */}
+                    <div className="rounded-3xl p-5 sm:p-6 bg-gradient-to-br from-sky-50 via-white to-blue-50/70 text-slate-900 shadow-md border-2 border-sky-200 relative overflow-hidden space-y-4">
+                      {/* Manchas o brillos decorativos sutiles y claros */}
+                      <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-[#00D2FF]/10 to-[#FF007A]/5 rounded-full blur-3xl pointer-events-none" />
 
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10 relative z-10">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-sky-100 relative z-10">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#FF5500] via-[#FF007A] to-[#0055FF] text-white flex items-center justify-center font-bold shadow-md">
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#FF5500] via-[#FF007A] to-[#0055FF] text-white flex items-center justify-center font-bold shadow-xs">
                             <Sparkles className="w-5 h-5 text-white" />
                           </div>
                           <div>
-                            <span className="text-xs uppercase tracking-widest text-[#00D2FF] font-black block">
+                            <span className="text-xs uppercase tracking-widest text-sky-700 font-black block">
                               Colorlink® Diagnóstico Inteligente de Superficie
                             </span>
-                            <h4 className="text-sm sm:text-base font-black text-white">
+                            <h4 className="text-sm sm:text-base font-black text-slate-900">
                               Dictamen Técnico Oficial & Viabilidad con IA
                             </h4>
                           </div>
                         </div>
-                        <span className="text-[11px] font-bold text-emerald-300 bg-emerald-950/80 border border-emerald-400/50 px-3 py-1 rounded-full flex items-center gap-1.5 w-fit">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                        <span className="text-[11px] font-bold text-emerald-900 bg-emerald-100 border border-emerald-300 px-3 py-1 rounded-full flex items-center gap-1.5 w-fit shadow-2xs">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                           Viabilidad Técnica: 100% Aprobada
                         </span>
                       </div>
 
-                      {/* Cuadrícula de Especificaciones del Diagnóstico */}
+                      {/* Cuadrícula de Especificaciones del Diagnóstico en Colores Claros */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 relative z-10 text-xs">
-                        <div className="p-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xs space-y-1">
-                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Sustrato & Exposición</span>
-                          <strong className="text-white block text-xs">
+                        <div className="p-3.5 rounded-2xl bg-white border border-sky-200/80 shadow-2xs space-y-1 hover:border-sky-300 transition-all">
+                          <span className="text-[10px] uppercase font-bold text-slate-500 block">Sustrato & Exposición</span>
+                          <strong className="text-slate-900 block text-xs font-black">
                             {formData.superficie || 'Concreto / Revoque'}
                           </strong>
-                          <span className="text-[11px] text-sky-300 block">
+                          <span className="text-[11px] text-sky-700 font-semibold block">
                             Ambiente: {formData.ambiente || 'Exterior Intemperie'}
                           </span>
-                          <span className="text-[10px] text-slate-300">
+                          <span className="text-[10px] text-slate-600">
                             Estado: {formData.condicion || 'Normal / Estable'}
                           </span>
                         </div>
 
-                        <div className="p-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xs space-y-1">
-                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Pintura & Norma Técnica</span>
-                          <strong className="text-amber-300 block text-xs truncate" title={technicalCalc.productoRecomendado}>
+                        <div className="p-3.5 rounded-2xl bg-white border border-sky-200/80 shadow-2xs space-y-1 hover:border-sky-300 transition-all">
+                          <span className="text-[10px] uppercase font-bold text-slate-500 block">Pintura & Norma Técnica</span>
+                          <strong className="text-amber-800 block text-xs font-black truncate" title={technicalCalc.productoRecomendado}>
                             {technicalCalc.productoRecomendado}
                           </strong>
-                          <span className="text-[11px] text-white font-semibold block">
+                          <span className="text-[11px] text-slate-900 font-semibold block">
                             {formData.tipoPintura || 'Pintura Tipo 1'} ({formData.marcaPintura || 'Pintuco®'})
                           </span>
-                          <span className="text-[10px] text-emerald-400 font-mono">
+                          <span className="text-[10px] text-emerald-700 font-mono font-bold">
                             Certificación: {technicalCalc.tipoPinturaDetalle.normaNTC}
                           </span>
                         </div>
 
-                        <div className="p-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xs space-y-1">
-                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Dosificación & Envases</span>
-                          <strong className="text-white block text-xs">
+                        <div className="p-3.5 rounded-2xl bg-white border border-sky-200/80 shadow-2xs space-y-1 hover:border-sky-300 transition-all">
+                          <span className="text-[10px] uppercase font-bold text-slate-500 block">Dosificación & Envases</span>
+                          <strong className="text-slate-900 block text-xs font-black">
                             Área: {formData.areaM2 || 0} m² ({technicalCalc.manosSugeridas} manos)
                           </strong>
-                          <span className="text-[11px] text-[#00D2FF] font-bold block">
+                          <span className="text-[11px] text-[#003882] font-black block">
                             {technicalCalc.cuñetesRequeridos} Cuñete(s) (5 Gal)
                             {technicalCalc.galonesSueltosRequeridos > 0 ? ` + ${technicalCalc.galonesSueltosRequeridos} Gal` : ''}
                           </span>
-                          <span className="text-[10px] text-slate-300">
+                          <span className="text-[10px] text-slate-500">
                             Margen de desperdicio: 10% técnico
                           </span>
                         </div>
 
-                        <div className="p-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xs space-y-1">
-                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Tratamiento & Sellador</span>
-                          <strong className="text-white block text-xs truncate" title={technicalCalc.selladorImprimanteRequerido}>
+                        <div className="p-3.5 rounded-2xl bg-white border border-sky-200/80 shadow-2xs space-y-1 hover:border-sky-300 transition-all">
+                          <span className="text-[10px] uppercase font-bold text-slate-500 block">Tratamiento & Sellador</span>
+                          <strong className="text-slate-900 block text-xs font-black truncate" title={technicalCalc.selladorImprimanteRequerido}>
                             {technicalCalc.selladorImprimanteRequerido}
                           </strong>
-                          <span className="text-[10px] text-slate-300 block">
+                          <span className="text-[10px] text-slate-600 block">
                             Neutralización de alcalinidad y anclaje elástico
                           </span>
                         </div>
 
-                        <div className="p-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xs space-y-1">
-                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Tiempos de Secado</span>
-                          <strong className="text-emerald-300 block text-xs">
+                        <div className="p-3.5 rounded-2xl bg-white border border-sky-200/80 shadow-2xs space-y-1 hover:border-sky-300 transition-all">
+                          <span className="text-[10px] uppercase font-bold text-slate-500 block">Tiempos de Secado</span>
+                          <strong className="text-emerald-700 block text-xs font-black">
                             2 a 4 horas al tacto
                           </strong>
-                          <span className="text-[10px] text-slate-300 block">
+                          <span className="text-[10px] text-slate-600 block">
                             Segunda mano tras 4 horas • Curado total: 7 días
                           </span>
                         </div>
 
-                        <div className="p-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xs space-y-1">
-                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Herramientas Seleccionadas</span>
+                        <div className="p-3.5 rounded-2xl bg-white border border-sky-200/80 shadow-2xs space-y-1 hover:border-sky-300 transition-all">
+                          <span className="text-[10px] uppercase font-bold text-slate-500 block">Herramientas Seleccionadas</span>
                           {formData.herramientasSeleccionadas && formData.herramientasSeleccionadas.length > 0 ? (
-                            <strong className="text-sky-300 block text-xs">
+                            <strong className="text-sky-800 block text-xs font-black">
                               {formData.herramientasSeleccionadas.reduce((acc, h) => acc + h.cantidad, 0)} accesorio(s) agregados
                             </strong>
                           ) : (
-                            <span className="text-slate-300 block text-xs">
+                            <span className="text-slate-600 block text-xs font-medium">
                               Brocha cerda pura o rodillo profesional
                             </span>
                           )}
-                          <span className="text-[10px] text-slate-400">
+                          <span className="text-[10px] text-slate-600">
                             Color: {formData.colorAcabado || 'Blanco Puro'}
                           </span>
                         </div>
 
-                        <div className="p-3 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xs space-y-1">
-                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Forma de Pago Auditada</span>
-                          <strong className="text-emerald-300 block text-xs capitalize truncate">
+                        <div className="p-3.5 rounded-2xl bg-white border border-sky-200/80 shadow-2xs space-y-1 hover:border-sky-300 transition-all">
+                          <span className="text-[10px] uppercase font-bold text-slate-500 block">Forma de Pago Auditada</span>
+                          <strong className="text-emerald-700 block text-xs font-black capitalize truncate">
                             {formData.metodoPago === 'bancolombia' ? 'Bancolombia / QR' :
                              formData.metodoPago === 'pse' ? 'PSE Débito Seguro' :
                              formData.metodoPago === 'nequi' ? 'Nequi / Daviplata' :
@@ -4508,7 +4508,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                              formData.metodoPago === 'credito' ? 'Crédito 30 Días (NIT)' :
                              formData.metodoPago === 'tarjeta' ? 'Tarjeta Débito / Crédito' : 'Bancolombia / QR'}
                           </strong>
-                          <span className="text-[10px] text-slate-300 block">
+                          <span className="text-[10px] text-slate-500 block">
                             Auditada por la IA previo a la emisión
                           </span>
                         </div>
