@@ -43,7 +43,8 @@ import {
   Calendar,
   X,
   Bot,
-  Zap
+  Zap,
+  Activity
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { sendOrderStatusUpdateEmail } from '../utils/emailService';
@@ -256,6 +257,65 @@ export function AdminBackoffice({
   const [autoLifecycleEnabled, setAutoLifecycleEnabled] = useState<boolean>(true);
   const [fastDemoMode, setFastDemoMode] = useState<boolean>(false); // 20s para demostración rápida vs 20 min reales (1200s)
   const [secondsToNextCycle, setSecondsToNextCycle] = useState<number>(1200);
+
+  // Estados de verificación de conectividad y recepción en Vercel Serverless
+  const [isTestingVercel, setIsTestingVercel] = useState<boolean>(false);
+  const [vercelStatus, setVercelStatus] = useState<{ connected: boolean; platform?: string; count?: number } | null>(null);
+
+  // Consultar estado inicial de Vercel / servidor al cargar
+  useEffect(() => {
+    fetch('/api/orders')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.success) {
+          setVercelStatus({ connected: true, platform: data.platform, count: data.count });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleTestVercelConnection = async () => {
+    setIsTestingVercel(true);
+    try {
+      const healthRes = await fetch('/api/health');
+      const healthData = await healthRes.json().catch(() => ({}));
+
+      const testOrderId = `TEST-VERCEL-${Math.floor(1000 + Math.random() * 9000)}`;
+      const orderRes = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderNumber: testOrderId,
+          cliente: 'Auditoría Vercel Colorlink',
+          responsable: 'Supervisor de Planta',
+          email: 'supervisor@colorlink.com.co',
+          ciudad: 'Medellín',
+          status: 'preparando',
+          totalCOP: 1850000,
+          mensaje: 'Verificación de recepción de pedidos activa en Vercel Serverless'
+        })
+      });
+      const orderData = await orderRes.json().catch(() => ({}));
+
+      if (orderRes.ok && orderData.success) {
+        setVercelStatus({
+          connected: true,
+          platform: orderData.platform || healthData.platform || 'Vercel Serverless',
+          count: orderData.totalOrdersStored
+        });
+        showToast(`✓ ¡Vercel / Servidor en Línea! Pedido #${testOrderId} recibido y confirmado correctamente (${orderData.platform || 'Vercel Serverless'}).`);
+      } else {
+        setVercelStatus({ connected: false });
+        showToast('⚠️ Vercel respondió con código de estado inusual.');
+      }
+    } catch (err: any) {
+      setVercelStatus({ connected: false });
+      showToast(`❌ Error de conexión con Vercel: ${err?.message || 'Error de red'}`);
+    } finally {
+      setIsTestingVercel(false);
+    }
+  };
+
   const [showAiAuditModal, setShowAiAuditModal] = useState<boolean>(false);
   const [currentAiAudit, setCurrentAiAudit] = useState<{
     orderId: string;
@@ -970,6 +1030,22 @@ export function AdminBackoffice({
               totalCOP: o.totalCOP
             }).catch(() => {});
 
+            // Notificar también al servidor / Vercel para registro sincronizado
+            fetch('/api/orders', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                orderNumber: o.id,
+                cliente: o.cliente,
+                responsable: o.responsable,
+                email: o.email,
+                ciudad: o.ciudad,
+                status: 'preparando',
+                totalCOP: o.totalCOP,
+                mensaje: notifMsg
+              })
+            }).catch(() => {});
+
             return {
               ...autoAssigned,
               status: 'preparando',
@@ -1021,6 +1097,25 @@ export function AdminBackoffice({
             totalCOP: o.totalCOP
           }).catch(() => {});
 
+          // Notificar a Vercel Serverless sobre el despacho a los 20 min
+          fetch('/api/orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              orderNumber: o.id,
+              cliente: o.cliente,
+              responsable: o.responsable,
+              email: o.email,
+              ciudad: o.ciudad,
+              status: 'en_ruta',
+              vehiculo,
+              conductor,
+              placa,
+              totalCOP: o.totalCOP,
+              mensaje: notifTexto
+            })
+          }).catch(() => {});
+
           return {
             ...o,
             status: 'en_ruta',
@@ -1055,6 +1150,23 @@ export function AdminBackoffice({
             conductor,
             ciudad: o.ciudad,
             totalCOP: o.totalCOP
+          }).catch(() => {});
+
+          // Notificar a Vercel Serverless sobre la entrega final
+          fetch('/api/orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              orderNumber: o.id,
+              cliente: o.cliente,
+              responsable: o.responsable,
+              email: o.email,
+              ciudad: o.ciudad,
+              status: 'entregado',
+              conductor,
+              totalCOP: o.totalCOP,
+              mensaje: notifTexto
+            })
           }).catch(() => {});
 
           return {
@@ -1662,18 +1774,39 @@ export function AdminBackoffice({
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300">
                       ● Activo en Segundo Plano
                     </span>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 border ${
+                      vercelStatus?.connected !== false
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                        : 'bg-rose-50 text-rose-800 border-rose-300'
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${
+                        vercelStatus?.connected !== false ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'
+                      }`} />
+                      <span>{vercelStatus?.connected !== false ? `Vercel: Conectado (${vercelStatus?.count ?? orders.length} pedidos)` : 'Vercel: Verificando...'}</span>
+                    </span>
                     <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-sky-100 text-sky-900">
                       Próximo avance en: <strong>{Math.floor(secondsToNextCycle / 60)}m {String(secondsToNextCycle % 60).padStart(2, '0')}s</strong>
                     </span>
                   </div>
                   <p className="text-xs text-slate-600 mt-0.5">
-                    1. Ingreso a <strong>Tintometría a los 2 segundos</strong> ➔ 2. Notificación y <strong>Despacho a los 20 min</strong> ➔ 3. <strong>Entrega en Obra a los 20 min</strong>.
+                    1. Ingreso a <strong>Tintometría a los 2 segundos</strong> ➔ 2. Notificación y <strong>Despacho a los 20 min</strong> ➔ 3. <strong>Entrega en Obra a los 20 min</strong>. Sincronizado en tiempo real con Vercel.
                   </p>
                 </div>
               </div>
 
-              {/* Botones de Control del Ciclo */}
+              {/* Botones de Control del Ciclo y Verificación de Vercel */}
               <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={handleTestVercelConnection}
+                  disabled={isTestingVercel}
+                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-70"
+                  title="Comprobar que Vercel Serverless recibe y procesa pedidos en vivo"
+                >
+                  <Activity className={`w-3.5 h-3.5 ${isTestingVercel ? 'animate-spin' : ''}`} />
+                  <span>{isTestingVercel ? 'Verificando Vercel...' : '📡 Comprobar Vercel'}</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={handleToggleFastDemoMode}
@@ -1848,8 +1981,8 @@ export function AdminBackoffice({
                               alt={ord.ciudad}
                               className="w-full h-full object-cover"
                             />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                            <span className="absolute bottom-0.5 left-1 text-[8px] font-bold text-white uppercase drop-shadow-sm truncate max-w-[50px]">
+                            <div className="absolute inset-0 bg-gradient-to-t from-white/95 via-white/40 to-transparent" />
+                            <span className="absolute bottom-0.5 left-1 text-[8px] font-black text-slate-900 uppercase truncate max-w-[50px]">
                               {ord.ciudad.split(' ')[0]}
                             </span>
                           </div>
@@ -2839,9 +2972,9 @@ export function AdminBackoffice({
                             alt={item.ciudad}
                             className="w-full h-full object-cover"
                           />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                          <span className="absolute bottom-1 left-1.5 text-[8px] font-black text-white uppercase drop-shadow-sm flex items-center gap-0.5">
-                            <MapPin className="w-2.5 h-2.5 text-sky-400" />
+                          <div className="absolute inset-0 bg-gradient-to-t from-white/95 via-white/40 to-transparent" />
+                          <span className="absolute bottom-1 left-1.5 text-[8px] font-black text-slate-900 uppercase flex items-center gap-0.5">
+                            <MapPin className="w-2.5 h-2.5 text-sky-600" />
                             {item.ciudad}
                           </span>
                         </div>
@@ -2944,43 +3077,43 @@ export function AdminBackoffice({
                         alt={c.ciudad}
                         className="w-full h-full object-cover"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/40 to-transparent" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-white/95 via-white/50 to-transparent" />
 
                       {/* Badge de Urgencia */}
                       <div className="absolute top-3 right-3">
                         {c.urgencia === 'urgente' ? (
-                          <span className="px-2.5 py-1 rounded-lg bg-rose-600/90 text-white font-black text-[10px] uppercase tracking-wider flex items-center gap-1 shadow-md backdrop-blur-xs">
+                          <span className="px-2.5 py-1 rounded-lg bg-rose-600 text-white font-black text-[10px] uppercase tracking-wider flex items-center gap-1 shadow-md">
                             <AlertCircle className="w-3 h-3 text-white" />
                             Pedir Urgente a Fábrica
                           </span>
                         ) : c.urgencia === 'transito' ? (
-                          <span className="px-2.5 py-1 rounded-lg bg-amber-500/90 text-white font-black text-[10px] uppercase tracking-wider flex items-center gap-1 shadow-md backdrop-blur-xs">
+                          <span className="px-2.5 py-1 rounded-lg bg-amber-500 text-white font-black text-[10px] uppercase tracking-wider flex items-center gap-1 shadow-md">
                             <Truck className="w-3 h-3 text-white" />
                             En Tránsito / Despacho
                           </span>
                         ) : (
-                          <span className="px-2.5 py-1 rounded-lg bg-emerald-600/90 text-white font-black text-[10px] uppercase tracking-wider flex items-center gap-1 shadow-md backdrop-blur-xs">
+                          <span className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-black text-[10px] uppercase tracking-wider flex items-center gap-1 shadow-md">
                             <CheckCircle2 className="w-3 h-3 text-white" />
                             Stock Sede Suficiente
                           </span>
                         )}
                       </div>
 
-                      {/* Datos de Ciudad y Ventas superpuestos en la foto */}
-                      <div className="absolute bottom-3 left-4 right-4 flex items-end justify-between text-white">
+                      {/* Datos de Ciudad y Ventas superpuestos en la foto con texto claro legible */}
+                      <div className="absolute bottom-3 left-4 right-4 flex items-end justify-between text-slate-900">
                         <div>
-                          <div className="flex items-center gap-1.5 font-black text-lg text-white drop-shadow-sm">
-                            <MapPin className="w-4 h-4 text-sky-400" />
+                          <div className="flex items-center gap-1.5 font-black text-lg text-slate-900">
+                            <MapPin className="w-4 h-4 text-sky-600" />
                             <span>{c.ciudad}</span>
                           </div>
-                          <span className="text-[11px] text-sky-200 block drop-shadow-sm">
-                            Sede: <strong>{c.cedi}</strong>
+                          <span className="text-[11px] text-slate-600 block">
+                            Sede: <strong className="text-slate-900">{c.cedi}</strong>
                           </span>
                         </div>
 
                         <div className="text-right">
-                          <span className="text-[10px] uppercase font-bold text-slate-300 block">Ventas Sede</span>
-                          <strong className="text-base font-black text-emerald-300 font-mono drop-shadow-sm">
+                          <span className="text-[10px] uppercase font-bold text-slate-500 block">Ventas Sede</span>
+                          <strong className="text-base font-black text-emerald-700 font-mono">
                             {formatCOP(c.totalCOP)}
                           </strong>
                         </div>

@@ -379,6 +379,22 @@ export function StandaloneClientForm({
               totalCOP: technicalCalc.presupuesto.totalPresupuesto
             }).catch(() => {});
 
+            // Sincronizar actualización con Vercel Serverless
+            fetch('/api/orders', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                orderNumber,
+                cliente: formData.cliente,
+                responsable: formData.responsable,
+                email: formData.emailResponsable,
+                ciudad: formData.ciudad,
+                status: 'preparando',
+                mensaje: notifMsg,
+                totalCOP: technicalCalc.presupuesto.totalPresupuesto
+              })
+            }).catch(() => {});
+
             return lifecycleFastDemo ? 20 : 1200;
           } else if (orderLifecyclePhase === 'preparando') {
             setOrderLifecyclePhase('en_ruta');
@@ -418,6 +434,25 @@ export function StandaloneClientForm({
               totalCOP: technicalCalc.presupuesto.totalPresupuesto
             }).catch(() => {});
 
+            // Sincronizar despacho con Vercel Serverless
+            fetch('/api/orders', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                orderNumber,
+                cliente: formData.cliente,
+                responsable: formData.responsable,
+                email: formData.emailResponsable,
+                ciudad: formData.ciudad,
+                status: 'en_ruta',
+                mensaje: notifMsg,
+                vehiculo: veh,
+                placa: plc,
+                conductor: cond,
+                totalCOP: technicalCalc.presupuesto.totalPresupuesto
+              })
+            }).catch(() => {});
+
             return lifecycleFastDemo ? 20 : 1200;
           } else if (orderLifecyclePhase === 'en_ruta') {
             setOrderLifecyclePhase('entregado');
@@ -448,6 +483,23 @@ export function StandaloneClientForm({
               conductor: cond,
               ciudad: formData.ciudad,
               totalCOP: technicalCalc.presupuesto.totalPresupuesto
+            }).catch(() => {});
+
+            // Sincronizar entrega con Vercel Serverless
+            fetch('/api/orders', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                orderNumber,
+                cliente: formData.cliente,
+                responsable: formData.responsable,
+                email: formData.emailResponsable,
+                ciudad: formData.ciudad,
+                status: 'entregado',
+                mensaje: notifMsg,
+                conductor: cond,
+                totalCOP: technicalCalc.presupuesto.totalPresupuesto
+              })
             }).catch(() => {});
 
             return 0; // Completado
@@ -518,6 +570,26 @@ export function StandaloneClientForm({
 
     // Confirmación de aceptación y notificación
     setSupabaseSavedNotice(true);
+
+    // Enviar pedido aceptado inmediatamente a Vercel Serverless
+    try {
+      fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderNumber: generatedOrder,
+          cliente: formData.cliente,
+          nit: formData.nitDocumento,
+          responsable: formData.responsable,
+          email: formData.emailResponsable,
+          ciudad: formData.ciudad,
+          status: 'aceptado',
+          mensaje: `Cotización formalmente aprobada por el cliente con pago ${formData.metodoPago || 'Bancolombia'}. Pasa a Tintometría en 2 segundos.`,
+          totalCOP: technicalCalc.presupuesto.totalPresupuesto,
+          formData
+        })
+      }).catch((err) => console.warn('[Vercel API Orders] Envío local/Vercel:', err));
+    } catch (e) {}
 
     // Enviar notificación oficial por correo al cliente
     setIsSendingRealEmail(true);
@@ -767,9 +839,10 @@ export function StandaloneClientForm({
       console.log('[Formulario] ✓ Validación exitosa (todos los pasos completos). Emitiendo cotización en estado pendiente para decisión del cliente...');
       setIsSubmitted(true);
       setQuotationDecision('pending');
-      if (!orderNumber) {
-        const generatedOrder = `ORD-CLK-2026-${Math.floor(1000 + Math.random() * 9000)}`;
-        setOrderNumber(generatedOrder);
+      let finalOrderNumber = orderNumber;
+      if (!finalOrderNumber) {
+        finalOrderNumber = `ORD-CLK-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+        setOrderNumber(finalOrderNumber);
       }
       if (!decisionTimestamp) {
         const now = new Date();
@@ -783,6 +856,27 @@ export function StandaloneClientForm({
           })
         );
       }
+
+      // Enviar cotización emitida a Vercel Serverless
+      try {
+        fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderNumber: finalOrderNumber,
+            cliente: formData.cliente,
+            nit: formData.nitDocumento,
+            responsable: formData.responsable,
+            email: formData.emailResponsable,
+            ciudad: formData.ciudad,
+            status: 'pendiente',
+            mensaje: `Cotización oficial emitida para ${formData.cliente} en ${formData.ciudad}.`,
+            totalCOP: technicalCalc.presupuesto.totalPresupuesto,
+            formData
+          })
+        }).catch((err) => console.warn('[Vercel API Orders] Envío local/Vercel:', err));
+      } catch (e) {}
+
       if (onSuccessSubmit) {
         onSuccessSubmit(formData);
       }
@@ -3777,7 +3871,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                                   <span className="text-[10px] font-black bg-[#009FE3] text-white px-2.5 py-1 rounded-md shadow-xs uppercase tracking-wider">
                                     Exterior Tipo 1
                                   </span>
-                                  <span className="text-[10px] font-bold bg-slate-900/80 backdrop-blur-xs text-white px-2 py-0.5 rounded-md">
+                                  <span className="text-[10px] font-extrabold bg-white/95 backdrop-blur-xs text-slate-800 border border-slate-200/90 shadow-2xs px-2 py-0.5 rounded-md">
                                     {formData.marcaPintura || 'Pintuco®'}
                                   </span>
                                 </div>
@@ -3844,7 +3938,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                                   <span className="text-[10px] font-black bg-sky-700 text-white px-2.5 py-1 rounded-md shadow-xs uppercase tracking-wider">
                                     Exterior Tipo 2
                                   </span>
-                                  <span className="text-[10px] font-bold bg-slate-900/80 backdrop-blur-xs text-white px-2 py-0.5 rounded-md">
+                                  <span className="text-[10px] font-extrabold bg-white/95 backdrop-blur-xs text-slate-800 border border-slate-200/90 shadow-2xs px-2 py-0.5 rounded-md">
                                     {formData.marcaPintura || 'Pintuco®'}
                                   </span>
                                 </div>
@@ -3911,7 +4005,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                                   <span className="text-[10px] font-black bg-indigo-700 text-white px-2.5 py-1 rounded-md shadow-xs uppercase tracking-wider">
                                     Exterior Tipo 3
                                   </span>
-                                  <span className="text-[10px] font-bold bg-slate-900/80 backdrop-blur-xs text-white px-2 py-0.5 rounded-md">
+                                  <span className="text-[10px] font-extrabold bg-white/95 backdrop-blur-xs text-slate-800 border border-slate-200/90 shadow-2xs px-2 py-0.5 rounded-md">
                                     {formData.marcaPintura || 'Pintuco®'}
                                   </span>
                                 </div>
@@ -3980,7 +4074,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                                   <span className="text-[10px] font-black bg-emerald-700 text-white px-2.5 py-1 rounded-md shadow-xs uppercase tracking-wider">
                                     Interior Tipo 1
                                   </span>
-                                  <span className="text-[10px] font-bold bg-slate-900/80 backdrop-blur-xs text-white px-2 py-0.5 rounded-md">
+                                  <span className="text-[10px] font-extrabold bg-white/95 backdrop-blur-xs text-slate-800 border border-slate-200/90 shadow-2xs px-2 py-0.5 rounded-md">
                                     {formData.marcaPintura || 'Pintuco®'}
                                   </span>
                                 </div>
@@ -4047,7 +4141,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                                   <span className="text-[10px] font-black bg-teal-700 text-white px-2.5 py-1 rounded-md shadow-xs uppercase tracking-wider">
                                     Interior Tipo 2
                                   </span>
-                                  <span className="text-[10px] font-bold bg-slate-900/80 backdrop-blur-xs text-white px-2 py-0.5 rounded-md">
+                                  <span className="text-[10px] font-extrabold bg-white/95 backdrop-blur-xs text-slate-800 border border-slate-200/90 shadow-2xs px-2 py-0.5 rounded-md">
                                     {formData.marcaPintura || 'Pintuco®'}
                                   </span>
                                 </div>
@@ -4114,7 +4208,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                                   <span className="text-[10px] font-black bg-amber-700 text-white px-2.5 py-1 rounded-md shadow-xs uppercase tracking-wider">
                                     Interior Tipo 3
                                   </span>
-                                  <span className="text-[10px] font-bold bg-slate-900/80 backdrop-blur-xs text-white px-2 py-0.5 rounded-md">
+                                  <span className="text-[10px] font-extrabold bg-white/95 backdrop-blur-xs text-slate-800 border border-slate-200/90 shadow-2xs px-2 py-0.5 rounded-md">
                                     {formData.marcaPintura || 'Pintuco®'}
                                   </span>
                                 </div>
@@ -4930,7 +5024,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
             ) : capturedPhotoDraft ? (
               /* Caso 2: Foto capturada en borrador para confirmación */
               <div className="space-y-4">
-                <div className="relative w-full h-72 sm:h-80 bg-black rounded-2xl overflow-hidden border border-slate-200">
+                <div className="relative w-full h-72 sm:h-80 bg-slate-50 rounded-2xl overflow-hidden border border-slate-200 flex items-center justify-center">
                   <img
                     src={capturedPhotoDraft}
                     alt="Foto capturada"
@@ -4965,7 +5059,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
             ) : (
               /* Caso 3: Vista en vivo de la cámara */
               <div className="space-y-4">
-                <div className="relative w-full h-72 sm:h-80 bg-black rounded-2xl overflow-hidden border border-slate-700 flex items-center justify-center">
+                <div className="relative w-full h-72 sm:h-80 bg-slate-100 rounded-2xl overflow-hidden border border-slate-300 flex items-center justify-center">
                   <video
                     ref={videoRef}
                     autoPlay
@@ -4984,7 +5078,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                   <button
                     type="button"
                     onClick={handleToggleFacingMode}
-                    className="absolute top-3 right-3 bg-black/60 hover:bg-black/80 text-white px-2.5 py-1.5 rounded-xl backdrop-blur-xs flex items-center gap-1.5 text-xs font-bold border border-white/20 cursor-pointer transition-all"
+                    className="absolute top-3 right-3 bg-white/95 hover:bg-white text-slate-800 px-2.5 py-1.5 rounded-xl shadow-md flex items-center gap-1.5 text-xs font-bold border border-slate-200 cursor-pointer transition-all"
                     title="Alternar entre cámara trasera y frontal"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
@@ -4992,7 +5086,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                   </button>
 
                   {/* Guías ópticas de visor */}
-                  <div className="absolute inset-8 pointer-events-none border-2 border-white/25 rounded-2xl border-dashed"></div>
+                  <div className="absolute inset-8 pointer-events-none border-2 border-slate-400/40 rounded-2xl border-dashed"></div>
                 </div>
 
                 <div className="space-y-2">
@@ -5011,9 +5105,9 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       handleStopLiveCamera();
                       cameraInputRef.current?.click();
                     }}
-                    className="w-full py-2 bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                    className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-colors border border-slate-200"
                   >
-                    <Upload className="w-3.5 h-3.5 text-purple-400" />
+                    <Upload className="w-3.5 h-3.5 text-purple-600" />
                     <span>O tomar foto directamente con la cámara del celular</span>
                   </button>
                 </div>
@@ -5025,7 +5119,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
 
       {/* MODAL: VISOR DE FOTO EN TAMAÑO COMPLETO */}
       {previewEnlargedPhoto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/35 backdrop-blur-xs animate-fadeIn">
           <div className="bg-white text-slate-800 rounded-3xl max-w-3xl w-full p-4 sm:p-5 space-y-3 shadow-2xl border border-sky-200">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <div className="flex items-center gap-2">
@@ -5040,7 +5134,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="max-h-[75vh] overflow-hidden rounded-2xl bg-black flex items-center justify-center">
+            <div className="max-h-[75vh] overflow-hidden rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center p-2 shadow-inner">
               <img
                 src={previewEnlargedPhoto.url}
                 alt={previewEnlargedPhoto.name}

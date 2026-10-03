@@ -171,6 +171,25 @@ export default function App() {
       } catch (emailErr) {
         console.warn('[EmailJS] Advertencia al enviar correo de confirmación:', emailErr);
       }
+
+      // Enviar al backend / Vercel para recepción y registro directo en servidor
+      try {
+        fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderNumber: orderNumber || tempId,
+            cliente: submittedData.cliente,
+            nit: submittedData.nitDocumento,
+            responsable: submittedData.responsable,
+            email: submittedData.emailResponsable,
+            ciudad: submittedData.ciudad,
+            formData: submittedData,
+            totalCOP: calc.presupuesto.totalPresupuesto,
+            status: 'pendiente'
+          })
+        }).catch((apiErr) => console.warn('[Vercel API Orders] Envío local/Vercel:', apiErr));
+      } catch (e) {}
     } catch (error: any) {
       // Log detallado exacto de Supabase para depuración precisa
       console.error('[Supabase Error] Error exacto al guardar en Supabase:', {

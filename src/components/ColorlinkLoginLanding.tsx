@@ -227,8 +227,8 @@ export function ColorlinkLoginLanding({
           referrerPolicy="no-referrer"
         />
 
-        {/* Gradiente suave para asegurar legibilidad de la tarjeta */}
-        <div className="absolute inset-0 bg-white/40 backdrop-blur-[1px]" />
+        {/* Gradiente suave claro para asegurar legibilidad cristalina */}
+        <div className="absolute inset-0 bg-white/75 backdrop-blur-[0.5px]" />
 
         {/* Mancha de pintura 1: Cyan / Turquesa Eléctrico Superior Izquierda */}
         <svg

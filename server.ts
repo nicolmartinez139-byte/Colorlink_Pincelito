@@ -1,6 +1,5 @@
 import express from 'express';
 import path from 'path';
-import { createServer as createViteServer } from 'vite';
 import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
@@ -12,21 +11,146 @@ const PORT = Number(process.env.PORT) || 3000;
 
 const ai = new GoogleGenAI({});
 
+// Store en memoria compartido de pedidos recibidos para persistencia y consulta
+export interface ReceivedOrder {
+  id: string;
+  orderNumber: string;
+  cliente: string;
+  nit?: string;
+  responsable?: string;
+  email?: string;
+  ciudad?: string;
+  status: string;
+  totalCOP?: number;
+  mensaje?: string;
+  vehiculo?: string;
+  conductor?: string;
+  placa?: string;
+  formData?: any;
+  receivedAt: string;
+}
+
+export const receivedOrdersStore: ReceivedOrder[] = [];
+
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
-// Health endpoint
-app.get('/api/health', (req, res) => {
+// Middleware de CORS para permitir peticiones desde Vercel, localhost y clientes externos
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
+// Health endpoint compatible con Vercel y local
+app.get(['/api/health', '/health'], (req, res) => {
   res.json({
     status: 'ok',
+    platform: process.env.VERCEL ? 'Vercel Serverless' : 'Express Server',
+    totalOrdersReceived: receivedOrdersStore.length,
     emailConfigured: Boolean(process.env.RESEND_API_KEY || (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)),
     supabaseConfigured: Boolean(process.env.VITE_SUPABASE_URL && process.env.VITE_SUPABASE_ANON_KEY),
     geminiConfigured: Boolean(process.env.GEMINI_API_KEY)
   });
 });
 
+// Endpoint para recibir y registrar pedidos directamente en el servidor / Vercel
+app.post(['/api/orders', '/orders', '/api/cotizaciones', '/cotizaciones'], async (req, res) => {
+  try {
+    const orderData = req.body || {};
+    const clientName = orderData.cliente || orderData.formData?.cliente || orderData.responsable || 'Cliente Colorlink';
+    const orderId = orderData.orderNumber || orderData.id || `ORD-CLK-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    let dynamicStatusMessage = orderData.mensaje;
+    if (!dynamicStatusMessage) {
+      if (orderData.status === 'pendiente') {
+        dynamicStatusMessage = `📋 Pedido #${orderId} de "${clientName}" recibido y registrado. En cola para ingreso a tintometría.`;
+      } else if (orderData.status === 'preparando') {
+        dynamicStatusMessage = `🎨 Pedido #${orderId} ingresó a tintometría a los 2s: dosificación computarizada y mezclado giroscópico en proceso.`;
+      } else if (orderData.status === 'en_ruta') {
+        dynamicStatusMessage = `🚚 Pedido #${orderId} despachado a los 20 min hacia ${orderData.ciudad || 'obra'} en ${orderData.vehiculo || 'Camión de Flota'} con conductor ${orderData.conductor || 'asignado'}.`;
+      } else if (orderData.status === 'entregado') {
+        dynamicStatusMessage = `✅ Pedido #${orderId} entregado con éxito en obra a los 20 min de despacho. Remisión firmada y garantía NTC 1335 emitidas.`;
+      } else if (orderData.status === 'en_espera') {
+        dynamicStatusMessage = `📦 Pedido #${orderId} en espera de transferencia de stock desde el CEDI Central Medellín.`;
+      } else if (orderData.status === 'rechazado') {
+        dynamicStatusMessage = `⚠️ Pedido #${orderId} rechazado por motivos de incompatibilidad técnica bajo norma NTC 1335.`;
+      } else {
+        dynamicStatusMessage = `Pedido #${orderId} actualizado a estado "${orderData.status || 'pendiente'}".`;
+      }
+    }
+
+    const receivedOrder: ReceivedOrder = {
+      id: orderId,
+      orderNumber: orderId,
+      cliente: clientName,
+      nit: orderData.nit || orderData.formData?.nitDocumento || '',
+      responsable: orderData.responsable || orderData.formData?.responsable || '',
+      email: orderData.email || orderData.formData?.emailResponsable || '',
+      ciudad: orderData.ciudad || orderData.formData?.ciudad || 'Medellín',
+      status: orderData.status || 'pendiente',
+      totalCOP: orderData.totalCOP || 0,
+      mensaje: dynamicStatusMessage,
+      vehiculo: orderData.vehiculo,
+      conductor: orderData.conductor,
+      placa: orderData.placa,
+      formData: orderData.formData || null,
+      receivedAt: new Date().toISOString()
+    };
+
+    const existingIdx = receivedOrdersStore.findIndex(o => o.id === orderId || o.orderNumber === orderId);
+    if (existingIdx >= 0) {
+      receivedOrdersStore[existingIdx] = {
+        ...receivedOrdersStore[existingIdx],
+        ...receivedOrder,
+        receivedAt: new Date().toISOString()
+      };
+    } else {
+      receivedOrdersStore.unshift(receivedOrder);
+      if (receivedOrdersStore.length > 250) receivedOrdersStore.pop();
+    }
+
+    console.log(`[API ORDERS - VERCEL] Pedido #${orderId} de "${clientName}" (${receivedOrder.status}): ${dynamicStatusMessage}`);
+
+    return res.status(200).json({
+      success: true,
+      received: true,
+      platform: process.env.VERCEL ? 'Vercel Serverless' : 'Colorlink Server',
+      orderNumber: orderId,
+      status: receivedOrder.status,
+      timestamp: receivedOrder.receivedAt,
+      totalOrdersStored: receivedOrdersStore.length,
+      message: dynamicStatusMessage
+    });
+  } catch (err: any) {
+    console.error('[API ORDERS ERROR]', err);
+    return res.status(500).json({ success: false, error: err.message || 'Error al procesar pedido' });
+  }
+});
+
+app.get(['/api/orders', '/orders', '/api/cotizaciones', '/cotizaciones'], (req, res) => {
+  res.json({
+    success: true,
+    status: 'online',
+    platform: process.env.VERCEL ? 'Vercel Serverless' : 'Colorlink Server',
+    count: receivedOrdersStore.length,
+    orders: receivedOrdersStore,
+    message: 'Servicio de recepción de pedidos activo y en línea para Vercel.'
+  });
+});
+
+// Webhook para recepción de notificaciones externas
+app.all(['/api/webhook', '/webhook'], (req, res) => {
+  console.log('[WEBHOOK - VERCEL] Notificación recibida:', req.method, req.body);
+  res.json({ success: true, message: 'Webhook recibido con éxito.' });
+});
+
 // Endpoint de Auditoría Inteligente de Pedidos con IA (Gemini 3.8 Flash)
-app.post('/api/ai-audit-order', async (req, res) => {
+app.post(['/api/ai-audit-order', '/ai-audit-order'], async (req, res) => {
   try {
     const { order, cityStock, factoryAvailable = 120 } = req.body;
     if (!order) {
@@ -219,7 +343,7 @@ Responde ÚNICAMENTE un objeto JSON válido con la siguiente estructura (sin mar
 });
 
 // Endpoint de Revisión Automática de Fotos de Evidencia con IA (Gemini 3.8 Flash)
-app.post('/api/ai-review-photo', async (req, res) => {
+app.post(['/api/ai-review-photo', '/ai-review-photo'], async (req, res) => {
   try {
     const { photoName, previewUrl, currentContext } = req.body;
 
@@ -277,7 +401,7 @@ Responde ÚNICAMENTE en formato JSON válido con la siguiente estructura:
 });
 
 // Endpoint de Chat Inteligente Pincelito & Asesor Técnico
-app.post('/api/pincelito-chat', async (req, res) => {
+app.post(['/api/pincelito-chat', '/pincelito-chat'], async (req, res) => {
   try {
     const { query, formData = {}, history = [], isAdvisorMode = false, clientContext = {} } = req.body;
     if (!query) {
@@ -407,7 +531,7 @@ INSTRUCCIONES DE RESPUESTA:
 });
 
 // Endpoint de Envío Automático de WhatsApp (WhatsApp Business Cloud API / Twilio)
-app.post('/api/send-whatsapp', async (req, res) => {
+app.post(['/api/send-whatsapp', '/send-whatsapp'], async (req, res) => {
   try {
     const { phone, message, orderId, clientName, templateType } = req.body;
 
@@ -532,7 +656,7 @@ app.post('/api/send-whatsapp', async (req, res) => {
 });
 
 // Real Email Sending Endpoint
-app.post('/api/send-email', async (req, res) => {
+app.post(['/api/send-email', '/send-email'], async (req, res) => {
   try {
     const { to, subject, html, text, pdfBase64, pdfFileName } = req.body;
 
@@ -690,9 +814,10 @@ app.post('/api/send-email', async (req, res) => {
   }
 });
 
-// Iniciar servidor con middleware de Vite
+// Iniciar servidor con middleware de Vite (import dinámico para no empaquetar vite en Serverless / Vercel)
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: {
         middlewareMode: true,
@@ -724,4 +849,10 @@ async function startServer() {
   process.on('SIGINT', handleShutdown);
 }
 
-startServer();
+// Iniciar servidor local o en contenedor si no es entorno serverless (Vercel)
+if (!process.env.VERCEL) {
+  startServer();
+}
+
+export { app };
+export default app;
