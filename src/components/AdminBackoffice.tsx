@@ -46,9 +46,10 @@ import {
   Zap,
   Activity
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { sendOrderStatusUpdateEmail } from '../utils/emailService';
 import { buildOrderStateMessage } from '../utils/orderStateMessages';
+import { saveClientOrderToHistory, getSavedClientOrdersFromStorage } from '../utils/supabaseApi';
 import { ProjectFormData } from '../types/form';
 import { formatCOP } from '../utils/calculator';
 import { PenguinLogo } from './PenguinLogo';
@@ -244,6 +245,52 @@ export function AdminBackoffice({
   const [selectedCityFilter, setSelectedCityFilter] = useState<string>('todas');
   const [supplyNotice, setSupplyNotice] = useState<string | null>(null);
 
+  // Estado reactivo de Stock por CEDI y Órdenes de Reabastecimiento Generadas
+  const [cediStocks, setCediStocks] = useState<Record<string, number>>(() => {
+    try {
+      const saved = localStorage.getItem('colorlink_cedi_stocks_v1');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {
+      'Medellín': 120,
+      'Bogotá D.C.': 24,
+      'Cali': 16,
+      'Barranquilla': 12,
+      'Bucaramanga': 14,
+      'Cartagena': 10,
+      'Envigado': 20,
+      'Rionegro': 18
+    };
+  });
+
+  interface ReplenishmentOrderRecord {
+    id: string;
+    ciudad: string;
+    cedi: string;
+    fecha: string;
+    tipo1Cunetes: number;
+    tipo2Cunetes: number;
+    tipo3Cunetes: number;
+    selladorGalones: number;
+    cunetesAgregados: number;
+    stockAnterior: number;
+    nuevoStock: number;
+    vehiculoNodriza: string;
+    placa: string;
+    conductor: string;
+    estado: string;
+  }
+
+  const [replenishmentOrders, setReplenishmentOrders] = useState<ReplenishmentOrderRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem('colorlink_replenishment_orders_v1');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [];
+  });
+
+  const [activeReplenishmentModal, setActiveReplenishmentModal] = useState<ReplenishmentOrderRecord | null>(null);
+
   // Filtros avanzados para lista de pedidos ordenada
   const [orderSearchText, setOrderSearchText] = useState<string>('');
   const [orderStatusFilter, setOrderStatusFilter] = useState<'todos' | 'pendiente' | 'preparando' | 'en_ruta' | 'entregado' | 'en_espera' | 'rechazado'>('todos');
@@ -365,20 +412,104 @@ export function AdminBackoffice({
   const [loadingClients, setLoadingClients] = useState(false);
   const [clientSearch, setClientSearch] = useState('');
 
+  const DEFAULT_ENTERPRISE_CLIENTS: SupabaseClientRow[] = [
+    {
+      id: 'cli-horiz-01',
+      auth_user_id: null,
+      nombre_razon_social: 'Constructora Horizonte S.A.S.',
+      nit_documento: '900854219-3',
+      responsable: 'Arq. Valentina Gómez',
+      email_responsable: 'vgomez@constructorahorizonte.com.co',
+      telefono_responsable: '+57 312 845 6721',
+      canal_entrada: 'Corporativo Constructoras',
+      created_at: new Date(Date.now() - 86400000 * 5).toISOString()
+    },
+    {
+      id: 'cli-boliv-02',
+      auth_user_id: null,
+      nombre_razon_social: 'Constructora Bolívar S.A.',
+      nit_documento: '860034590-8',
+      responsable: 'Arq. Mateo Restrepo',
+      email_responsable: 'mrestrepo@bolivar.com.co',
+      telefono_responsable: '+57 310 982 3411',
+      canal_entrada: 'Licitaciones & Obra',
+      created_at: new Date(Date.now() - 86400000 * 12).toISOString()
+    },
+    {
+      id: 'cli-concon-03',
+      auth_user_id: null,
+      nombre_razon_social: 'Conconcreto Proyectos & Obras',
+      nit_documento: '890901452-1',
+      responsable: 'Ing. Juan Camilo Osorio',
+      email_responsable: 'jcosorio@conconcreto.com',
+      telefono_responsable: '+57 318 456 7890',
+      canal_entrada: 'Grandes Cuentas Medellín',
+      created_at: new Date(Date.now() - 86400000 * 20).toISOString()
+    },
+    {
+      id: 'cli-marval-04',
+      auth_user_id: null,
+      nombre_razon_social: 'Marval Desarrollos Urbanos',
+      nit_documento: '800123456-7',
+      responsable: 'Ing. Diana Milena Vargas',
+      email_responsable: 'dvargas@marval.com.co',
+      telefono_responsable: '+57 315 678 9012',
+      canal_entrada: 'Portal Web Colorlink',
+      created_at: new Date(Date.now() - 86400000 * 30).toISOString()
+    }
+  ];
+
+  const getConsolidatedClients = (): SupabaseClientRow[] => {
+    const clientMap = new Map<string, SupabaseClientRow>();
+
+    DEFAULT_ENTERPRISE_CLIENTS.forEach((c) => {
+      clientMap.set(c.nit_documento.replace(/[.\-\s]/g, ''), c);
+    });
+
+    try {
+      const stored = getSavedClientOrdersFromStorage();
+      stored.forEach((o, idx) => {
+        const nitClean = (o.nit || `901456${idx}`).replace(/[.\-\s]/g, '');
+        if (!clientMap.has(nitClean)) {
+          clientMap.set(nitClean, {
+            id: `cli-ord-${o.id || idx}`,
+            auth_user_id: null,
+            nombre_razon_social: o.detalle?.obra || o.cliente || 'Empresa Constructora',
+            nit_documento: o.nit || nitClean,
+            responsable: o.responsable || 'Responsable de Obra',
+            email_responsable: o.email || 'cliente@colorlink.com.co',
+            telefono_responsable: '+57 300 123 4567',
+            canal_entrada: 'Cotizador Colorlink',
+            created_at: o.fecha && o.fecha.includes('T') ? o.fecha : new Date().toISOString()
+          });
+        }
+      });
+    } catch {}
+
+    return Array.from(clientMap.values());
+  };
+
   const fetchClientsFromSupabase = async () => {
     setLoadingClients(true);
     try {
+      if (!isSupabaseConfigured()) {
+        setSupabaseClients(getConsolidatedClients());
+        return;
+      }
       const { data, error } = await supabase
         .from('clientes')
         .select('*')
         .order('created_at', { ascending: false });
+
       if (error) {
-        console.error('[Admin] Error al cargar clientes de Supabase:', error);
-      } else if (data) {
+        setSupabaseClients(getConsolidatedClients());
+      } else if (data && data.length > 0) {
         setSupabaseClients(data as SupabaseClientRow[]);
+      } else {
+        setSupabaseClients(getConsolidatedClients());
       }
-    } catch (err) {
-      console.error('[Admin] Excepción cargando clientes:', err);
+    } catch {
+      setSupabaseClients(getConsolidatedClients());
     } finally {
       setLoadingClients(false);
     }
@@ -662,14 +793,14 @@ export function AdminBackoffice({
     }> = {};
 
     const cediMap: Record<string, { cedi: string; stock: number }> = {
-      'Medellín': { cedi: 'Planta Central Itagüí / CEDI Guarne', stock: 120 },
-      'Bogotá D.C.': { cedi: 'CEDI Sabana Mosquera (Cra 13)', stock: 24 },
-      'Cali': { cedi: 'CEDI Valle Yumbo (Vía Cali-Yumbo)', stock: 16 },
-      'Barranquilla': { cedi: 'CEDI Costa Malambo (Calle 30)', stock: 12 },
-      'Bucaramanga': { cedi: 'CEDI Santanderes Girón (Km 7)', stock: 14 },
-      'Cartagena': { cedi: 'CEDI Bolívar Mamonal (Km 3)', stock: 10 },
-      'Envigado': { cedi: 'CEDI Sur Aburrá (Av. Las Vegas)', stock: 20 },
-      'Rionegro': { cedi: 'CEDI Oriente Llanogrande (Aeropuerto)', stock: 18 }
+      'Medellín': { cedi: 'Planta Central Itagüí / CEDI Guarne', stock: cediStocks['Medellín'] ?? 120 },
+      'Bogotá D.C.': { cedi: 'CEDI Sabana Mosquera (Cra 13)', stock: cediStocks['Bogotá D.C.'] ?? 24 },
+      'Cali': { cedi: 'CEDI Valle Yumbo (Vía Cali-Yumbo)', stock: cediStocks['Cali'] ?? 16 },
+      'Barranquilla': { cedi: 'CEDI Costa Malambo (Calle 30)', stock: cediStocks['Barranquilla'] ?? 12 },
+      'Bucaramanga': { cedi: 'CEDI Santanderes Girón (Km 7)', stock: cediStocks['Bucaramanga'] ?? 14 },
+      'Cartagena': { cedi: 'CEDI Bolívar Mamonal (Km 3)', stock: cediStocks['Cartagena'] ?? 10 },
+      'Envigado': { cedi: 'CEDI Sur Aburrá (Av. Las Vegas)', stock: cediStocks['Envigado'] ?? 20 },
+      'Rionegro': { cedi: 'CEDI Oriente Llanogrande (Aeropuerto)', stock: cediStocks['Rionegro'] ?? 18 }
     };
 
     orders.forEach(order => {
@@ -746,7 +877,7 @@ export function AdminBackoffice({
     });
 
     return sortedList;
-  }, [orders]);
+  }, [orders, cediStocks]);
 
   const totalNacionalCOP = useMemo(() => {
     return cityAnalytics.reduce((acc, c) => acc + c.totalCOP, 0);
@@ -757,8 +888,154 @@ export function AdminBackoffice({
   }, [cityAnalytics]);
 
   const handleRequestCitySupply = (ciudad: string) => {
-    setSupplyNotice(`✓ Orden de Reabastecimiento urgente enviada a Planta Central para CEDI ${ciudad}. Camión nodriza programado.`);
-    setTimeout(() => setSupplyNotice(null), 6000);
+    const nowTime = new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+    const orderCode = `ORB-2026-${Math.floor(100 + Math.random() * 900)}`;
+
+    if (ciudad === 'Nacional (Todas las Sedes)') {
+      const updatedStocks = { ...cediStocks };
+      let totalAdded = 0;
+      let totalT1 = 0;
+      let totalT2 = 0;
+      let totalT3 = 0;
+      let totalSellador = 0;
+
+      cityAnalytics.forEach((c) => {
+        const current = updatedStocks[c.ciudad] ?? c.stockDisponibleCunetes;
+        const needed = Math.max(25, c.cunetesRequeridosTotal - current + 25);
+        updatedStocks[c.ciudad] = current + needed;
+        totalAdded += needed;
+        totalT1 += Math.max(8, c.tipo1Cunetes);
+        totalT2 += Math.max(8, c.tipo2Cunetes);
+        totalT3 += Math.max(4, c.tipo3Cunetes);
+        totalSellador += Math.max(12, c.selladorGalones);
+      });
+
+      setCediStocks(updatedStocks);
+      try {
+        localStorage.setItem('colorlink_cedi_stocks_v1', JSON.stringify(updatedStocks));
+      } catch {}
+
+      const newOrder: ReplenishmentOrderRecord = {
+        id: orderCode,
+        ciudad: 'Nacional (Todas las Sedes)',
+        cedi: 'Red Nacional de CEDIs Colorlink®',
+        fecha: `Hoy, ${nowTime}`,
+        tipo1Cunetes: totalT1,
+        tipo2Cunetes: totalT2,
+        tipo3Cunetes: totalT3,
+        selladorGalones: totalSellador,
+        cunetesAgregados: totalAdded,
+        stockAnterior: (Object.values(cediStocks) as number[]).reduce((a: number, b: number) => a + b, 0),
+        nuevoStock: (Object.values(updatedStocks) as number[]).reduce((a: number, b: number) => a + b, 0),
+        vehiculoNodriza: 'Flota Tractomulas Nodriza Colorlink (#11, #12 y #14)',
+        placa: 'WPK-940 / TZW-815',
+        conductor: 'Hernando Valencia & Equipo Nacional',
+        estado: 'Despachada • Sedes Abastecidas al 100%'
+      };
+
+      setReplenishmentOrders((prev) => {
+        const next = [newOrder, ...prev];
+        try {
+          localStorage.setItem('colorlink_replenishment_orders_v1', JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+
+      // Actualizar pedidos en espera a preparando ya que llegó stock a todas las sedes
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.status === 'en_espera'
+            ? {
+                ...o,
+                status: 'preparando',
+                razonEstado: `Stock reabastecido mediante Orden #${orderCode}. Pedido liberado a tintometría.`
+              }
+            : o
+        )
+      );
+
+      setActiveReplenishmentModal(newOrder);
+      setSupplyNotice(`✓ Orden Nacional #${orderCode} generada con éxito (+${totalAdded} cuñetes distribuidos en todas las sedes).`);
+      return;
+    }
+
+    const cityData = cityAnalytics.find((c) => c.ciudad === ciudad);
+    const prevStock = cediStocks[ciudad] ?? cityData?.stockDisponibleCunetes ?? 15;
+    const requiredDemand = cityData?.cunetesRequeridosTotal ?? 20;
+    const deficit = Math.max(0, requiredDemand - prevStock);
+    const t1 = Math.max(6, cityData?.tipo1Cunetes || 6);
+    const t2 = Math.max(6, cityData?.tipo2Cunetes || 6);
+    const t3 = Math.max(3, cityData?.tipo3Cunetes || 3);
+    const sellador = Math.max(10, cityData?.selladorGalones || 10);
+    const addedCunetes = Math.max(t1 + t2 + t3, deficit + 20);
+    const nextStock = prevStock + addedCunetes;
+
+    const updatedStocks = {
+      ...cediStocks,
+      [ciudad]: nextStock
+    };
+    setCediStocks(updatedStocks);
+    try {
+      localStorage.setItem('colorlink_cedi_stocks_v1', JSON.stringify(updatedStocks));
+    } catch {}
+
+    const nodrizasByCity: Record<string, { vehiculo: string; placa: string; conductor: string }> = {
+      'Bogotá D.C.': { vehiculo: 'Tractomula Nodriza Colorlink #12 (Ruta Medellín-Bogotá)', placa: 'WPK-940', conductor: 'Hernando Valencia' },
+      'Cali': { vehiculo: 'Camión Nodriza Intermunicipal #09 (Ruta Pacífico)', placa: 'KLU-891', conductor: 'Jairo Ramírez' },
+      'Barranquilla': { vehiculo: 'Tractomula Nodriza Costa #15 (Ruta Troncal Caribe)', placa: 'TRN-512', conductor: 'Álvaro Mendoza' },
+      'Cartagena': { vehiculo: 'Tractomula Nodriza Costa #15 (Ruta Bolívar)', placa: 'TRN-512', conductor: 'Álvaro Mendoza' },
+      'Bucaramanga': { vehiculo: 'Camión Nodriza Santanderes #07', placa: 'SJR-409', conductor: 'Gustavo Reyes' },
+      'Medellín': { vehiculo: 'Furgón Abastecimiento Interno Planta Itagüí #03', placa: 'TZW-402', conductor: 'Carlos Restrepo' }
+    };
+    const nodriza = nodrizasByCity[ciudad] || {
+      vehiculo: 'Camión Nodriza Intermunicipal Colorlink #11',
+      placa: 'WFH-320',
+      conductor: 'Andrés Felipe Gil'
+    };
+
+    const newOrder: ReplenishmentOrderRecord = {
+      id: orderCode,
+      ciudad,
+      cedi: cityData?.cedi || `CEDI Regional ${ciudad}`,
+      fecha: `Hoy, ${nowTime}`,
+      tipo1Cunetes: t1,
+      tipo2Cunetes: t2,
+      tipo3Cunetes: t3,
+      selladorGalones: sellador,
+      cunetesAgregados: addedCunetes,
+      stockAnterior: prevStock,
+      nuevoStock: nextStock,
+      vehiculoNodriza: nodriza.vehiculo,
+      placa: nodriza.placa,
+      conductor: nodriza.conductor,
+      estado: 'Despachada • CEDI Reabastecido'
+    };
+
+    setReplenishmentOrders((prev) => {
+      const next = [newOrder, ...prev];
+      try {
+        localStorage.setItem('colorlink_replenishment_orders_v1', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    // Si había pedidos en espera en esta ciudad, liberarlos a preparación con el nuevo stock
+    setOrders((prev) =>
+      prev.map((o) =>
+        o.ciudad.toLowerCase().includes(ciudad.toLowerCase()) && o.status === 'en_espera'
+          ? {
+              ...o,
+              status: 'preparando',
+              razonEstado: `CEDI ${ciudad} reabastecido con Orden #${orderCode} (+${addedCunetes} cuñetes). Pedido en tintometría.`
+            }
+          : o
+      )
+    );
+
+    setActiveReplenishmentModal(newOrder);
+    setSupplyNotice(
+      `✓ Orden de Reabastecimiento #${orderCode} generada para CEDI ${ciudad}: +${addedCunetes} cuñetes enviados (Nuevo stock en sede: ${nextStock} cuñetes).`
+    );
   };
 
   // Algoritmo de Inteligencia Artificial Autónomo para Asignación de Bus, Ruta y Notificaciones
@@ -940,32 +1217,68 @@ export function AdminBackoffice({
   };
 
   useEffect(() => {
-    if (submittedProjects && submittedProjects.length > 0) {
-      const mappedOrders: OrderItem[] = submittedProjects.map((p) => ({
-        id: p.id,
-        cliente: p.formData.cliente || 'Cliente Colorlink',
-        nit: p.formData.nitDocumento || 'S/N',
-        responsable: p.formData.responsable || 'Responsable de Obra',
-        telefono: p.formData.telefonoResponsable || '+57 300 000 0000',
-        email: p.formData.emailResponsable || 'contacto@colorlink.com.co',
-        ciudad: p.formData.ciudad || 'Medellín',
-        areaM2: p.formData.areaM2 || 50,
-        tipoPintura: p.formData.tipoPintura || 'Pintura Tipo 1 Exterior',
-        color: p.formData.colorAcabado || 'Color Específico',
-        totalCOP: p.totalCOP || 1500000,
-        status: 'pendiente',
-        notificaciones: []
-      }));
+    const storedClientOrders = getSavedClientOrdersFromStorage();
+    const fromStorage: OrderItem[] = storedClientOrders.map((s) => ({
+      id: s.orderNumber || s.id || `ORD-${Date.now().toString().slice(-4)}`,
+      cliente: s.detalle?.obra || s.cliente || 'Cliente Colorlink',
+      nit: s.nit || 'S/N',
+      responsable: s.responsable || 'Responsable de Obra',
+      telefono: '+57 300 000 0000',
+      email: s.email || 'contacto@colorlink.com.co',
+      ciudad: s.detalle?.ciudad || s.ciudad || 'Medellín',
+      areaM2: Number(s.detalle?.areaM2 ?? s.areaM2 ?? 50),
+      tipoPintura: s.detalle?.tipoPintura || s.tipoPintura || 'Pintura Tipo 1 Exterior',
+      color: s.detalle?.color || s.color || 'Color Específico',
+      totalCOP: Number(s.total ?? s.totalCOP ?? 1500000),
+      status: s.estado || s.status || 'pendiente',
+      vehiculoAsignado: s.vehiculo,
+      placa: s.placa,
+      conductor: s.conductor,
+      notificaciones: []
+    }));
 
+    const fromSubmitted: OrderItem[] = (submittedProjects || []).map((p) => {
+      const savedMatch = storedClientOrders.find((s) => s.orderNumber === p.id || s.id === p.id);
+      return {
+        id: p.id,
+        cliente: p.formData?.cliente || 'Cliente Colorlink',
+        nit: p.formData?.nitDocumento || 'S/N',
+        responsable: p.formData?.responsable || 'Responsable de Obra',
+        telefono: p.formData?.telefonoResponsable || '+57 300 000 0000',
+        email: p.formData?.emailResponsable || 'contacto@colorlink.com.co',
+        ciudad: p.formData?.ciudad || 'Medellín',
+        areaM2: p.formData?.areaM2 || 50,
+        tipoPintura: p.formData?.tipoPintura || 'Pintura Tipo 1 Exterior',
+        color: p.formData?.colorAcabado || 'Color Específico',
+        totalCOP: p.totalCOP || 1500000,
+        status: savedMatch?.estado || savedMatch?.status || 'pendiente',
+        vehiculoAsignado: savedMatch?.vehiculo,
+        placa: savedMatch?.placa,
+        conductor: savedMatch?.conductor,
+        notificaciones: []
+      };
+    });
+
+    const combinedClientOrders = [...fromSubmitted];
+    fromStorage.forEach((st) => {
+      if (!combinedClientOrders.some((c) => c.id === st.id)) {
+        combinedClientOrders.push(st);
+      }
+    });
+
+    if (combinedClientOrders.length > 0) {
       setOrders((prev) => {
         const existingIds = new Set(prev.map((o) => o.id));
-        const newOnes = mappedOrders.filter((o) => !existingIds.has(o.id));
+        const newOnes = combinedClientOrders.filter((o) => !existingIds.has(o.id));
         if (newOnes.length === 0) return prev;
         const autoProcessed = aiAutoPilotEnabled
           ? newOnes.map((o) => generateAiAutoAssignment(o))
           : newOnes;
         return [...autoProcessed, ...prev];
       });
+      setSelectedOrderId((prevId) =>
+        prevId === 'PED-2026-081' ? combinedClientOrders[0].id : prevId
+      );
     }
   }, [submittedProjects, aiAutoPilotEnabled]);
 
@@ -1013,6 +1326,73 @@ export function AdminBackoffice({
     if (pendingOrders.length === 0) return;
 
     const timer = setTimeout(() => {
+      pendingOrders.forEach((o) => {
+        const autoAssigned = generateAiAutoAssignment(o);
+        const stateMsg = buildOrderStateMessage({
+          status: 'preparando',
+          orderId: o.id,
+          cliente: o.cliente,
+          responsable: o.responsable,
+          color: o.color,
+          tipoPintura: o.tipoPintura,
+          ciudad: o.ciudad,
+          totalCOP: o.totalCOP,
+          vehiculo: autoAssigned.vehiculoAsignado,
+          conductor: autoAssigned.conductor,
+          placa: autoAssigned.placa
+        });
+
+        saveClientOrderToHistory({
+          id: o.id,
+          orderNumber: o.id,
+          fecha: new Date().toISOString(),
+          cliente: o.cliente,
+          nit: o.nit,
+          responsable: o.responsable,
+          email: o.email,
+          ciudad: o.ciudad,
+          areaM2: o.areaM2,
+          tipoPintura: o.tipoPintura,
+          color: o.color,
+          totalCOP: o.totalCOP,
+          status: 'preparando',
+          vehiculo: autoAssigned.vehiculoAsignado,
+          conductor: autoAssigned.conductor,
+          placa: autoAssigned.placa,
+          mensaje: stateMsg.mensajeNotificacion
+        });
+
+        sendOrderStatusUpdateEmail({
+          orderId: o.id,
+          cliente: o.cliente,
+          responsable: o.responsable,
+          email: o.email,
+          status: 'preparando',
+          statusLabel: stateMsg.statusLabel,
+          mensaje: stateMsg.mensajeEmail,
+          vehiculo: autoAssigned.vehiculoAsignado,
+          conductor: autoAssigned.conductor,
+          placa: autoAssigned.placa,
+          ciudad: o.ciudad,
+          totalCOP: o.totalCOP
+        }).catch(() => {});
+
+        fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderNumber: o.id,
+            cliente: o.cliente,
+            responsable: o.responsable,
+            email: o.email,
+            ciudad: o.ciudad,
+            status: 'preparando',
+            totalCOP: o.totalCOP,
+            mensaje: stateMsg.mensajeNotificacion
+          })
+        }).catch(() => {});
+      });
+
       setOrders((prev) =>
         prev.map((o) => {
           if (o.status === 'pendiente') {
@@ -1030,36 +1410,6 @@ export function AdminBackoffice({
               conductor: autoAssigned.conductor,
               placa: autoAssigned.placa
             });
-
-            // Enviar correo transaccional de actualización a Tintometría con mensaje exclusivo de tintometría
-            sendOrderStatusUpdateEmail({
-              orderId: o.id,
-              cliente: o.cliente,
-              responsable: o.responsable,
-              email: o.email,
-              status: 'preparando',
-              statusLabel: stateMsg.statusLabel,
-              mensaje: stateMsg.mensajeEmail,
-              ciudad: o.ciudad,
-              totalCOP: o.totalCOP
-            }).catch(() => {});
-
-            // Notificar también al servidor / Vercel para registro sincronizado
-            fetch('/api/orders', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                orderNumber: o.id,
-                cliente: o.cliente,
-                responsable: o.responsable,
-                email: o.email,
-                ciudad: o.ciudad,
-                status: 'preparando',
-                totalCOP: o.totalCOP,
-                mensaje: stateMsg.mensajeNotificacion
-              })
-            }).catch(() => {});
-
             return {
               ...autoAssigned,
               status: 'preparando',
@@ -1067,7 +1417,7 @@ export function AdminBackoffice({
                 {
                   tipo: 'email',
                   texto: stateMsg.mensajeNotificacion,
-                  fecha: 'Ahora mismo (2 seg - Tintometría)'
+                  fecha: 'Ahora mismo (En Tintometría)'
                 },
                 ...(o.notificaciones || [])
               ]
@@ -1076,37 +1426,152 @@ export function AdminBackoffice({
           return o;
         })
       );
-      showToast('🎨 [Estado: En Tintometría - 2s] Pedido(s) ingresaron al laboratorio con mensaje de dosificación.');
+      showToast('🎨 [Estado: En Tintometría] Pedido(s) ingresaron al laboratorio con mensaje de dosificación.');
     }, 2000);
 
     return () => clearTimeout(timer);
   }, [orders, autoLifecycleEnabled]);
 
-  // 2. Función para avanzar el ciclo de 20 minutos en todos los pedidos
+  // 2. Función para avanzar el ciclo de etapas en todos los pedidos
   const advanceAllOrdersCycle = () => {
     let advancedCount = 0;
-    setOrders((prev) =>
-      prev.map((o) => {
-        // A) De Tintometría ('preparando') -> Despachando ('en_ruta') a los 20 minutos con mensaje oficial de despacho
-        if (o.status === 'preparando') {
-          advancedCount++;
-          const stateMsg = buildOrderStateMessage({
-            status: 'en_ruta',
+    const emailTasks: Array<() => void> = [];
+
+    const nextOrders = orders.map((o) => {
+      // A0) Si un pedido aún está en 'pendiente', avanzarlo a 'preparando' (En Tintometría)
+      if (o.status === 'pendiente') {
+        advancedCount++;
+        const autoAssigned = generateAiAutoAssignment(o);
+        const stateMsg = buildOrderStateMessage({
+          status: 'preparando',
+          orderId: o.id,
+          cliente: o.cliente,
+          responsable: o.responsable,
+          color: o.color,
+          tipoPintura: o.tipoPintura,
+          ciudad: o.ciudad,
+          totalCOP: o.totalCOP,
+          vehiculo: autoAssigned.vehiculoAsignado,
+          conductor: autoAssigned.conductor,
+          placa: autoAssigned.placa
+        });
+        const vehiculo = stateMsg.logistica.vehiculo;
+        const placa = stateMsg.logistica.placa;
+        const conductor = stateMsg.logistica.conductor;
+
+        saveClientOrderToHistory({
+          id: o.id,
+          orderNumber: o.id,
+          fecha: new Date().toISOString(),
+          cliente: o.cliente,
+          nit: o.nit,
+          responsable: o.responsable,
+          email: o.email,
+          ciudad: o.ciudad,
+          areaM2: o.areaM2,
+          tipoPintura: o.tipoPintura,
+          color: o.color,
+          totalCOP: o.totalCOP,
+          status: 'preparando',
+          vehiculo,
+          conductor,
+          placa,
+          mensaje: stateMsg.mensajeNotificacion
+        });
+
+        emailTasks.push(() => {
+          sendOrderStatusUpdateEmail({
             orderId: o.id,
             cliente: o.cliente,
             responsable: o.responsable,
-            color: o.color,
-            tipoPintura: o.tipoPintura,
+            email: o.email,
+            status: 'preparando',
+            statusLabel: stateMsg.statusLabel,
+            mensaje: stateMsg.mensajeEmail,
+            vehiculo,
+            conductor,
+            placa,
             ciudad: o.ciudad,
-            totalCOP: o.totalCOP,
-            vehiculo: o.vehiculoAsignado,
-            conductor: o.conductor,
-            placa: o.placa
-          });
-          const vehiculo = stateMsg.logistica.vehiculo;
-          const placa = stateMsg.logistica.placa;
-          const conductor = stateMsg.logistica.conductor;
+            totalCOP: o.totalCOP
+          }).catch(() => {});
 
+          fetch('/api/orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              orderNumber: o.id,
+              cliente: o.cliente,
+              responsable: o.responsable,
+              email: o.email,
+              ciudad: o.ciudad,
+              status: 'preparando',
+              vehiculo,
+              conductor,
+              placa,
+              totalCOP: o.totalCOP,
+              mensaje: stateMsg.mensajeNotificacion
+            })
+          }).catch(() => {});
+        });
+
+        return {
+          ...autoAssigned,
+          status: 'preparando' as const,
+          vehiculoAsignado: vehiculo,
+          placa,
+          conductor,
+          notificaciones: [
+            {
+              tipo: 'email' as const,
+              texto: stateMsg.mensajeNotificacion,
+              fecha: 'Ahora mismo (En Tintometría)'
+            },
+            ...(o.notificaciones || [])
+          ]
+        };
+      }
+
+      // A) De Tintometría ('preparando') -> Despachando ('en_ruta') con mensaje oficial de despacho
+      if (o.status === 'preparando') {
+        advancedCount++;
+        const stateMsg = buildOrderStateMessage({
+          status: 'en_ruta',
+          orderId: o.id,
+          cliente: o.cliente,
+          responsable: o.responsable,
+          color: o.color,
+          tipoPintura: o.tipoPintura,
+          ciudad: o.ciudad,
+          totalCOP: o.totalCOP,
+          vehiculo: o.vehiculoAsignado,
+          conductor: o.conductor,
+          placa: o.placa
+        });
+        const vehiculo = stateMsg.logistica.vehiculo;
+        const placa = stateMsg.logistica.placa;
+        const conductor = stateMsg.logistica.conductor;
+
+        saveClientOrderToHistory({
+          id: o.id,
+          orderNumber: o.id,
+          fecha: new Date().toISOString(),
+          cliente: o.cliente,
+          nit: o.nit,
+          responsable: o.responsable,
+          email: o.email,
+          ciudad: o.ciudad,
+          areaM2: o.areaM2,
+          tipoPintura: o.tipoPintura,
+          color: o.color,
+          totalCOP: o.totalCOP,
+          status: 'en_ruta',
+          vehiculo,
+          conductor,
+          placa,
+          mensaje: stateMsg.mensajeNotificacion
+        });
+
+        emailTasks.push(() => {
           sendOrderStatusUpdateEmail({
             orderId: o.id,
             cliente: o.cliente,
@@ -1122,7 +1587,6 @@ export function AdminBackoffice({
             totalCOP: o.totalCOP
           }).catch(() => {});
 
-          // Notificar a Vercel Serverless sobre el despacho a los 20 min
           fetch('/api/orders', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1140,42 +1604,66 @@ export function AdminBackoffice({
               mensaje: stateMsg.mensajeNotificacion
             })
           }).catch(() => {});
+        });
 
-          return {
-            ...o,
-            status: 'en_ruta',
-            vehiculoAsignado: vehiculo,
-            placa,
-            conductor,
-            notificaciones: [
-              {
-                tipo: 'email',
-                texto: stateMsg.mensajeNotificacion,
-                fecha: 'Ahora mismo (20 min - En Ruta)'
-              },
-              ...(o.notificaciones || [])
-            ]
-          };
-        }
+        return {
+          ...o,
+          status: 'en_ruta' as const,
+          vehiculoAsignado: vehiculo,
+          placa,
+          conductor,
+          notificaciones: [
+            {
+              tipo: 'email' as const,
+              texto: stateMsg.mensajeNotificacion,
+              fecha: 'Ahora mismo (En Ruta)'
+            },
+            ...(o.notificaciones || [])
+          ]
+        };
+      }
 
-        // B) De Despachando ('en_ruta') -> Entregado ('entregado') a los siguientes 20 minutos con mensaje de entrega final
-        if (o.status === 'en_ruta') {
-          advancedCount++;
-          const stateMsg = buildOrderStateMessage({
-            status: 'entregado',
-            orderId: o.id,
-            cliente: o.cliente,
-            responsable: o.responsable,
-            color: o.color,
-            tipoPintura: o.tipoPintura,
-            ciudad: o.ciudad,
-            totalCOP: o.totalCOP,
-            vehiculo: o.vehiculoAsignado,
-            conductor: o.conductor,
-            placa: o.placa
-          });
-          const conductor = stateMsg.logistica.conductor;
+      // B) De Despachando ('en_ruta') -> Entregado ('entregado') con mensaje de entrega final
+      if (o.status === 'en_ruta') {
+        advancedCount++;
+        const stateMsg = buildOrderStateMessage({
+          status: 'entregado',
+          orderId: o.id,
+          cliente: o.cliente,
+          responsable: o.responsable,
+          color: o.color,
+          tipoPintura: o.tipoPintura,
+          ciudad: o.ciudad,
+          totalCOP: o.totalCOP,
+          vehiculo: o.vehiculoAsignado,
+          conductor: o.conductor,
+          placa: o.placa
+        });
+        const vehiculo = stateMsg.logistica.vehiculo;
+        const placa = stateMsg.logistica.placa;
+        const conductor = stateMsg.logistica.conductor;
 
+        saveClientOrderToHistory({
+          id: o.id,
+          orderNumber: o.id,
+          fecha: new Date().toISOString(),
+          cliente: o.cliente,
+          nit: o.nit,
+          responsable: o.responsable,
+          email: o.email,
+          ciudad: o.ciudad,
+          areaM2: o.areaM2,
+          tipoPintura: o.tipoPintura,
+          color: o.color,
+          totalCOP: o.totalCOP,
+          status: 'entregado',
+          vehiculo,
+          conductor,
+          placa,
+          mensaje: stateMsg.mensajeNotificacion
+        });
+
+        emailTasks.push(() => {
           sendOrderStatusUpdateEmail({
             orderId: o.id,
             cliente: o.cliente,
@@ -1184,14 +1672,13 @@ export function AdminBackoffice({
             status: 'entregado',
             statusLabel: stateMsg.statusLabel,
             mensaje: stateMsg.mensajeEmail,
-            vehiculo: stateMsg.logistica.vehiculo,
-            placa: stateMsg.logistica.placa,
+            vehiculo,
+            placa,
             conductor,
             ciudad: o.ciudad,
             totalCOP: o.totalCOP
           }).catch(() => {});
 
-          // Notificar a Vercel Serverless sobre la entrega final
           fetch('/api/orders', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1207,30 +1694,33 @@ export function AdminBackoffice({
               mensaje: stateMsg.mensajeNotificacion
             })
           }).catch(() => {});
+        });
 
-          return {
-            ...o,
-            status: 'entregado',
-            notificaciones: [
-              {
-                tipo: 'email',
-                texto: stateMsg.mensajeNotificacion,
-                fecha: 'Ahora mismo (+20 min - Entregado)'
-              },
-              ...(o.notificaciones || [])
-            ]
-          };
-        }
+        return {
+          ...o,
+          status: 'entregado' as const,
+          notificaciones: [
+            {
+              tipo: 'email' as const,
+              texto: stateMsg.mensajeNotificacion,
+              fecha: 'Ahora mismo (Entregado)'
+            },
+            ...(o.notificaciones || [])
+          ]
+        };
+      }
 
-        return o;
-      })
-    );
+      return o;
+    });
+
+    setOrders(nextOrders);
+    emailTasks.forEach((fn) => fn());
 
     setSecondsToNextCycle(fastDemoMode ? 20 : 1200);
     if (advancedCount > 0) {
-      showToast(`⏱️ Actualización de 20 min ejecutada: ${advancedCount} pedido(s) cambiaron de estado y generaron su nuevo mensaje.`);
+      showToast(`🚚 Etapa avanzada: ${advancedCount} pedido(s) actualizaron su estado y enviaron notificación al correo del cliente.`);
     } else {
-      showToast('⏱️ Ciclo de 20 min: No hay pedidos en Tintometría o En Camino pendientes de avanzar.');
+      showToast('ℹ️ No hay pedidos en Pendiente, Tintometría o En Camino pendientes de avanzar.');
     }
   };
 
@@ -1408,6 +1898,12 @@ export function AdminBackoffice({
     const order = orders.find((o) => o.id === orderId);
     if (!order) return;
 
+    // Si la orden ya está entregada, protegerla para que no regrese a tintometría ni a fases preliminares
+    if (order.status === 'entregado' && decision !== 'entregar') {
+      showToast(`ℹ️ El pedido #${orderId} ya fue entregado en obra y queda registrado permanentemente como "Entregado".`);
+      return;
+    }
+
     let newStatus: OrderItem['status'] = 'preparando';
     if (decision === 'pendiente') newStatus = 'pendiente';
     else if (decision === 'aceptar') newStatus = 'preparando';
@@ -1459,7 +1955,29 @@ export function AdminBackoffice({
       })
     );
 
-    showToast(`✓ Estado actualizado: "${statusLabel}". Mensaje dinámico generado para ${order.email}`);
+    showToast(`✓ Estado actualizado: "${statusLabel}". Enviando notificación por correo a ${order.email}...`);
+
+    if (newStatus === 'pendiente' || newStatus === 'preparando' || newStatus === 'en_ruta' || newStatus === 'entregado') {
+      saveClientOrderToHistory({
+        id: order.id,
+        orderNumber: order.id,
+        fecha: new Date().toISOString(),
+        cliente: order.cliente,
+        nit: order.nit,
+        responsable: order.responsable,
+        email: order.email,
+        ciudad: order.ciudad,
+        areaM2: order.areaM2,
+        tipoPintura: order.tipoPintura,
+        color: order.color,
+        totalCOP: order.totalCOP,
+        status: newStatus,
+        vehiculo: assignedVeh,
+        conductor: assignedCond,
+        placa: assignedPlaca,
+        mensaje: stateMsg.mensajeNotificacion
+      });
+    }
 
     // Sincronizar cambio de estado y su mensaje con Vercel Serverless
     fetch('/api/orders', {
@@ -1834,66 +2352,28 @@ export function AdminBackoffice({
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="font-extrabold text-sm sm:text-base text-slate-900">
-                      Ciclo de Actualización Automática de Pedidos (Cada 20 Minutos)
+                      Flujo de Estados y Despacho de Pedidos
                     </h3>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300">
-                      ● Activo en Segundo Plano
-                    </span>
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 border ${
-                      vercelStatus?.connected !== false
-                        ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                        : 'bg-rose-50 text-rose-800 border-rose-300'
-                    }`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${
-                        vercelStatus?.connected !== false ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'
-                      }`} />
-                      <span>{vercelStatus?.connected !== false ? `Vercel: Conectado (${vercelStatus?.count ?? orders.length} pedidos)` : 'Vercel: Verificando...'}</span>
-                    </span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-sky-100 text-sky-900">
-                      Próximo avance en: <strong>{Math.floor(secondsToNextCycle / 60)}m {String(secondsToNextCycle % 60).padStart(2, '0')}s</strong>
+                      ● Activo en Tiempo Real
                     </span>
                   </div>
                   <p className="text-xs text-slate-600 mt-0.5">
-                    1. Ingreso a <strong>Tintometría a los 2 segundos</strong> ➔ 2. Notificación y <strong>Despacho a los 20 min</strong> ➔ 3. <strong>Entrega en Obra a los 20 min</strong>. Sincronizado en tiempo real con Vercel.
+                    1. <strong>Pedido Recibido</strong> ➔ 2. <strong>En Laboratorio de Tintometría</strong> ➔ 3. <strong>Despachando en Ruta</strong> ➔ 4. <strong>Entregado en Obra</strong>. Sincronizado en tiempo real con el cliente.
                   </p>
                 </div>
               </div>
 
-              {/* Botones de Control del Ciclo y Verificación de Vercel */}
+              {/* Botón de Control de Avance de Pedidos */}
               <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  type="button"
-                  onClick={handleTestVercelConnection}
-                  disabled={isTestingVercel}
-                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-black text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-70"
-                  title="Comprobar que Vercel Serverless recibe y procesa pedidos en vivo"
-                >
-                  <Activity className={`w-3.5 h-3.5 ${isTestingVercel ? 'animate-spin' : ''}`} />
-                  <span>{isTestingVercel ? 'Verificando Vercel...' : '📡 Comprobar Vercel'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleToggleFastDemoMode}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 ${
-                    fastDemoMode
-                      ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-500/25'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                  }`}
-                  title="Alternar entre 20 minutos reales o 20 segundos para pruebas de demostración"
-                >
-                  <Zap className={`w-3.5 h-3.5 ${fastDemoMode ? 'text-amber-200 fill-amber-200' : 'text-slate-500'}`} />
-                  <span>{fastDemoMode ? '⚡ Modo Rápido (20 seg)' : '⏱️ Tiempo Real (20 min)'}</span>
-                </button>
-
                 <button
                   type="button"
                   onClick={advanceAllOrdersCycle}
                   className="px-4 py-2 bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-110 text-white font-black text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
-                  title="Avanzar manualmente 20 minutos en todos los pedidos de la planta"
+                  title="Avanzar a la siguiente etapa operativa de los pedidos activos"
                 >
                   <ArrowRight className="w-3.5 h-3.5" />
-                  <span>Avanzar +20 Minutos Ahora</span>
+                  <span>Avanzar Etapa de Pedidos</span>
                 </button>
               </div>
             </div>
@@ -1904,7 +2384,7 @@ export function AdminBackoffice({
                 <span className="w-6 h-6 rounded-lg bg-amber-500 text-white flex items-center justify-center font-black text-xs shrink-0">1</span>
                 <div>
                   <strong className="block font-black text-xs text-amber-900">Pedido Recibido</strong>
-                  <p className="text-[11px] text-amber-800 leading-tight">Espera 2s para entrar a dosificación.</p>
+                  <p className="text-[11px] text-amber-800 leading-tight">Orden radicada y programada para dosificación.</p>
                   <span className="text-[10px] font-mono text-amber-700 font-bold block mt-1">
                     {orders.filter(o => o.status === 'pendiente').length} pedido(s)
                   </span>
@@ -1915,7 +2395,7 @@ export function AdminBackoffice({
                 <span className="w-6 h-6 rounded-lg bg-sky-600 text-white flex items-center justify-center font-black text-xs shrink-0">2</span>
                 <div>
                   <strong className="block font-black text-xs text-sky-900">En Tintometría</strong>
-                  <p className="text-[11px] text-sky-800 leading-tight">A los 2s: Formulación de color en laboratorio.</p>
+                  <p className="text-[11px] text-sky-800 leading-tight">Formulación computarizada de color en laboratorio.</p>
                   <span className="text-[10px] font-mono text-sky-700 font-bold block mt-1">
                     {orders.filter(o => o.status === 'preparando').length} pedido(s)
                   </span>
@@ -1926,7 +2406,7 @@ export function AdminBackoffice({
                 <span className="w-6 h-6 rounded-lg bg-purple-600 text-white flex items-center justify-center font-black text-xs shrink-0">3</span>
                 <div>
                   <strong className="block font-black text-xs text-purple-900">Despachando en Ruta</strong>
-                  <p className="text-[11px] text-purple-800 leading-tight">A los 20 min: Mensaje formal de despacho enviado.</p>
+                  <p className="text-[11px] text-purple-800 leading-tight">Vehículo asignado y notificación de despacho enviada.</p>
                   <span className="text-[10px] font-mono text-purple-700 font-bold block mt-1">
                     {orders.filter(o => o.status === 'en_ruta').length} pedido(s)
                   </span>
@@ -1937,7 +2417,7 @@ export function AdminBackoffice({
                 <span className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black text-xs shrink-0">4</span>
                 <div>
                   <strong className="block font-black text-xs text-emerald-900">Entregado en Obra</strong>
-                  <p className="text-[11px] text-emerald-800 leading-tight">A los 20 min: Remisión y garantía NTC 1335.</p>
+                  <p className="text-[11px] text-emerald-800 leading-tight">Entrega confirmada con remisión y garantía NTC 1335.</p>
                   <span className="text-[10px] font-mono text-emerald-700 font-bold block mt-1">
                     {orders.filter(o => o.status === 'entregado').length} pedido(s)
                   </span>
@@ -2017,11 +2497,12 @@ export function AdminBackoffice({
               <div className="space-y-2.5 max-h-[580px] overflow-y-auto pr-1">
                 {orders
                   .filter((ord) => {
+                    const q = (orderSearchText || '').toLowerCase();
                     const matchesSearch =
-                      ord.id.toLowerCase().includes(orderSearchText.toLowerCase()) ||
-                      ord.cliente.toLowerCase().includes(orderSearchText.toLowerCase()) ||
-                      ord.ciudad.toLowerCase().includes(orderSearchText.toLowerCase()) ||
-                      ord.responsable.toLowerCase().includes(orderSearchText.toLowerCase());
+                      (ord.id || '').toLowerCase().includes(q) ||
+                      (ord.cliente || '').toLowerCase().includes(q) ||
+                      (ord.ciudad || '').toLowerCase().includes(q) ||
+                      (ord.responsable || '').toLowerCase().includes(q);
                     const matchesStatus =
                       orderStatusFilter === 'todos' || ord.status === orderStatusFilter;
                     return matchesSearch && matchesStatus;
@@ -2042,13 +2523,13 @@ export function AdminBackoffice({
                           {/* Miniatura de la Ciudad */}
                           <div className="relative w-14 h-14 rounded-xl overflow-hidden shrink-0 border border-slate-200 shadow-2xs">
                             <img
-                              src={getCityImage(ord.ciudad)}
-                              alt={ord.ciudad}
+                              src={getCityImage(ord.ciudad || 'Medellín')}
+                              alt={ord.ciudad || 'Medellín'}
                               className="w-full h-full object-cover"
                             />
                             <div className="absolute inset-0 bg-gradient-to-t from-white/95 via-white/40 to-transparent" />
                             <span className="absolute bottom-0.5 left-1 text-[8px] font-black text-slate-900 uppercase truncate max-w-[50px]">
-                              {ord.ciudad.split(' ')[0]}
+                              {(ord.ciudad || 'Medellín').split(' ')[0]}
                             </span>
                           </div>
 
@@ -2070,9 +2551,9 @@ export function AdminBackoffice({
                                     : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                                 }`}
                               >
-                                {ord.status === 'pendiente' && '⏳ Entra a Tintometría (2s)'}
-                                {ord.status === 'preparando' && '🎨 En Tintometría (Despacho 20m)'}
-                                {ord.status === 'en_ruta' && '🚚 Despachando (Entrega 20m)'}
+                                {ord.status === 'pendiente' && '⏳ Pedido Recibido'}
+                                {ord.status === 'preparando' && '🎨 En Tintometría'}
+                                {ord.status === 'en_ruta' && '🚚 Despachando en Ruta'}
                                 {ord.status === 'en_espera' && 'En Espera'}
                                 {ord.status === 'rechazado' && 'Rechazado'}
                                 {ord.status === 'entregado' && '✅ Entregado en Obra'}
@@ -2188,17 +2669,17 @@ export function AdminBackoffice({
                         </h4>
                         {activeOrder.status === 'pendiente' && (
                           <span className="px-2.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] font-extrabold rounded-full border border-amber-300">
-                            ⏳ Estado 1/4: Pedido Recibido • En espera de Tintometría (2s)
+                            ⏳ Estado 1/4: Pedido Recibido • En espera de Tintometría
                           </span>
                         )}
                         {activeOrder.status === 'preparando' && (
                           <span className="px-2.5 py-0.5 bg-sky-100 text-sky-900 text-[10px] font-extrabold rounded-full border border-sky-300">
-                            🎨 Estado 2/4: En Laboratorio de Tintometría (Despacho en 20m)
+                            🎨 Estado 2/4: En Laboratorio de Tintometría
                           </span>
                         )}
                         {activeOrder.status === 'en_ruta' && (
                           <span className="px-2.5 py-0.5 bg-purple-100 text-purple-900 text-[10px] font-extrabold rounded-full border border-purple-300">
-                            🚚 Estado 3/4: Despachando en Ruta a Obra (Entrega en 20m)
+                            🚚 Estado 3/4: Despachando en Ruta a Obra
                           </span>
                         )}
                         {activeOrder.status === 'entregado' && (
@@ -2885,7 +3366,7 @@ export function AdminBackoffice({
                     <tr>
                       <td colSpan={8} className="p-8 text-center text-slate-400">
                         <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-sky-600" />
-                        <span>Cargando clientes registrados desde Supabase...</span>
+                        <span>Cargando directorio de clientes registrados...</span>
                       </td>
                     </tr>
                   ) : supabaseClients.length === 0 ? (
@@ -2973,11 +3454,11 @@ export function AdminBackoffice({
               </table>
             </div>
 
-            {/* Pie de tabla con datos de persistencia */}
+            {/* Pie de tabla */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-slate-500 pt-2">
               <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span>Base de Datos PostgreSQL activa: <strong className="text-slate-700">vhydyisbrimyrtwdisoa.supabase.co</strong></span>
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                <span>Directorio corporativo Colorlink® actualizado</span>
               </div>
               <span className="text-slate-400">
                 Mostrando {supabaseClients.length} registro{supabaseClients.length === 1 ? '' : 's'} totales
@@ -3393,22 +3874,51 @@ export function AdminBackoffice({
                     {/* Stock Local vs Demanda */}
                     <div className="p-3 rounded-xl bg-slate-100 text-xs flex items-center justify-between">
                       <span className="text-slate-600">
-                        Stock en Sede: <strong>{c.stockDisponibleCunetes} cuñetes</strong>
+                        Stock en Sede: <strong className="text-emerald-700 font-mono">{c.stockDisponibleCunetes} cuñetes</strong>
                       </span>
                       <span className="font-bold text-slate-800">
-                        Demanda Requerida: <strong>{c.cunetesRequeridosTotal} cuñetes</strong>
+                        Demanda Requerida: <strong className="font-mono">{c.cunetesRequeridosTotal} cuñetes</strong>
                       </span>
                     </div>
+
+                    {/* Última orden de reabastecimiento generada para esta ciudad */}
+                    {(() => {
+                      const latestCityReplenish = replenishmentOrders.find((r) => r.ciudad === c.ciudad);
+                      if (!latestCityReplenish) return null;
+                      return (
+                        <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-950 space-y-1 animate-fadeIn">
+                          <div className="flex items-center justify-between font-bold">
+                            <span className="flex items-center gap-1 text-emerald-800">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              Orden #{latestCityReplenish.id} Activa
+                            </span>
+                            <span className="text-[10px] font-mono bg-emerald-200/80 text-emerald-900 px-2 py-0.5 rounded-full">
+                              +{latestCityReplenish.cunetesAgregados} cuñetes
+                            </span>
+                          </div>
+                          <p className="text-emerald-800">
+                            {latestCityReplenish.vehiculoNodriza} • Placa <strong>{latestCityReplenish.placa}</strong> ({latestCityReplenish.conductor})
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setActiveReplenishmentModal(latestCityReplenish)}
+                            className="text-[10px] font-black text-sky-700 hover:underline cursor-pointer pt-0.5 block"
+                          >
+                            Ver comprobante completo de la orden →
+                          </button>
+                        </div>
+                      );
+                    })()}
 
                     {/* Botón de Acción de Reabastecimiento */}
                     <div className="pt-1">
                       <button
                         type="button"
                         onClick={() => handleRequestCitySupply(c.ciudad)}
-                        className="w-full py-2 px-3 bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-110 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                        className="w-full py-2.5 px-3 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
                       >
-                        <Boxes className="w-3.5 h-3.5" />
-                        <span>Generar Orden de Reabastecimiento</span>
+                        <Boxes className="w-4 h-4" />
+                        <span>Generar Orden de Reabastecimiento ({c.ciudad})</span>
                       </button>
                     </div>
                   </div>
@@ -3520,6 +4030,144 @@ export function AdminBackoffice({
                     ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE ORDEN OFICIAL DE REABASTECIMIENTO CEDI */}
+      {activeReplenishmentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl border border-slate-200 space-y-5 animate-scaleUp max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-600 text-white flex items-center justify-center shadow-md shrink-0">
+                  <Boxes className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-black text-slate-900">
+                      Orden de Reabastecimiento #{activeReplenishmentModal.id}
+                    </h3>
+                    <span className="text-[10px] bg-emerald-100 text-emerald-800 font-extrabold px-2 py-0.5 rounded-full border border-emerald-200">
+                      Aprobada
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Despacho desde Planta Central Medellín hacia {activeReplenishmentModal.cedi}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveReplenishmentModal(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Resumen de Stock Actualizado */}
+            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-emerald-900 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  Inventario de Sede Actualizado: {activeReplenishmentModal.ciudad}
+                </span>
+                <span className="text-[11px] font-mono text-emerald-700 font-bold">
+                  {activeReplenishmentModal.fecha}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 pt-1 text-center">
+                <div className="bg-white p-2.5 rounded-xl border border-emerald-100">
+                  <span className="text-[10px] text-slate-500 block font-semibold">Stock Anterior</span>
+                  <strong className="text-sm font-black text-slate-700 font-mono">
+                    {activeReplenishmentModal.stockAnterior} cuñ.
+                  </strong>
+                </div>
+                <div className="bg-white p-2.5 rounded-xl border border-emerald-200">
+                  <span className="text-[10px] text-emerald-700 block font-bold">Despacho Planta</span>
+                  <strong className="text-sm font-black text-emerald-600 font-mono">
+                    +{activeReplenishmentModal.cunetesAgregados} cuñ.
+                  </strong>
+                </div>
+                <div className="bg-emerald-600 text-white p-2.5 rounded-xl shadow-2xs">
+                  <span className="text-[10px] text-emerald-100 block font-bold">Nuevo Stock Sede</span>
+                  <strong className="text-sm font-black text-white font-mono">
+                    {activeReplenishmentModal.nuevoStock} cuñ.
+                  </strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Desglose de Materiales de la Orden */}
+            <div className="space-y-2">
+              <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 block">
+                📦 Detalle de Lote Despachado a Sede:
+              </span>
+              <div className="grid grid-cols-2 gap-2.5 text-xs">
+                <div className="p-3 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-bold text-sky-800 block">Pintura Tipo 1 Exterior</span>
+                    <span className="text-[10px] text-sky-600">Fachadas Koraza / Acrílica</span>
+                  </div>
+                  <strong className="text-sm font-black text-sky-950 font-mono">
+                    +{activeReplenishmentModal.tipo1Cunetes} cuñ.
+                  </strong>
+                </div>
+                <div className="p-3 rounded-xl bg-teal-50 border border-teal-100 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-bold text-teal-800 block">Pintura Tipo 2 Interior</span>
+                    <span className="text-[10px] text-teal-600">Viniltex Lavable</span>
+                  </div>
+                  <strong className="text-sm font-black text-teal-950 font-mono">
+                    +{activeReplenishmentModal.tipo2Cunetes} cuñ.
+                  </strong>
+                </div>
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-bold text-amber-800 block">Pintura Tipo 3 Cielos</span>
+                    <span className="text-[10px] text-amber-600">Fondeo & Techos</span>
+                  </div>
+                  <strong className="text-sm font-black text-amber-950 font-mono">
+                    +{activeReplenishmentModal.tipo3Cunetes} cuñ.
+                  </strong>
+                </div>
+                <div className="p-3 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-bold text-purple-800 block">Sellador Antialcalino</span>
+                    <span className="text-[10px] text-purple-600">Sellomax Base</span>
+                  </div>
+                  <strong className="text-sm font-black text-purple-950 font-mono">
+                    +{activeReplenishmentModal.selladorGalones} gal.
+                  </strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Datos de Transporte Nodriza */}
+            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-1.5">
+              <div className="font-bold text-slate-800 flex items-center gap-1.5">
+                <Truck className="w-4 h-4 text-sky-600" />
+                <span>Logística de Transporte Nodriza Asignada:</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11px] text-slate-600">
+                <div>• <strong>Unidad:</strong> {activeReplenishmentModal.vehiculoNodriza}</div>
+                <div>• <strong>Placa:</strong> <span className="font-mono font-bold text-slate-900">{activeReplenishmentModal.placa}</span></div>
+                <div>• <strong>Conductor:</strong> {activeReplenishmentModal.conductor}</div>
+                <div>• <strong>Estado:</strong> <span className="text-emerald-700 font-bold">{activeReplenishmentModal.estado}</span></div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setActiveReplenishmentModal(null)}
+                className="px-5 py-2.5 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-black text-xs rounded-xl shadow-sm transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Entendido y Confirmar Abastecimiento</span>
+              </button>
             </div>
           </div>
         </div>

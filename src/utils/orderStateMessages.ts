@@ -127,7 +127,7 @@ export function buildOrderStateMessage(params: {
     tiempoEstimado: defaultLogistics.tiempoEstimado
   };
 
-  const cleanId = orderId.replace(/\D/g, '').slice(-4) || '2026';
+  const cleanId = String(orderId || '2026').replace(/\D/g, '').slice(-4) || '2026';
   const lote = `LOTE-${cleanId}-NTC`;
   const remision = `REM-CLK-${cleanId}`;
 
@@ -137,8 +137,8 @@ export function buildOrderStateMessage(params: {
         status: 'pendiente',
         statusLabel: 'Pedido Recibido • Por Aprobar',
         tituloNotificacion: '📋 Pedido Registrado & En Espera de Tintometría',
-        mensajeNotificacion: `📋 [Pedido Registrado] Orden #${orderId} de "${cliente}" radicada exitosamente en el sistema. Se verificaron insumos para "${tipoPintura}" y base para color "${color}" en la bodega de ${ciudad}. El pedido ingresará a tintometría a los 2 segundos.`,
-        mensajeEmail: `Estimado(a) ${responsable},\n\nLe confirmamos la recepción oficial de su pedido #${orderId} para el proyecto "${cliente}" en ${ciudad}.\n\n• Producto: ${tipoPintura}\n• Color Seleccionado: ${color}\n• Estado Actual: Pedido formalizado, ingresando a máquina dosificadora en 2 segundos.\n\nTotal liquidado: ${new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(totalCOP)}.`,
+        mensajeNotificacion: `📋 [Pedido Registrado] Orden #${orderId} de "${cliente}" radicada exitosamente en el sistema. Se verificaron insumos para "${tipoPintura}" y base para color "${color}" en la bodega de ${ciudad}. El pedido ha sido programado para ingreso al laboratorio de tintometría.`,
+        mensajeEmail: `Estimado(a) ${responsable},\n\nLe confirmamos la recepción oficial de su pedido #${orderId} para el proyecto "${cliente}" en ${ciudad}.\n\n• Producto: ${tipoPintura}\n• Color Seleccionado: ${color}\n• Estado Actual: Pedido formalizado, programado para ingreso a máquina dosificadora.\n\nTotal liquidado: ${new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(totalCOP)}.`,
         mensajeServidor: `Pedido #${orderId} de "${cliente}" recibido y registrado. En cola para dosificación de color.`,
         logistica,
         lote,
@@ -150,10 +150,10 @@ export function buildOrderStateMessage(params: {
       return {
         status: 'preparando',
         statusLabel: 'En Tintometría • Dosificación Computarizada',
-        tituloNotificacion: '🎨 Ingreso a Tintometría (A los 2 segundos del pedido)',
-        mensajeNotificacion: `🎨 [Tintometría - 2s] ¡Tu pedido #${orderId} ingresó al laboratorio de tintometría computarizada Colorlink® en ${ciudad}! Se inició la dosificación micrométrica de pigmentos para el color "${color}" con base ${tipoPintura}. Mezclado giroscópico a 1.400 RPM para máxima dispersión (${lote}). Próximo avance: Despacho a los 20 min.`,
-        mensajeEmail: `Estimado(a) ${responsable},\n\n¡Su pedido #${orderId} se encuentra en preparación activa en nuestro laboratorio de tintometría!\n\n• Formulación computarizada en proceso para: "${color}"\n• Base química: ${tipoPintura} (Norma Técnica NTC 1335)\n• Control de calidad: Espectrofotometría Delta-E < 0.5 (${lote})\n• Cantidad: ${cuñetes} cuñete(s)\n\nEn 20 minutos su pedido completará la formulación y pasará a despacho hacia su obra.`,
-        mensajeServidor: `Pedido #${orderId} en tintometría: dosificación de pigmentos para "${color}" iniciada a los 2 segundos.`,
+        tituloNotificacion: '🎨 En Laboratorio de Tintometría • Dosificación de Color',
+        mensajeNotificacion: `🎨 [En Tintometría] ¡Tu pedido #${orderId} ingresó al laboratorio de tintometría computarizada Colorlink® en ${ciudad}! Se inició la dosificación micrométrica de pigmentos para el color "${color}" con base ${tipoPintura}. Mezclado giroscópico a 1.400 RPM para máxima dispersión (${lote}). Próximo paso: Despacho hacia tu obra.`,
+        mensajeEmail: `Estimado(a) ${responsable},\n\n¡Su pedido #${orderId} se encuentra en preparación activa en nuestro laboratorio de tintometría!\n\n• Formulación computarizada en proceso para: "${color}"\n• Base química: ${tipoPintura} (Norma Técnica NTC 1335)\n• Control de calidad: Espectrofotometría Delta-E < 0.5 (${lote})\n• Cantidad: ${cuñetes} cuñete(s)\n\nUna vez finalizada la formulación y el control de calidad, su pedido pasará a despacho hacia su obra.`,
+        mensajeServidor: `Pedido #${orderId} en tintometría: dosificación de pigmentos para "${color}" iniciada en laboratorio.`,
         logistica,
         lote,
         remision,
@@ -164,8 +164,8 @@ export function buildOrderStateMessage(params: {
       return {
         status: 'en_ruta',
         statusLabel: 'Despachando • En Ruta a Obra',
-        tituloNotificacion: '🚚 Despachando Pedido (A los 20 minutos de tintometría)',
-        mensajeNotificacion: `🚚 [Despacho en Ruta - 20 min] ¡Tu pedido #${orderId} completó tintometría y SE ESTÁ DESPACHANDO hacia tu obra en ${ciudad}! Asignado al ${logistica.vehiculo} (Placa: ${logistica.placa}), conducido por ${logistica.conductor} (Móvil: ${logistica.telefono}). Ruta: ${logistica.corredorRuta}. Llegada estimada: ${logistica.tiempoEstimado}. Remisión física oficial #${remision}.`,
+        tituloNotificacion: '🚚 Despachando Pedido • En Ruta hacia tu Obra',
+        mensajeNotificacion: `🚚 [Despacho en Ruta] ¡Tu pedido #${orderId} completó tintometría y SE ESTÁ DESPACHANDO hacia tu obra en ${ciudad}! Asignado al ${logistica.vehiculo} (Placa: ${logistica.placa}), conducido por ${logistica.conductor} (Móvil: ${logistica.telefono}). Ruta: ${logistica.corredorRuta}. Llegada estimada: ${logistica.tiempoEstimado}. Remisión física oficial #${remision}.`,
         mensajeEmail: `Estimado(a) ${responsable},\n\n¡Excelentes noticias! Su pedido #${orderId} ha terminado satisfactoriamente su dosificación en tintometría y SE ESTÁ DESPACHANDO hacia su obra en ${ciudad}.\n\n🚚 DETALLES DE DESPACHO:\n• Vehículo de Flota: ${logistica.vehiculo}\n• Placa Oficial: ${logistica.placa}\n• Conductor Responsable: ${logistica.conductor} (Tel: ${logistica.telefono})\n• Corredor Vial: ${logistica.corredorRuta}\n• Tiempo Estimado de Llegada: ${logistica.tiempoEstimado}\n• Número de Remisión Física: #${remision}\n\nEl conductor lleva la remisión impresa y el certificado de lote ${lote}.`,
         mensajeServidor: `Pedido #${orderId} despachado hacia ${ciudad} en ${logistica.vehiculo} (${logistica.placa}) con conductor ${logistica.conductor}.`,
         logistica,
@@ -178,8 +178,8 @@ export function buildOrderStateMessage(params: {
       return {
         status: 'entregado',
         statusLabel: 'Entregado con Éxito en Obra',
-        tituloNotificacion: '✅ Pedido Entregado con Éxito (A los 20 minutos de despacho)',
-        mensajeNotificacion: `✅ [Entrega Finalizada - 20 min] ¡Tu pedido #${orderId} fue ENTREGADO con éxito en tu obra en ${ciudad} por el conductor ${logistica.conductor}! Se firmó la remisión física oficial #${remision} a entera satisfacción y se radicó el Certificado Técnico de Calidad NTC 1335 (${lote}). ¡Garantía de durabilidad y cobertura activada!`,
+        tituloNotificacion: '✅ Pedido Entregado con Éxito en tu Obra',
+        mensajeNotificacion: `✅ [Entrega Finalizada] ¡Tu pedido #${orderId} fue ENTREGADO con éxito en tu obra en ${ciudad} por el conductor ${logistica.conductor}! Se firmó la remisión física oficial #${remision} a entera satisfacción y se radicó el Certificado Técnico de Calidad NTC 1335 (${lote}). ¡Garantía de durabilidad y cobertura activada!`,
         mensajeEmail: `Estimado(a) ${responsable},\n\nLe confirmamos que su pedido #${orderId} ha sido ENTREGADO con total éxito y satisfacción en su obra en ${ciudad} por nuestro conductor ${logistica.conductor}.\n\n📄 SOPORTES ENTREGADOS EN OBRA:\n• Remisión Oficial Firmada: #${remision}\n• Certificado de Calidad Técnica: Norma Icontec NTC 1335 (${lote})\n• Color Verificado: "${color}"\n• Tipo de Pintura: ${tipoPintura}\n\nAgradecemos su preferencia por COLORLINK® Pinturas Colombia. Su garantía oficial de fábrica queda 100% activa.`,
         mensajeServidor: `Pedido #${orderId} entregado con éxito en ${ciudad}. Remisión #${remision} y certificado NTC 1335 archivados.`,
         logistica,

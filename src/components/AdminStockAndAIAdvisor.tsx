@@ -293,7 +293,7 @@ export function AdminStockAndAIAdvisor({
     setToolsStock(prev => prev.map(t => t.id === toolId ? { ...t, stock: newStock } : t));
     const ok = await updateToolStockInSupabase(toolId, newStock);
     if (ok) {
-      setToolUpdateNotice(`✓ Stock de ${item.nombre} actualizado a ${newStock} unidades en Supabase`);
+      setToolUpdateNotice(`✓ Stock de ${item.nombre} actualizado a ${newStock} unidades en bodega`);
       setTimeout(() => setToolUpdateNotice(null), 3500);
     }
   };
@@ -302,7 +302,7 @@ export function AdminStockAndAIAdvisor({
     setLoadingTools(true);
     await seedToolsInventoryToSupabase();
     await loadTools();
-    setToolUpdateNotice('✓ Catálogo de brochas y herramientas sincronizado en Supabase');
+    setToolUpdateNotice('✓ Catálogo de brochas y herramientas actualizado correctamente');
     setTimeout(() => setToolUpdateNotice(null), 3500);
   };
 
@@ -315,6 +315,27 @@ export function AdminStockAndAIAdvisor({
     (acc, it) => acc + it.suggestedReorder * it.costoPorUnidadCOP,
     0
   );
+
+  const handleReplenishSingleItem = (itemId: string) => {
+    setStock((prev) =>
+      prev.map((item) => {
+        if (item.id !== itemId) return item;
+        const nextStock = Math.max(item.capacityLiters, item.currentStockLiters + Math.max(10, item.suggestedReorder));
+        return {
+          ...item,
+          currentStockLiters: nextStock,
+          capacityLiters: Math.max(item.capacityLiters, nextStock),
+          status: 'optimo',
+          suggestedReorder: 0
+        };
+      })
+    );
+    const target = stock.find((s) => s.id === itemId);
+    setToolUpdateNotice(
+      `✓ Orden de Reabastecimiento #ORB-${Math.floor(100 + Math.random() * 900)} ejecutada para ${target?.name || 'insumo'}. Stock al 100%.`
+    );
+    setTimeout(() => setToolUpdateNotice(null), 4000);
+  };
 
   const handleReplenishAllWithAI = () => {
     setIsReplenishing(true);
@@ -329,8 +350,14 @@ export function AdminStockAndAIAdvisor({
       );
       setIsReplenishing(false);
       setReplenishSuccess(true);
-      setTimeout(() => setReplenishSuccess(false), 4000);
-    }, 1200);
+      setToolUpdateNotice(
+        `✓ Orden de Reabastecimiento Global #ORB-IA-${Math.floor(1000 + Math.random() * 9000)} generada y despachada. Todos los pigmentos y bases al 100%.`
+      );
+      setTimeout(() => {
+        setReplenishSuccess(false);
+        setToolUpdateNotice(null);
+      }, 4500);
+    }, 600);
   };
 
   return (
@@ -362,23 +389,23 @@ export function AdminStockAndAIAdvisor({
             <button
               type="button"
               onClick={handleReplenishAllWithAI}
-              disabled={isReplenishing || criticalItems.length === 0}
+              disabled={isReplenishing}
               className="px-6 py-3.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-black rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
             >
               {isReplenishing ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin text-white" />
-                  <span>Procesando Orden de Compra...</span>
+                  <span>Procesando Orden de Reabastecimiento...</span>
                 </>
-              ) : replenishSuccess ? (
+              ) : replenishSuccess || totalReplenishCost === 0 ? (
                 <>
                   <Check className="w-4 h-4 text-emerald-300" />
-                  <span>¡Inventario Reabastecido al 100%!</span>
+                  <span>¡Inventario Reabastecido al 100%! (Generar Nueva Orden)</span>
                 </>
               ) : (
                 <>
                   <ShoppingCart className="w-4 h-4 text-amber-300" />
-                  <span>Generar Orden de Compra con IA ({formatCOP(totalReplenishCost)})</span>
+                  <span>Generar Orden de Reabastecimiento con IA ({formatCOP(totalReplenishCost)})</span>
                 </>
               )}
             </button>
@@ -553,11 +580,21 @@ export function AdminStockAndAIAdvisor({
                       <td className="p-3 text-slate-600 truncate max-w-[150px]">{item.proveedor}</td>
                       <td className="p-3 text-right">
                         {item.suggestedReorder > 0 ? (
-                          <span className="text-rose-600 font-bold font-mono">
-                            Pedir +{item.suggestedReorder} {item.unit}
-                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleReplenishSingleItem(item.id)}
+                            className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold font-mono text-[11px] cursor-pointer shadow-2xs transition-all active:scale-95"
+                          >
+                            Reabastecer +{item.suggestedReorder} {item.unit}
+                          </button>
                         ) : (
-                          <span className="text-emerald-700 text-[11px] font-semibold">✓ Abastecido</span>
+                          <button
+                            type="button"
+                            onClick={() => handleReplenishSingleItem(item.id)}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[11px] font-semibold cursor-pointer transition-colors"
+                          >
+                            ✓ Abastecido (+Stock)
+                          </button>
                         )}
                       </td>
                     </tr>
@@ -747,10 +784,6 @@ export function AdminStockAndAIAdvisor({
               <div>
                 <h3 className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
                   <span>Inventario de Brochas, Rodillos y Accesorios</span>
-                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
-                    <Database className="w-3 h-3 text-emerald-600" />
-                    <span>Supabase Live</span>
-                  </span>
                 </h3>
                 <p className="text-xs text-slate-500">
                   Control de existencias reales de bodega para herramientas de pintura vendidas en el cotizador.
@@ -772,16 +805,16 @@ export function AdminStockAndAIAdvisor({
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
             </div>
 
-            {/* Botón Sincronizar */}
+            {/* Botón Actualizar Inventario */}
             <button
               type="button"
               onClick={handleSeedAllTools}
               disabled={loadingTools}
               className="px-3.5 py-2 bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-110 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0 disabled:opacity-50"
-              title="Guardar o restaurar catálogo en Supabase"
+              title="Actualizar inventario de bodega"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loadingTools ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">Sincronizar Supabase</span>
+              <span className="hidden sm:inline">Actualizar Inventario</span>
             </button>
           </div>
         </div>
@@ -796,7 +829,7 @@ export function AdminStockAndAIAdvisor({
                 <th className="p-3.5">Precio Venta</th>
                 <th className="p-3.5 text-center">Stock Actual</th>
                 <th className="p-3.5 text-center">Estado Bodega</th>
-                <th className="p-3.5 text-right">Ajuste de Stock Rápido (Supabase)</th>
+                <th className="p-3.5 text-right">Ajuste de Stock Rápido</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">

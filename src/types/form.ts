@@ -56,7 +56,7 @@ export interface ProjectFormData {
   fechaRequerida: string;
 
   // Técnico
-  superficie: 'Concreto / Revoque' | 'Drywall / Yeso' | 'Metal Ferroso' | 'Metal Galvanizado / Aluminio' | 'Madera' | 'Pintura Existente';
+  superficie: 'Concreto / Revoque' | 'Drywall / Yeso' | 'Metal Ferroso' | 'Metal Galvanizado / Aluminio' | 'Madera' | 'Pintura Existente' | string;
   ambiente: 'Exterior Intemperie' | 'Interior Seco' | 'Interior Húmedo (Baños/Cocinas)' | 'Industrial Severo / Químico' | 'Tráfico Peatonal / Vehicular';
   condicion: 'Nueva sin pintar' | 'Pintada en buen estado' | 'Fisuras leves y humedad' | 'Descascaramiento severo' | 'Oxidación superficial' | 'Contaminación / Grasa';
   colorAcabado: string;
@@ -76,9 +76,12 @@ export interface ProjectFormData {
     size: string;
     previewUrl?: string;
     aiReviewed?: boolean;
+    aiReviewing?: boolean;
     aiDiagnosis?: {
       valid: boolean;
+      detectedObject?: string;
       statusText: string;
+      rejectionReason?: string;
       sustrato: string;
       condicion: string;
       recomendacion: string;

@@ -26,6 +26,7 @@ import {
   ArrowRight,
   ShieldCheck,
   AlertCircle,
+  AlertTriangle,
   Truck,
   DollarSign,
   Tag,
@@ -71,8 +72,9 @@ import {
 import { ClientEmailPreviewModal } from './ClientEmailPreviewModal';
 import { sendRealOrderEmail } from '../lib/emailService';
 import { sendOrderStatusUpdateEmail } from '../utils/emailService';
-import { fetchClientOrders, ClientOrderItem } from '../utils/supabaseApi';
+import { fetchClientOrders, ClientOrderItem, saveClientOrderToHistory, getSavedClientOrdersFromStorage, nitMatches } from '../utils/supabaseApi';
 import { buildOrderStateMessage, getLogisticsForCity } from '../utils/orderStateMessages';
+import { validatePhotoWithAI } from '../utils/photoAiValidator';
 import facadeRefImg from '../assets/images/paint_facade_ref_1790519863937.jpg';
 import exteriorT2RefImg from '../assets/images/exterior_t2_ref_1790522631426.jpg';
 import exteriorT3RefImg from '../assets/images/exterior_t3_ref_1790522646174.jpg';
@@ -84,7 +86,7 @@ interface StandaloneClientFormProps {
   isSimulation?: boolean;
   onToggleSimulation?: (val: boolean) => void;
   activeUser?: UserProfile | null;
-  onSuccessSubmit?: (data: ProjectFormData) => void;
+  onSuccessSubmit?: (data: ProjectFormData, preferredOrderId?: string) => void;
   onNavigateToSpecs?: () => void;
   onLogout?: () => void;
 }
@@ -165,7 +167,7 @@ const createCleanFormData = (user?: UserProfile | null): ProjectFormData => ({
   fechaRequerida: '',
   superficie: '' as any,
   ambiente: '' as any,
-  condicion: '' as any,
+  condicion: 'Nueva sin pintar',
   marcaPintura: 'Pintuco®',
   tipoPintura: '' as any,
   metodoPago: 'bancolombia',
@@ -177,6 +179,11 @@ const createCleanFormData = (user?: UserProfile | null): ProjectFormData => ({
   consentimiento: false
 });
 
+function getClientProgressKey(user?: UserProfile | null): string {
+  const idPart = (user?.email || user?.nit || 'default').trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+  return `colorlink_client_progress_v1_${idPart}`;
+}
+
 export function StandaloneClientForm({
   isSimulation = false,
   onToggleSimulation,
@@ -185,12 +192,34 @@ export function StandaloneClientForm({
   onNavigateToSpecs,
   onLogout
 }: StandaloneClientFormProps) {
+  const savedProgress = React.useMemo(() => {
+    try {
+      const raw = localStorage.getItem(getClientProgressKey(activeUser));
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return null;
+  }, [activeUser?.email, activeUser?.nit]);
+
   const [internalIsSim, setInternalIsSim] = useState<boolean>(isSimulation);
 
   const [formData, setFormData] = useState<ProjectFormData>(() => {
     if (isSimulation) return { ...SIMULATION_CASE_STUDY };
+    if (savedProgress?.formData && typeof savedProgress.formData === 'object') {
+      return {
+        ...createCleanFormData(activeUser),
+        ...savedProgress.formData,
+        condicion: savedProgress.formData.condicion || 'Nueva sin pintar',
+        fotos: Array.isArray(savedProgress.formData.fotos) ? savedProgress.formData.fotos : [],
+        herramientasSeleccionadas: Array.isArray(savedProgress.formData.herramientasSeleccionadas)
+          ? savedProgress.formData.herramientasSeleccionadas
+          : []
+      };
+    }
     return createCleanFormData(activeUser);
   });
+
+  const technicalCalc = calculateTechnicalRequirements(formData);
+  const presupuesto = technicalCalc.presupuesto;
 
   // Pestaña activa del selector de tipo de pintura (Exterior vs Interior)
   const [activePaintLine, setActivePaintLine] = useState<'Exterior' | 'Interior'>('Exterior');
@@ -216,8 +245,16 @@ export function StandaloneClientForm({
     }
   }, [formData.ambiente, formData.tipoObra]);
 
-  const [currentStep, setCurrentStep] = useState<number>(1);
-  const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
+  const isPreviouslyPaidOrder = Boolean(savedProgress?.paymentConfirmed && savedProgress?.quotationDecision === 'accepted');
+
+  const [currentStep, setCurrentStep] = useState<number>(() => {
+    if (isPreviouslyPaidOrder) return 1;
+    return [1, 2, 3].includes(Number(savedProgress?.currentStep)) ? Number(savedProgress.currentStep) : 1;
+  });
+  const [isSubmitted, setIsSubmitted] = useState<boolean>(() => {
+    if (isPreviouslyPaidOrder) return false;
+    return Boolean(savedProgress?.isSubmitted);
+  });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [copiedQuote, setCopiedQuote] = useState<boolean>(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState<boolean>(false);
@@ -233,9 +270,19 @@ export function StandaloneClientForm({
   });
 
   // Flujo de Decisión del Cliente sobre la Cotización (Aceptar / Modificar / Rechazar)
-  const [quotationDecision, setQuotationDecision] = useState<'pending' | 'accepted' | 'rejected'>('pending');
-  const [orderNumber, setOrderNumber] = useState<string | null>(null);
-  const [decisionTimestamp, setDecisionTimestamp] = useState<string>('');
+  const [quotationDecision, setQuotationDecision] = useState<'pending' | 'accepted' | 'rejected'>(() => {
+    if (isPreviouslyPaidOrder) return 'pending';
+    const dec = savedProgress?.quotationDecision;
+    return dec === 'accepted' || dec === 'rejected' ? dec : 'pending';
+  });
+  const [orderNumber, setOrderNumber] = useState<string | null>(() => {
+    if (isPreviouslyPaidOrder) return null;
+    return savedProgress?.orderNumber || null;
+  });
+  const [decisionTimestamp, setDecisionTimestamp] = useState<string>(() => {
+    if (isPreviouslyPaidOrder) return '';
+    return savedProgress?.decisionTimestamp || '';
+  });
   const [showRejectModal, setShowRejectModal] = useState<boolean>(false);
   const [rejectionReason, setRejectionReason] = useState<string>('Presupuesto por encima de lo proyectado');
   const [rejectionNotes, setRejectionNotes] = useState<string>('');
@@ -250,11 +297,34 @@ export function StandaloneClientForm({
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [capturedPhotoDraft, setCapturedPhotoDraft] = useState<string | null>(null);
   const [previewEnlargedPhoto, setPreviewEnlargedPhoto] = useState<{ name: string; url?: string } | null>(null);
+  const [rejectedPhotos, setRejectedPhotos] = useState<Array<{
+    id: string;
+    name: string;
+    previewUrl?: string;
+    detectedObject: string;
+    reason: string;
+  }>>([]);
 
-  // Estados para Métodos de Pago
+  // Estados para Métodos de Pago (se habilitan de últimas después de aceptar el presupuesto)
   const [copiedBankInfo, setCopiedBankInfo] = useState<boolean>(false);
   const [selectedBankPSE, setSelectedBankPSE] = useState<string>('Bancolombia');
   const [paymentProofAttached, setPaymentProofAttached] = useState<boolean>(false);
+  const [paymentConfirmed, setPaymentConfirmed] = useState<boolean>(() => {
+    if (isPreviouslyPaidOrder) return false;
+    return Boolean(savedProgress?.paymentConfirmed);
+  });
+  const [paymentTimestamp, setPaymentTimestamp] = useState<string>(() => {
+    if (isPreviouslyPaidOrder) return '';
+    return savedProgress?.paymentTimestamp || '';
+  });
+
+  // Estado para el retorno automático al inicio tras pago y aceptación
+  const [paymentSuccessRedirect, setPaymentSuccessRedirect] = useState<{
+    orderId: string;
+    total: number;
+    countdown: number;
+  } | null>(null);
+  const [newQuoteNotice, setNewQuoteNotice] = useState<string | null>(null);
 
   // Estados para persistencia y Correo Real
   const [activeSession, setActiveSession] = useState<UserProfile | null>(activeUser ?? null);
@@ -263,8 +333,29 @@ export function StandaloneClientForm({
   const [supabaseSavedNotice, setSupabaseSavedNotice] = useState<boolean>(false);
 
   // Estados para el ciclo automatizado de actualización de pedidos (2s -> Tintometría, 20m -> Despachando, 20m -> Entregado)
-  const [orderLifecyclePhase, setOrderLifecyclePhase] = useState<'aceptado' | 'preparando' | 'en_ruta' | 'entregado'>('aceptado');
-  const [phaseSecondsLeft, setPhaseSecondsLeft] = useState<number>(2);
+  const [orderLifecyclePhase, setOrderLifecyclePhase] = useState<'aceptado' | 'preparando' | 'en_ruta' | 'entregado'>(() => {
+    const ord = savedProgress?.orderNumber;
+    if (ord) {
+      try {
+        const stored = getSavedClientOrdersFromStorage().find((o) => o.orderNumber === ord || o.id === ord);
+        if (stored?.estado === 'entregado') return 'entregado';
+        if (stored?.estado === 'en_ruta') return 'en_ruta';
+        if (stored?.estado === 'preparando') return 'preparando';
+      } catch {}
+    }
+    const p = savedProgress?.orderLifecyclePhase;
+    return p === 'aceptado' || p === 'preparando' || p === 'en_ruta' || p === 'entregado' ? p : 'aceptado';
+  });
+  const [phaseSecondsLeft, setPhaseSecondsLeft] = useState<number>(() => {
+    const ord = savedProgress?.orderNumber;
+    if (ord) {
+      try {
+        const stored = getSavedClientOrdersFromStorage().find((o) => o.orderNumber === ord || o.id === ord);
+        if (stored?.estado === 'entregado') return 0;
+      } catch {}
+    }
+    return 2;
+  });
   const [lifecycleFastDemo, setLifecycleFastDemo] = useState<boolean>(false);
   const [phaseNotificationLogs, setPhaseNotificationLogs] = useState<Array<{
     stage: 'aceptado' | 'preparando' | 'en_ruta' | 'entregado';
@@ -275,82 +366,240 @@ export function StandaloneClientForm({
     placa?: string;
     conductor?: string;
     email: string;
-  }>>([]);
+  }>>(() => (Array.isArray(savedProgress?.phaseNotificationLogs) ? savedProgress.phaseNotificationLogs : []));
 
   // Estados para Historial "Mis Pedidos" (Requirement 6)
-  const [activeMainTab, setActiveMainTab] = useState<'cotizador' | 'pedidos'>('cotizador');
-  const [clientOrders, setClientOrders] = useState<ClientOrderItem[]>([]);
+  const [activeMainTab, setActiveMainTab] = useState<'cotizador' | 'pedidos'>(
+    () => (savedProgress?.activeMainTab === 'pedidos' ? 'pedidos' : 'cotizador')
+  );
+  const [orderFilterTab, setOrderFilterTab] = useState<'todos' | 'activos' | 'entregados'>('todos');
+  const [clientOrders, setClientOrders] = useState<ClientOrderItem[]>(() => {
+    const u = activeSession || activeUser;
+    const allStored = getSavedClientOrdersFromStorage();
+    if (!u) return allStored;
+    const nitClean = (u.nit || '').replace(/[.\-\s]/g, '');
+    const emailClean = (u.email || '').trim().toLowerCase();
+    const filtered = allStored.filter((loc) => {
+      const lNit = (loc.nit || '').replace(/[.\-\s]/g, '');
+      const lEmail = (loc.email || '').trim().toLowerCase();
+      return (
+        (!nitClean && !emailClean) ||
+        (nitClean && lNit && (nitClean === lNit || nitMatches(nitClean, lNit))) ||
+        (emailClean && lEmail && emailClean === lEmail) ||
+        (!lNit && !lEmail)
+      );
+    });
+    return filtered.length > 0 ? filtered : allStored;
+  });
   const [loadingClientOrders, setLoadingClientOrders] = useState<boolean>(false);
+
+  // Persistir el avance exacto del cliente para que al refrescar la página siga exactamente donde iba
+  useEffect(() => {
+    try {
+      const key = getClientProgressKey(activeSession || activeUser);
+      const payload = {
+        activeMainTab,
+        currentStep,
+        isSubmitted,
+        quotationDecision,
+        orderNumber,
+        decisionTimestamp,
+        orderLifecyclePhase,
+        paymentConfirmed,
+        paymentTimestamp,
+        phaseNotificationLogs,
+        formData
+      };
+      localStorage.setItem(key, JSON.stringify(payload));
+    } catch {
+      // Si las fotos en base64 exceden cuota de localStorage, guardar con referencia ligera de fotos
+      try {
+        const key = getClientProgressKey(activeSession || activeUser);
+        const lightweightFormData = {
+          ...formData,
+          fotos: (formData.fotos || []).map((f) => ({
+            ...f,
+            previewUrl: f.previewUrl?.startsWith('data:') ? facadeRefImg : f.previewUrl
+          }))
+        };
+        localStorage.setItem(
+          key,
+          JSON.stringify({
+            activeMainTab,
+            currentStep,
+            isSubmitted,
+            quotationDecision,
+            orderNumber,
+            decisionTimestamp,
+            orderLifecyclePhase,
+            paymentConfirmed,
+            paymentTimestamp,
+            phaseNotificationLogs,
+            formData: lightweightFormData
+          })
+        );
+      } catch {}
+    }
+  }, [
+    activeSession,
+    activeUser,
+    activeMainTab,
+    currentStep,
+    isSubmitted,
+    quotationDecision,
+    orderNumber,
+    decisionTimestamp,
+    orderLifecyclePhase,
+    paymentConfirmed,
+    paymentTimestamp,
+    phaseNotificationLogs,
+    formData
+  ]);
 
   const loadClientOrders = async () => {
     const userToQuery = activeSession || activeUser;
-    if (!userToQuery) return;
+    const queryNit = userToQuery?.nit || formData.nitDocumento;
+    const queryEmail = userToQuery?.email || formData.emailResponsable;
     setLoadingClientOrders(true);
     try {
-      const orders = await fetchClientOrders(userToQuery.nit, userToQuery.email);
-      // Incluir pedido actual si fue aceptado
+      const currentMappedState: ClientOrderItem['estado'] =
+        orderLifecyclePhase === 'entregado'
+          ? 'entregado'
+          : orderLifecyclePhase === 'en_ruta'
+          ? 'en_ruta'
+          : orderLifecyclePhase === 'preparando'
+          ? 'preparando'
+          : 'pendiente';
+
+      // Si hay un pedido actual aceptado, sincronizar primero con el historial para no pisar avances del Admin
       if (orderNumber && quotationDecision === 'accepted') {
-        const exists = orders.some(o => o.orderNumber === orderNumber);
-        if (!exists) {
-          orders.unshift({
-            id: orderNumber,
-            orderNumber: orderNumber,
-            fecha: 'Hoy',
-            detalle: {
-              obra: formData.tipoObra || 'Obra General',
-              tipoObra: formData.tipoObra || 'Residencial',
-              areaM2: formData.areaM2 || 0,
-              tipoPintura: formData.tipoPintura || 'Pintura Tipo 1 Exterior',
-              color: formData.colorAcabado || 'Gris (Mate)',
-              ciudad: formData.ciudad || 'Medellín'
-            },
-            estado:
-              orderLifecyclePhase === 'entregado'
-                ? 'entregado'
-                : orderLifecyclePhase === 'en_ruta'
-                ? 'en_ruta'
-                : orderLifecyclePhase === 'preparando'
-                ? 'preparando'
-                : 'pendiente',
-            total: technicalCalc.presupuesto.totalPresupuesto
-          });
+        const storedMatch = getSavedClientOrdersFromStorage().find(
+          (o) => o.orderNumber === orderNumber || o.id === orderNumber
+        );
+        const stateRank: Record<ClientOrderItem['estado'], number> = {
+          pendiente: 1,
+          preparando: 2,
+          en_ruta: 3,
+          entregado: 4
+        };
+        const effectiveState =
+          storedMatch && (stateRank[storedMatch.estado] || 1) > (stateRank[currentMappedState] || 1)
+            ? storedMatch.estado
+            : currentMappedState;
+
+        saveClientOrderToHistory({
+          id: orderNumber,
+          orderNumber,
+          fecha: decisionTimestamp || 'Hoy',
+          nit: queryNit,
+          email: queryEmail,
+          detalle: {
+            obra: formData.cliente || formData.tipoObra || 'Obra General',
+            tipoObra: formData.tipoObra || 'Residencial',
+            areaM2: formData.areaM2 || 0,
+            tipoPintura: formData.tipoPintura || 'Pintura Tipo 1 Exterior',
+            color: formData.colorAcabado || 'Blanco Puro (Mate)',
+            ciudad: formData.ciudad || 'Medellín'
+          },
+          estado: effectiveState,
+          total: technicalCalc.presupuesto.totalPresupuesto
+        });
+      }
+
+      const orders = await fetchClientOrders(queryNit, queryEmail);
+      if (orders && orders.length > 0) {
+        setClientOrders(orders);
+      } else {
+        const fallback = getSavedClientOrdersFromStorage();
+        if (fallback.length > 0) {
+          setClientOrders(fallback);
         }
       }
-      setClientOrders(orders);
     } catch (e) {
       console.warn('[loadClientOrders]', e);
+      const fallback = getSavedClientOrdersFromStorage();
+      if (fallback.length > 0) {
+        setClientOrders(fallback);
+      }
     } finally {
       setLoadingClientOrders(false);
     }
   };
 
   useEffect(() => {
-    if (activeSession || activeUser) {
-      loadClientOrders();
-    }
-  }, [activeSession, activeUser, orderNumber, quotationDecision]);
+    loadClientOrders();
+  }, [activeSession, activeUser, orderNumber, quotationDecision, activeMainTab]);
 
-  // Actualizar el estado del pedido actual en Mis Pedidos si cambia la fase
+  // Sincronizar también si el Administrador adelantó la etapa del pedido actual desde el Backoffice
+  useEffect(() => {
+    if (!orderNumber || quotationDecision !== 'accepted') return;
+    const syncFromStorage = () => {
+      const stored = getSavedClientOrdersFromStorage().find(
+        (o) => o.orderNumber === orderNumber || o.id === orderNumber
+      );
+      if (stored) {
+        const mappedPhase: 'aceptado' | 'preparando' | 'en_ruta' | 'entregado' =
+          stored.estado === 'entregado'
+            ? 'entregado'
+            : stored.estado === 'en_ruta'
+            ? 'en_ruta'
+            : stored.estado === 'preparando'
+            ? 'preparando'
+            : 'aceptado';
+        if (mappedPhase !== orderLifecyclePhase) {
+          setOrderLifecyclePhase(mappedPhase);
+        }
+      }
+    };
+    syncFromStorage();
+    const poll = setInterval(syncFromStorage, 3000);
+    return () => clearInterval(poll);
+  }, [orderNumber, quotationDecision, orderLifecyclePhase]);
+
+  // Actualizar el estado del pedido actual en Mis Pedidos y guardarlo en historial persistente si cambia la fase
   useEffect(() => {
     if (orderNumber && quotationDecision === 'accepted') {
-      setClientOrders((prev) =>
-        prev.map((o) => {
-          if (o.orderNumber === orderNumber) {
-            return {
-              ...o,
-              estado:
-                orderLifecyclePhase === 'entregado'
-                  ? 'entregado'
-                  : orderLifecyclePhase === 'en_ruta'
-                  ? 'en_ruta'
-                  : orderLifecyclePhase === 'preparando'
-                  ? 'preparando'
-                  : 'pendiente'
-            };
-          }
-          return o;
-        })
-      );
+      const mappedEstado: ClientOrderItem['estado'] =
+        orderLifecyclePhase === 'entregado'
+          ? 'entregado'
+          : orderLifecyclePhase === 'en_ruta'
+          ? 'en_ruta'
+          : orderLifecyclePhase === 'preparando'
+          ? 'preparando'
+          : 'pendiente';
+
+      const userToSave = activeSession || activeUser;
+      saveClientOrderToHistory({
+        id: orderNumber,
+        orderNumber,
+        fecha: decisionTimestamp || 'Hoy',
+        nit: userToSave?.nit || formData.nitDocumento,
+        email: userToSave?.email || formData.emailResponsable,
+        detalle: {
+          obra: formData.cliente || formData.tipoObra || 'Obra General',
+          tipoObra: formData.tipoObra || 'Residencial',
+          areaM2: formData.areaM2 || 0,
+          tipoPintura: formData.tipoPintura || 'Pintura Tipo 1 Exterior',
+          color: formData.colorAcabado || 'Blanco Puro (Mate)',
+          ciudad: formData.ciudad || 'Medellín'
+        },
+        estado: mappedEstado,
+        total: technicalCalc.presupuesto.totalPresupuesto
+      });
+
+      setClientOrders((prev) => {
+        const exists = prev.some((o) => o.orderNumber === orderNumber);
+        if (!exists) {
+          return getSavedClientOrdersFromStorage().filter((loc) => {
+            const nitClean = (userToSave?.nit || formData.nitDocumento || '').replace(/[.\-\s]/g, '');
+            const emailClean = (userToSave?.email || formData.emailResponsable || '').trim().toLowerCase();
+            const lNit = (loc.nit || '').replace(/[.\-\s]/g, '');
+            const lEmail = (loc.email || '').trim().toLowerCase();
+            return (nitClean && lNit === nitClean) || (emailClean && lEmail === emailClean) || (!lNit && !lEmail);
+          });
+        }
+        return prev.map((o) => (o.orderNumber === orderNumber ? { ...o, estado: mappedEstado } : o));
+      });
     }
   }, [orderLifecyclePhase, orderNumber, quotationDecision]);
 
@@ -359,6 +608,18 @@ export function StandaloneClientForm({
     targetPhase: 'aceptado' | 'preparando' | 'en_ruta' | 'entregado',
     ordNum: string
   ) => {
+    // Si este pedido ya fue entregado previamente, NUNCA permitir que se devuelva a tintometría ni a ninguna etapa previa
+    const stored = getSavedClientOrdersFromStorage().find(
+      (o) => o.orderNumber === ordNum || o.id === ordNum
+    );
+    if ((stored?.estado === 'entregado' || stored?.status === 'entregado') && targetPhase !== 'entregado') {
+      console.warn(`[triggerClientLifecycleTransition] Pedido #${ordNum} ya fue entregado. Bloqueado intento de devolución a "${targetPhase}".`);
+      if (orderLifecyclePhase !== 'entregado') {
+        setOrderLifecyclePhase('entregado');
+      }
+      return;
+    }
+
     const nowStr = new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
     const mappedStatus = targetPhase === 'aceptado' ? 'pendiente' : targetPhase;
     const stateInfo = buildOrderStateMessage({
@@ -375,21 +636,43 @@ export function StandaloneClientForm({
 
     setOrderLifecyclePhase(targetPhase);
 
+    // Guardar de inmediato en el historial persistente del cliente
+    const userToSave = activeSession || activeUser;
+    saveClientOrderToHistory({
+      id: ordNum,
+      orderNumber: ordNum,
+      fecha: decisionTimestamp || 'Hoy',
+      nit: userToSave?.nit || formData.nitDocumento,
+      email: userToSave?.email || formData.emailResponsable,
+      detalle: {
+        obra: formData.cliente || formData.tipoObra || 'Obra General',
+        tipoObra: formData.tipoObra || 'Residencial',
+        areaM2: formData.areaM2 || 0,
+        tipoPintura: formData.tipoPintura || 'Pintura Tipo 1 Exterior',
+        color: formData.colorAcabado || 'Blanco Puro (Mate)',
+        ciudad: formData.ciudad || 'Medellín'
+      },
+      estado: mappedStatus,
+      total: technicalCalc.presupuesto.totalPresupuesto
+    });
+
+    const recipientEmail = formData.emailResponsable || userToSave?.email || '';
+
     if (targetPhase === 'aceptado') {
       setRealEmailStatusNotice(
-        `📋 [Estado: Pedido Confirmado] Correo enviado a ${formData.emailResponsable}: Orden #${ordNum} radicada y en cola para ingresar a tintometría en 2s.`
+        `📋 [Estado: Pedido Confirmado] Correo enviado a ${recipientEmail}: Orden #${ordNum} radicada y programada para tintometría.`
       );
     } else if (targetPhase === 'preparando') {
       setRealEmailStatusNotice(
-        `🎨 [Estado: En Tintometría] Correo enviado a ${formData.emailResponsable}: Dosificando pigmentos para "${formData.colorAcabado}" en laboratorio (${stateInfo.lote}).`
+        `🎨 [Estado: En Tintometría] Correo enviado a ${recipientEmail}: Dosificando pigmentos para "${formData.colorAcabado}" en laboratorio (${stateInfo.lote}).`
       );
     } else if (targetPhase === 'en_ruta') {
       setRealEmailStatusNotice(
-        `🚚 [Estado: Despachando en Ruta] Correo enviado a ${formData.emailResponsable}: Tu pedido #${ordNum} va en camino en ${stateInfo.logistica.vehiculo} (Placa ${stateInfo.logistica.placa}) con ${stateInfo.logistica.conductor}.`
+        `🚚 [Estado: Despachando en Ruta] Correo enviado a ${recipientEmail}: Tu pedido #${ordNum} va en camino en ${stateInfo.logistica.vehiculo} (Placa ${stateInfo.logistica.placa}) con ${stateInfo.logistica.conductor}.`
       );
     } else if (targetPhase === 'entregado') {
       setRealEmailStatusNotice(
-        `✅ [Estado: Entregado en Obra] Correo enviado a ${formData.emailResponsable}: Entrega completada por ${stateInfo.logistica.conductor}. Remisión #${stateInfo.remision} y garantía NTC 1335 activas.`
+        `✅ [Estado: Entregado en Obra] Correo enviado a ${recipientEmail}: Entrega completada por ${stateInfo.logistica.conductor}. Remisión #${stateInfo.remision} y garantía NTC 1335 activas.`
       );
     }
 
@@ -402,25 +685,30 @@ export function StandaloneClientForm({
         vehiculo: targetPhase === 'en_ruta' || targetPhase === 'entregado' ? stateInfo.logistica.vehiculo : undefined,
         placa: targetPhase === 'en_ruta' || targetPhase === 'entregado' ? stateInfo.logistica.placa : undefined,
         conductor: targetPhase === 'en_ruta' || targetPhase === 'entregado' ? stateInfo.logistica.conductor : undefined,
-        email: formData.emailResponsable
+        email: recipientEmail
       },
       ...logs.filter((l) => l.stage !== targetPhase)
     ]);
 
-    if (targetPhase !== 'aceptado') {
+    if (targetPhase !== 'aceptado' && recipientEmail) {
       sendOrderStatusUpdateEmail({
         orderId: ordNum,
-        cliente: formData.cliente,
-        responsable: formData.responsable,
-        email: formData.emailResponsable,
+        cliente: formData.cliente || userToSave?.empresa || 'Cliente Colorlink',
+        responsable: formData.responsable || userToSave?.responsable || 'Responsable de Obra',
+        email: recipientEmail,
         status: mappedStatus as any,
         statusLabel: stateInfo.statusLabel,
         mensaje: stateInfo.mensajeEmail,
         vehiculo: stateInfo.logistica.vehiculo,
         conductor: stateInfo.logistica.conductor,
         placa: stateInfo.logistica.placa,
-        ciudad: formData.ciudad,
-        totalCOP: technicalCalc.presupuesto.totalPresupuesto
+        ciudad: formData.ciudad || 'Medellín',
+        totalCOP: technicalCalc.presupuesto.totalPresupuesto,
+        color: formData.colorAcabado || 'Blanco Puro',
+        tipoPintura: formData.tipoPintura || 'Pintura Tipo 1 Exterior',
+        areaM2: formData.areaM2 || 85,
+        cunetes: technicalCalc.cuñetesRequeridos,
+        galones: technicalCalc.galonesSueltosRequeridos
       }).catch(() => {});
     }
 
@@ -430,15 +718,17 @@ export function StandaloneClientForm({
       body: JSON.stringify({
         orderNumber: ordNum,
         cliente: formData.cliente,
+        nit: formData.nitDocumento,
         responsable: formData.responsable,
-        email: formData.emailResponsable,
+        email: recipientEmail,
         ciudad: formData.ciudad,
         status: mappedStatus,
         mensaje: stateInfo.mensajeNotificacion,
         vehiculo: stateInfo.logistica.vehiculo,
         placa: stateInfo.logistica.placa,
         conductor: stateInfo.logistica.conductor,
-        totalCOP: technicalCalc.presupuesto.totalPresupuesto
+        totalCOP: technicalCalc.presupuesto.totalPresupuesto,
+        formData
       })
     }).catch(() => {});
   };
@@ -450,29 +740,41 @@ export function StandaloneClientForm({
   // 3. A los siguientes 20 minutos -> Entregado ('entregado') con remisión
   // =========================================================================
   useEffect(() => {
-    if (quotationDecision !== 'accepted' || !orderNumber) return;
+    if (quotationDecision !== 'accepted' || !orderNumber || orderLifecyclePhase === 'entregado') return;
 
     const interval = setInterval(() => {
-      setPhaseSecondsLeft((prev) => {
-        if (prev <= 1) {
-          if (orderLifecyclePhase === 'aceptado') {
-            triggerClientLifecycleTransition('preparando', orderNumber);
-            return lifecycleFastDemo ? 20 : 1200;
-          } else if (orderLifecyclePhase === 'preparando') {
-            triggerClientLifecycleTransition('en_ruta', orderNumber);
-            return lifecycleFastDemo ? 20 : 1200;
-          } else if (orderLifecyclePhase === 'en_ruta') {
-            triggerClientLifecycleTransition('entregado', orderNumber);
-            return 0; // Completado
-          }
-          return 0;
-        }
-        return prev - 1;
-      });
+      setPhaseSecondsLeft((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [quotationDecision, orderNumber, orderLifecyclePhase, lifecycleFastDemo, formData]);
+  }, [quotationDecision, orderNumber, orderLifecyclePhase]);
+
+  useEffect(() => {
+    if (quotationDecision !== 'accepted' || !orderNumber || orderLifecyclePhase === 'entregado') return;
+    if (phaseSecondsLeft > 0) return;
+
+    // Verificar en el almacenamiento persistente
+    const stored = getSavedClientOrdersFromStorage().find(
+      (o) => o.orderNumber === orderNumber || o.id === orderNumber
+    );
+    if (stored?.estado === 'entregado' || stored?.status === 'entregado') {
+      if (orderLifecyclePhase !== 'entregado') {
+        setOrderLifecyclePhase('entregado');
+      }
+      return;
+    }
+
+    if (orderLifecyclePhase === 'aceptado') {
+      triggerClientLifecycleTransition('preparando', orderNumber);
+      setPhaseSecondsLeft(lifecycleFastDemo ? 20 : 1200);
+    } else if (orderLifecyclePhase === 'preparando') {
+      triggerClientLifecycleTransition('en_ruta', orderNumber);
+      setPhaseSecondsLeft(lifecycleFastDemo ? 20 : 1200);
+    } else if (orderLifecyclePhase === 'en_ruta') {
+      triggerClientLifecycleTransition('entregado', orderNumber);
+      setPhaseSecondsLeft(0);
+    }
+  }, [phaseSecondsLeft, quotationDecision, orderNumber, orderLifecyclePhase, lifecycleFastDemo]);
 
   const handleAdvanceClientLifecycle = () => {
     setPhaseSecondsLeft(1);
@@ -503,13 +805,30 @@ export function StandaloneClientForm({
   };
 
   const handleAcceptQuotation = async () => {
-    const generatedOrder = `ORD-CLK-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+    // Si la orden actual ya fue entregada, generar siempre un nuevo número de orden para no sobreescribir ni retroceder la orden entregada
+    const existingStored = orderNumber
+      ? getSavedClientOrdersFromStorage().find((o) => o.orderNumber === orderNumber || o.id === orderNumber)
+      : null;
+    const isAlreadyDelivered = existingStored?.estado === 'entregado' || orderLifecyclePhase === 'entregado';
+
+    const generatedOrder =
+      !orderNumber || isAlreadyDelivered
+        ? `ORD-CLK-2026-${Math.floor(1000 + Math.random() * 9000)}`
+        : orderNumber;
+
     setOrderNumber(generatedOrder);
     setQuotationDecision('accepted');
     setOrderLifecyclePhase('aceptado');
     setPhaseSecondsLeft(2);
     const now = new Date();
     const timeStr = now.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+    const formattedDate = now.toLocaleDateString('es-CO', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
     const initialStateMsg = buildOrderStateMessage({
       status: 'pendiente',
       orderId: generatedOrder,
@@ -522,26 +841,41 @@ export function StandaloneClientForm({
       cuñetes: technicalCalc.cuñetesRequeridos
     });
 
+    const userToSave = activeSession || activeUser;
+    const recipientEmail = formData.emailResponsable || userToSave?.email || '';
+
     setPhaseNotificationLogs([
       {
         stage: 'aceptado',
         titulo: initialStateMsg.tituloNotificacion,
         mensaje: initialStateMsg.mensajeNotificacion,
         hora: timeStr,
-        email: formData.emailResponsable
+        email: recipientEmail
       }
     ]);
-    setDecisionTimestamp(
-      now.toLocaleDateString('es-CO', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      })
-    );
+    setDecisionTimestamp(formattedDate);
 
-    // Confirmación de aceptación y notificación
+    // Guardar en historial persistente de "Mis Pedidos" inmediatamente
+    saveClientOrderToHistory({
+      id: generatedOrder,
+      orderNumber: generatedOrder,
+      fecha: formattedDate,
+      nit: userToSave?.nit || formData.nitDocumento,
+      email: recipientEmail,
+      detalle: {
+        obra: formData.cliente || formData.tipoObra || 'Obra General',
+        tipoObra: formData.tipoObra || 'Residencial',
+        areaM2: formData.areaM2 || 0,
+        tipoPintura: formData.tipoPintura || 'Pintura Tipo 1 Exterior',
+        color: formData.colorAcabado || 'Blanco Puro (Mate)',
+        ciudad: formData.ciudad || 'Medellín'
+      },
+      estado: 'pendiente',
+      total: technicalCalc.presupuesto.totalPresupuesto
+    });
+
+    // Confirmación de aceptación del presupuesto (el pago se realiza de últimas)
+    setPaymentConfirmed(false);
     setSupabaseSavedNotice(true);
 
     // Enviar pedido aceptado inmediatamente a Vercel Serverless
@@ -554,10 +888,10 @@ export function StandaloneClientForm({
           cliente: formData.cliente,
           nit: formData.nitDocumento,
           responsable: formData.responsable,
-          email: formData.emailResponsable,
+          email: recipientEmail,
           ciudad: formData.ciudad,
-          status: 'aceptado',
-          mensaje: `Cotización formalmente aprobada por el cliente con pago ${formData.metodoPago || 'Bancolombia'}. Pasa a Tintometría en 2 segundos.`,
+          status: 'pendiente',
+          mensaje: `Cotización formalmente aprobada por el cliente. Programada para ingreso a Tintometría.`,
           totalCOP: technicalCalc.presupuesto.totalPresupuesto,
           formData
         })
@@ -566,10 +900,10 @@ export function StandaloneClientForm({
 
     // Enviar notificación oficial por correo al cliente
     setIsSendingRealEmail(true);
-    setRealEmailStatusNotice(`Enviando notificación oficial a ${formData.emailResponsable}...`);
+    setRealEmailStatusNotice(`Enviando notificación oficial a ${recipientEmail}...`);
     try {
       const emailResult = await sendRealOrderEmail({
-        to: formData.emailResponsable,
+        to: recipientEmail,
         subject: `🎨 COLORLINK® • Cotización Oficial Aprobada #${generatedOrder} (${formData.cliente})`,
         orderId: generatedOrder,
         formData,
@@ -588,22 +922,103 @@ export function StandaloneClientForm({
 
       if (emailResult.success) {
         setRealEmailStatusNotice(
-          `📋 [Estado: Pedido Confirmado] Correo enviado a ${formData.emailResponsable}: Orden #${generatedOrder} radicada y entrando a tintometría en 2s.`
+          `📋 [Estado: Pedido Confirmado] Correo enviado a ${recipientEmail}: Orden #${generatedOrder} radicada y programada para tintometría.`
         );
       } else {
         setRealEmailStatusNotice(
-          `📋 [Estado: Pedido Confirmado] Notificación registrada para ${formData.emailResponsable}: Orden #${generatedOrder} en cola de tintometría.`
+          `📋 [Estado: Pedido Confirmado] Notificación registrada para ${recipientEmail}: Orden #${generatedOrder} en cola de tintometría.`
         );
       }
     } catch (emailErr) {
       setRealEmailStatusNotice(
-        `📋 [Estado: Pedido Confirmado] Solicitud registrada para ${formData.emailResponsable}: Orden #${generatedOrder}.`
+        `📋 [Estado: Pedido Confirmado] Solicitud registrada para ${recipientEmail}: Orden #${generatedOrder}.`
       );
     } finally {
       setIsSendingRealEmail(false);
     }
 
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setTimeout(() => {
+      const paymentEl = document.getElementById('seccion-pago-final');
+      if (paymentEl) {
+        paymentEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 150);
+  };
+
+  const handleConfirmPayment = async () => {
+    const now = new Date();
+    const ts = now.toLocaleDateString('es-CO', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    setPaymentConfirmed(true);
+    setPaymentTimestamp(ts);
+
+    const activeOrd = orderNumber || `ORD-CLK-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+    if (!orderNumber) setOrderNumber(activeOrd);
+
+    const userToSave = activeSession || activeUser;
+    const recipientEmail = formData.emailResponsable || userToSave?.email || '';
+
+    // Guardar inmediatamente en el historial persistente de "Mis Pedidos"
+    saveClientOrderToHistory({
+      id: activeOrd,
+      orderNumber: activeOrd,
+      fecha: decisionTimestamp || ts,
+      nit: userToSave?.nit || formData.nitDocumento,
+      email: recipientEmail,
+      cliente: formData.cliente || userToSave?.empresa || 'Cliente Colorlink',
+      responsable: formData.responsable || userToSave?.responsable || 'Responsable de Obra',
+      ciudad: formData.ciudad || 'Medellín',
+      areaM2: formData.areaM2 || 0,
+      tipoPintura: formData.tipoPintura || 'Pintura Tipo 1 Exterior',
+      color: formData.colorAcabado || 'Blanco Puro (Mate)',
+      detalle: {
+        obra: formData.cliente || formData.tipoObra || 'Obra General',
+        tipoObra: formData.tipoObra || 'Residencial',
+        areaM2: formData.areaM2 || 0,
+        tipoPintura: formData.tipoPintura || 'Pintura Tipo 1 Exterior',
+        color: formData.colorAcabado || 'Blanco Puro (Mate)',
+        ciudad: formData.ciudad || 'Medellín'
+      },
+      estado: 'pendiente',
+      total: technicalCalc.presupuesto.totalPresupuesto,
+      totalCOP: technicalCalc.presupuesto.totalPresupuesto,
+      status: 'pendiente'
+    });
+
+    try {
+      loadClientOrders();
+    } catch {}
+
+    try {
+      fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderNumber: activeOrd,
+          cliente: formData.cliente,
+          nit: formData.nitDocumento,
+          responsable: formData.responsable,
+          email: recipientEmail,
+          ciudad: formData.ciudad,
+          status: 'aceptado',
+          mensaje: `Pago confirmado (${(formData.metodoPago || 'bancolombia').toUpperCase()}) por ${formatCOP(technicalCalc.presupuesto.totalPresupuesto)} COP.`,
+          totalCOP: technicalCalc.presupuesto.totalPresupuesto,
+          formData
+        })
+      }).catch(() => {});
+    } catch (e) {}
+
+    // Iniciar conteo regresivo para devolver automáticamente al cliente al inicio y permitir otra cotización
+    setPaymentSuccessRedirect({
+      orderId: activeOrd,
+      total: technicalCalc.presupuesto.totalPresupuesto,
+      countdown: 4
+    });
   };
 
   const handleConfirmReject = () => {
@@ -634,9 +1049,6 @@ export function StandaloneClientForm({
       tipoPintura: newType
     }));
   };
-
-  const technicalCalc = calculateTechnicalRequirements(formData);
-  const presupuesto = technicalCalc.presupuesto;
 
   const handleDownloadPDF = async () => {
     setIsGeneratingPDF(true);
@@ -747,10 +1159,12 @@ export function StandaloneClientForm({
       if (!formData.areaM2 || formData.areaM2 <= 0) err.areaM2 = 'El área debe ser mayor a 0 m²';
       if (!formData.fechaRequerida) err.fechaRequerida = 'Indique la fecha estimada de inicio';
     } else if (stepNumber === 2) {
-      // Paso 2: Parámetros Técnicos
-      if (!formData.superficie?.trim()) err.superficie = 'Seleccione la superficie o sustrato';
+      // Paso 2: Parámetros Técnicos (Condición de superficie eliminada; se toma por defecto)
+      if (!formData.superficie?.trim()) err.superficie = 'Seleccione al menos una superficie a intervenir';
       if (!formData.ambiente?.trim()) err.ambiente = 'Seleccione el ambiente de la superficie';
-      if (!formData.condicion?.trim()) err.condicion = 'Seleccione la condición de la superficie';
+      if (!formData.condicion?.trim()) {
+        formData.condicion = 'Nueva sin pintar';
+      }
       if (!formData.tipoPintura?.trim()) err.tipoPintura = 'Seleccione el tipo de pintura (Tipo 1, 2 o 3 para interior o exterior)';
       if (!formData.colorAcabado?.trim()) {
         formData.colorAcabado = 'Blanco Puro (Mate)';
@@ -761,8 +1175,19 @@ export function StandaloneClientForm({
         const autoDesc = `Mantenimiento preventivo y aplicación técnica de ${formData.tipoPintura || 'Pintura Colorlink'} sobre ${formData.superficie || 'superficie arquitectónica'} en ${formData.ciudad || 'Medellín'}. Área total a cubrir: ${formData.areaM2 || 0} m² en acabado color ${formData.colorAcabado || 'Blanco Puro'}. Despacho solicitado a la dirección indicada.`;
         formData.descripcionLibre = autoDesc;
       }
-      if (!formData.fotos || formData.fotos.length === 0) {
-        handleAttachReferencePhoto();
+      const hasReviewing = formData.fotos?.some((f) => f.aiReviewing);
+      const hasInvalid = formData.fotos?.some((f) => f.aiDiagnosis && f.aiDiagnosis.valid === false);
+
+      if (hasReviewing) {
+        err.fotos = 'Espera unos segundos mientras la IA termina de verificar si la foto subida corresponde a una fachada, pared o superficie para pintar.';
+      } else if (hasInvalid) {
+        err.fotos = 'Una o más fotografías no corresponden a fachadas, paredes ni cosas para pintar. Elimínalas y sube una foto válida de la superficie.';
+      } else if (!formData.fotos || formData.fotos.length === 0) {
+        if (rejectedPhotos.length > 0) {
+          err.fotos = 'La fotografía que subiste fue rechazada por la IA porque no es una fachada, pared ni superficie para pintar. Por favor sube una foto válida de la obra o pulsa "Usar Foto Técnica de Muestra".';
+        } else {
+          handleAttachReferencePhoto();
+        }
       }
       if (!formData.consentimiento) {
         err.consentimiento = 'Debe autorizar el tratamiento de datos para la emisión formal de la cotización y despacho';
@@ -818,6 +1243,7 @@ export function StandaloneClientForm({
       console.log('[Formulario] ✓ Validación exitosa (todos los pasos completos). Emitiendo cotización en estado pendiente para decisión del cliente...');
       setIsSubmitted(true);
       setQuotationDecision('pending');
+      setPaymentConfirmed(false);
       let finalOrderNumber = orderNumber;
       if (!finalOrderNumber) {
         finalOrderNumber = `ORD-CLK-2026-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -857,7 +1283,7 @@ export function StandaloneClientForm({
       } catch (e) {}
 
       if (onSuccessSubmit) {
-        onSuccessSubmit(formData);
+        onSuccessSubmit(formData, finalOrderNumber);
       }
       // Scroll to top of presentation
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -874,17 +1300,10 @@ export function StandaloneClientForm({
       const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
       const sizeStr = `${sizeMB} MB`;
       const reader = new FileReader();
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
         const previewUrl = event.target?.result as string;
-        const initialDiagnosis = {
-          valid: true,
-          statusText: 'Revisada y Aprobada por IA Colorlink',
-          sustrato: formData.superficie || 'Concreto / Revoque arquitectónico',
-          condicion: 'Superficie analizada con textura apta para repinte',
-          recomendacion: 'Compatible con formulación Tipo 1 / Tipo 2 (Norma NTC 1335)',
-          normaNTC: 'Norma NTC 1335'
-        };
 
+        // 1. Poner la foto en estado "Analizando con IA Vision..." (no aprobar a ciegas)
         setFormData((prev) => ({
           ...prev,
           fotos: [
@@ -893,51 +1312,77 @@ export function StandaloneClientForm({
               name: file.name,
               size: sizeStr,
               previewUrl,
-              aiReviewed: true,
-              aiDiagnosis: initialDiagnosis
+              aiReviewed: false,
+              aiReviewing: true,
+              aiDiagnosis: {
+                valid: false,
+                statusText: 'Analizando con IA Vision...',
+                sustrato: 'Verificando si es fachada, pared o superficie para pintar...',
+                condicion: 'Inspeccionando imagen...',
+                recomendacion: 'Validando objeto en la fotografía'
+              }
             }
           ]
         }));
 
-        // Revisión complementaria en segundo plano con el endpoint de IA
-        fetch('/api/ai-review-photo', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            photoName: file.name,
-            previewUrl,
-            currentContext: {
-              superficie: formData.superficie,
-              ambiente: formData.ambiente,
-              tipoPintura: formData.tipoPintura
-            }
-          })
-        })
-          .then((res) => res.json())
-          .then((data) => {
-            if (data.success && data.diagnosis) {
-              setFormData((prev) => ({
-                ...prev,
-                fotos: prev.fotos.map((f) =>
-                  f.name === file.name
-                    ? { ...f, aiReviewed: true, aiDiagnosis: data.diagnosis }
-                    : f
-                )
-              }));
-            }
-          })
-          .catch(() => {});
+        // 2. Validar visualmente con Gemini Vision en el servidor
+        const diagnosis = await validatePhotoWithAI({
+          photoName: file.name,
+          previewUrl,
+          isOfficialSample: false,
+          currentContext: {
+            superficie: formData.superficie,
+            ambiente: formData.ambiente,
+            tipoPintura: formData.tipoPintura,
+            tipoObra: formData.tipoObra
+          }
+        });
+
+        if (!diagnosis.valid) {
+          // Rechazar y retirar la foto de la lista de fotos aceptadas
+          setFormData((prev) => ({
+            ...prev,
+            fotos: prev.fotos.filter((f) => !(f.name === file.name && f.previewUrl === previewUrl))
+          }));
+
+          setRejectedPhotos((prev) => [
+            {
+              id: `${Date.now()}-${Math.random()}`,
+              name: file.name,
+              previewUrl,
+              detectedObject: diagnosis.detectedObject || 'Objeto ajeno a pintura',
+              reason:
+                diagnosis.rejectionReason ||
+                'La imagen no muestra una fachada, pared, muro, techo ni superficie para pintar. Solo se permiten fotografías de superficies u objetos a pintar.'
+            },
+            ...prev
+          ]);
+
+          setErrors((prev) => ({
+            ...prev,
+            fotos: `❌ Foto "${file.name}" rechazada por la IA (${diagnosis.detectedObject || 'No es superficie a pintar'}). Solo se aceptan fotos de fachadas, paredes y cosas para pintar.`
+          }));
+        } else {
+          // Aprobar únicamente cuando la IA confirma que sí es fachada, pared o cosa para pintar
+          setFormData((prev) => ({
+            ...prev,
+            fotos: prev.fotos.map((f) =>
+              f.name === file.name && f.previewUrl === previewUrl
+                ? { ...f, aiReviewed: true, aiReviewing: false, aiDiagnosis: diagnosis }
+                : f
+            )
+          }));
+
+          setErrors((prev) => {
+            const next = { ...prev };
+            delete next.fotos;
+            return next;
+          });
+        }
       };
       reader.readAsDataURL(file);
     });
 
-    if (errors.fotos) {
-      setErrors((prev) => {
-        const next = { ...prev };
-        delete next.fotos;
-        return next;
-      });
-    }
     e.target.value = '';
   };
 
@@ -1024,19 +1469,14 @@ export function StandaloneClientForm({
     setCapturedPhotoDraft(dataUrl);
   };
 
-  const handleConfirmCapturedPhoto = () => {
+  const handleConfirmCapturedPhoto = async () => {
     if (!capturedPhotoDraft) return;
-    const photoName = `foto_obra_${Date.now().toString().slice(-4)}.jpg`;
+    const draftUrl = capturedPhotoDraft;
+    const photoName = `foto_camara_${Date.now().toString().slice(-4)}.jpg`;
 
-    const initialDiagnosis = {
-      valid: true,
-      statusText: 'Revisada y Aprobada por IA Colorlink',
-      sustrato: formData.superficie || 'Concreto / Revoque arquitectónico',
-      condicion: 'Superficie analizada con cámara en vivo, adherencia verificada',
-      recomendacion: 'Compatible con formulación Tipo 1 / Tipo 2 (Norma NTC 1335)',
-      normaNTC: 'Norma NTC 1335'
-    };
+    handleStopLiveCamera();
 
+    // 1. Poner en estado "Analizando con IA Vision..."
     setFormData((prev) => ({
       ...prev,
       fotos: [
@@ -1044,50 +1484,72 @@ export function StandaloneClientForm({
         {
           name: photoName,
           size: '1.8 MB',
-          previewUrl: capturedPhotoDraft,
-          aiReviewed: true,
-          aiDiagnosis: initialDiagnosis
+          previewUrl: draftUrl,
+          aiReviewed: false,
+          aiReviewing: true,
+          aiDiagnosis: {
+            valid: false,
+            statusText: 'Analizando captura de cámara con IA Vision...',
+            sustrato: 'Verificando si es fachada, pared o superficie para pintar...',
+            condicion: 'Inspeccionando imagen...',
+            recomendacion: 'Validando objeto capturado'
+          }
         }
       ]
     }));
 
-    // Revisión complementaria en segundo plano con IA
-    fetch('/api/ai-review-photo', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        photoName,
-        previewUrl: capturedPhotoDraft,
-        currentContext: {
-          superficie: formData.superficie,
-          ambiente: formData.ambiente,
-          tipoPintura: formData.tipoPintura
-        }
-      })
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success && data.diagnosis) {
-          setFormData((prev) => ({
-            ...prev,
-            fotos: prev.fotos.map((f) =>
-              f.name === photoName
-                ? { ...f, aiReviewed: true, aiDiagnosis: data.diagnosis }
-                : f
-            )
-          }));
-        }
-      })
-      .catch(() => {});
+    // 2. Validar visualmente con Gemini Vision en el servidor
+    const diagnosis = await validatePhotoWithAI({
+      photoName,
+      previewUrl: draftUrl,
+      isOfficialSample: false,
+      currentContext: {
+        superficie: formData.superficie,
+        ambiente: formData.ambiente,
+        tipoPintura: formData.tipoPintura,
+        tipoObra: formData.tipoObra
+      }
+    });
 
-    if (errors.fotos) {
+    if (!diagnosis.valid) {
+      setFormData((prev) => ({
+        ...prev,
+        fotos: prev.fotos.filter((f) => !(f.name === photoName && f.previewUrl === draftUrl))
+      }));
+
+      setRejectedPhotos((prev) => [
+        {
+          id: `${Date.now()}-${Math.random()}`,
+          name: photoName,
+          previewUrl: draftUrl,
+          detectedObject: diagnosis.detectedObject || 'Objeto no arquitectónico',
+          reason:
+            diagnosis.rejectionReason ||
+            'La foto tomada con la cámara no corresponde a una fachada, pared ni superficie para pintar.'
+        },
+        ...prev
+      ]);
+
+      setErrors((prev) => ({
+        ...prev,
+        fotos: `❌ Foto de cámara rechazada por la IA (${diagnosis.detectedObject || 'No es fachada ni pared'}). Apunta la cámara a una fachada, pared o superficie para pintar.`
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        fotos: prev.fotos.map((f) =>
+          f.name === photoName && f.previewUrl === draftUrl
+            ? { ...f, aiReviewed: true, aiReviewing: false, aiDiagnosis: diagnosis }
+            : f
+        )
+      }));
+
       setErrors((prev) => {
         const next = { ...prev };
         delete next.fotos;
         return next;
       });
     }
-    handleStopLiveCamera();
   };
 
   const handleRetakeLivePhoto = () => {
@@ -1112,8 +1574,10 @@ export function StandaloneClientForm({
       size: '2.1 MB',
       previewUrl: refUrl,
       aiReviewed: true,
+      aiReviewing: false,
       aiDiagnosis: {
         valid: true,
+        detectedObject: isExterior ? 'Fachada exterior en concreto / revoque' : (isCeiling ? 'Cielorraso interior en yeso' : 'Pared / Muro arquitectónico interior'),
         statusText: 'Revisada y Aprobada por IA Colorlink',
         sustrato: formData.superficie || 'Concreto / Revoque arquitectónico',
         condicion: 'Superficie analizada con textura apta para repinte',
@@ -1127,6 +1591,7 @@ export function StandaloneClientForm({
       fotos: [...prev.fotos, samplePhoto]
     }));
 
+    setRejectedPhotos([]);
     if (errors.fotos) {
       setErrors(prev => {
         const next = { ...prev };
@@ -1147,11 +1612,57 @@ export function StandaloneClientForm({
     setFormData(createCleanFormData(activeUser || activeSession));
     setErrors({});
     setIsSubmitted(false);
-    setQuotationDecision('accepted');
+    setQuotationDecision('pending');
+    setPaymentConfirmed(false);
+    setPaymentTimestamp('');
     setOrderNumber(null);
     setDecisionTimestamp('');
+    setOrderLifecyclePhase('aceptado');
+    setPhaseNotificationLogs([]);
     setCurrentStep(1);
+    setActiveMainTab('cotizador');
+    try {
+      const key = getClientProgressKey(activeSession || activeUser);
+      localStorage.removeItem(key);
+    } catch {}
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  const handleProceedToNewQuote = () => {
+    const savedOrd = paymentSuccessRedirect?.orderId || orderNumber || '2026';
+    setPaymentSuccessRedirect(null);
+    resetForm();
+    setNewQuoteNotice(`✓ Pedido #${savedOrd} registrado con éxito y guardado en "Mis Pedidos". Ya puedes iniciar tu nueva cotización.`);
+    setTimeout(() => setNewQuoteNotice(null), 8000);
+  };
+
+  const handleGoToMisPedidos = () => {
+    setPaymentSuccessRedirect(null);
+    resetForm();
+    setActiveMainTab('pedidos');
+  };
+
+  // Efecto del contador regresivo para devolver al cliente automáticamente al inicio tras pago y aceptación
+  useEffect(() => {
+    if (!paymentSuccessRedirect) return;
+
+    if (paymentSuccessRedirect.countdown <= 0) {
+      const savedOrd = paymentSuccessRedirect.orderId;
+      setPaymentSuccessRedirect(null);
+      resetForm();
+      setNewQuoteNotice(`✓ Pedido #${savedOrd} registrado con éxito y guardado en "Mis Pedidos". Ya puedes iniciar tu nueva cotización.`);
+      setTimeout(() => setNewQuoteNotice(null), 8000);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setPaymentSuccessRedirect((prev) =>
+        prev ? { ...prev, countdown: prev.countdown - 1 } : null
+      );
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [paymentSuccessRedirect]);
 
   const handleCopyBudgetSummary = () => {
     const text = `COTIZACIÓN COLORLINK PROFESIONAL
@@ -1199,6 +1710,29 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
             onClick={() => setShowWelcomeBanner(false)}
             className="p-2 hover:bg-white/20 rounded-xl transition-colors shrink-0 text-white cursor-pointer"
             title="Cerrar notificación"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* AVISO DE PEDIDO GUARDADO Y RETORNO AL INICIO PARA OTRA COTIZACIÓN */}
+      {newQuoteNotice && (
+        <div className="no-print bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600 text-white p-4 sm:p-5 rounded-3xl shadow-lg shadow-emerald-500/20 flex items-center justify-between gap-3 animate-fadeIn">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-white/20 backdrop-blur-xs flex items-center justify-center font-bold text-white shrink-0 shadow-inner">
+              <CheckCircle2 className="w-6 h-6" />
+            </div>
+            <div className="text-xs space-y-0.5">
+              <strong className="block text-sm font-black">¡Pedido Registrado con Éxito!</strong>
+              <p className="text-white/95 leading-relaxed">{newQuoteNotice}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setNewQuoteNotice(null)}
+            className="p-1.5 hover:bg-white/20 rounded-xl transition-colors text-white cursor-pointer shrink-0"
+            title="Cerrar aviso"
           >
             <X className="w-4 h-4" />
           </button>
@@ -1325,40 +1859,158 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
             </div>
           </div>
 
-          {/* Tarjetas de Resumen Rápido con Colores Vivos */}
+          {/* Tarjetas de Resumen Rápido con Colores Vivos e Interactividad */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs">
-              <span className="text-[11px] font-bold text-slate-400 block uppercase tracking-wider">Total Pedidos</span>
-              <div className="text-2xl font-black text-slate-900 mt-1 font-mono">{clientOrders.length}</div>
-            </div>
+            <button
+              type="button"
+              onClick={() => setOrderFilterTab('todos')}
+              className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+                orderFilterTab === 'todos'
+                  ? 'bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-slate-900/20'
+                  : 'bg-white border-slate-200/90 hover:border-slate-300 shadow-2xs'
+              }`}
+            >
+              <span className={`text-[11px] font-bold block uppercase tracking-wider ${
+                orderFilterTab === 'todos' ? 'text-slate-300' : 'text-slate-400'
+              }`}>
+                Total Guardados
+              </span>
+              <div className={`text-2xl font-black mt-1 font-mono ${
+                orderFilterTab === 'todos' ? 'text-white' : 'text-slate-900'
+              }`}>
+                {clientOrders.length}
+              </div>
+              <span className={`text-[10px] font-semibold mt-1 block ${
+                orderFilterTab === 'todos' ? 'text-sky-300' : 'text-slate-500'
+              }`}>
+                Ver todos
+              </span>
+            </button>
 
-            <div className="bg-amber-50/70 p-4 rounded-2xl border border-amber-200/80 shadow-2xs">
-              <span className="text-[11px] font-bold text-amber-800 block uppercase tracking-wider">Pendientes</span>
-              <div className="text-2xl font-black text-amber-950 mt-1 font-mono">
+            <button
+              type="button"
+              onClick={() => setOrderFilterTab('activos')}
+              className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+                orderFilterTab === 'activos'
+                  ? 'bg-amber-500 text-slate-950 border-amber-600 shadow-md ring-2 ring-amber-500/30'
+                  : 'bg-amber-50/70 border-amber-200/80 hover:border-amber-300 shadow-2xs text-amber-950'
+              }`}
+            >
+              <span className={`text-[11px] font-bold block uppercase tracking-wider ${
+                orderFilterTab === 'activos' ? 'text-slate-900' : 'text-amber-800'
+              }`}>
+                Recibidos / Cola
+              </span>
+              <div className="text-2xl font-black mt-1 font-mono">
                 {clientOrders.filter(o => o.estado === 'pendiente').length}
               </div>
-            </div>
+              <span className="text-[10px] font-semibold mt-1 block opacity-90">
+                En preparación
+              </span>
+            </button>
 
-            <div className="bg-sky-50/70 p-4 rounded-2xl border border-sky-200/80 shadow-2xs">
-              <span className="text-[11px] font-bold text-sky-800 block uppercase tracking-wider">En Camino</span>
-              <div className="text-2xl font-black text-sky-950 mt-1 font-mono">
-                {clientOrders.filter(o => o.estado === 'en_ruta').length}
+            <button
+              type="button"
+              onClick={() => setOrderFilterTab('activos')}
+              className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+                orderFilterTab === 'activos'
+                  ? 'bg-sky-600 text-white border-sky-700 shadow-md ring-2 ring-sky-500/30'
+                  : 'bg-sky-50/70 border-sky-200/80 hover:border-sky-300 shadow-2xs text-sky-950'
+              }`}
+            >
+              <span className={`text-[11px] font-bold block uppercase tracking-wider ${
+                orderFilterTab === 'activos' ? 'text-sky-100' : 'text-sky-800'
+              }`}>
+                En Proceso / Ruta
+              </span>
+              <div className="text-2xl font-black mt-1 font-mono">
+                {clientOrders.filter(o => o.estado === 'preparando' || o.estado === 'en_ruta').length}
               </div>
-            </div>
+              <span className="text-[10px] font-semibold mt-1 block opacity-90">
+                Tintometría y despacho
+              </span>
+            </button>
 
-            <div className="bg-emerald-50/70 p-4 rounded-2xl border border-emerald-200/80 shadow-2xs">
-              <span className="text-[11px] font-bold text-emerald-800 block uppercase tracking-wider">Entregados</span>
-              <div className="text-2xl font-black text-emerald-950 mt-1 font-mono">
+            <button
+              type="button"
+              onClick={() => setOrderFilterTab('entregados')}
+              className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+                orderFilterTab === 'entregados'
+                  ? 'bg-emerald-600 text-white border-emerald-700 shadow-md ring-2 ring-emerald-500/30'
+                  : 'bg-emerald-50/70 border-emerald-200/80 hover:border-emerald-300 shadow-2xs text-emerald-950'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className={`text-[11px] font-bold block uppercase tracking-wider ${
+                  orderFilterTab === 'entregados' ? 'text-emerald-100' : 'text-emerald-800'
+                }`}>
+                  Ya Entregados
+                </span>
+                <span className="text-xs">✅</span>
+              </div>
+              <div className="text-2xl font-black mt-1 font-mono">
                 {clientOrders.filter(o => o.estado === 'entregado').length}
               </div>
-            </div>
+              <span className="text-[10px] font-semibold mt-1 block opacity-90">
+                Guardados de por vida
+              </span>
+            </button>
           </div>
+
+          {/* Barra de Filtros Rápida y Garantía de Permanencia */}
+          {clientOrders.length > 0 && (
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-bold text-slate-500">Filtrar vista:</span>
+                <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setOrderFilterTab('todos')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      orderFilterTab === 'todos'
+                        ? 'bg-white text-slate-900 shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Todos ({clientOrders.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOrderFilterTab('activos')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      orderFilterTab === 'activos'
+                        ? 'bg-white text-sky-800 shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    En Proceso ({clientOrders.filter(o => o.estado !== 'entregado').length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOrderFilterTab('entregados')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      orderFilterTab === 'entregados'
+                        ? 'bg-white text-emerald-800 shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    ✓ Entregados ({clientOrders.filter(o => o.estado === 'entregado').length})
+                  </button>
+                </div>
+              </div>
+
+              <div className="text-[11px] font-medium text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200 flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <span>Tus pedidos entregados quedan permanentemente guardados en tu historial.</span>
+              </div>
+            </div>
+          )}
 
           {/* Listado o Tabla de Pedidos */}
           {loadingClientOrders && clientOrders.length === 0 ? (
             <div className="bg-white rounded-3xl p-12 text-center border border-slate-200 shadow-sm space-y-3">
               <Loader2 className="w-8 h-8 animate-spin mx-auto text-[#009FE3]" />
-              <p className="text-sm font-bold text-slate-700">Consultando tus pedidos en la base de datos...</p>
+              <p className="text-sm font-bold text-slate-700">Consultando tu historial de pedidos...</p>
             </div>
           ) : clientOrders.length === 0 ? (
             <div className="bg-white rounded-3xl p-10 sm:p-14 text-center border border-slate-200 shadow-sm space-y-4">
@@ -1368,7 +2020,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
               <div className="max-w-md mx-auto">
                 <h3 className="text-lg font-black text-slate-900">Aún no tienes pedidos registrados</h3>
                 <p className="text-xs text-slate-500 mt-1">
-                  Cuando apruebes una cotización en el cotizador oficial, tus pedidos aparecerán aquí con seguimiento en tiempo real y recibos descargables.
+                  Cuando apruebes una cotización en el cotizador oficial, tus pedidos quedarán guardados aquí de forma permanente (incluso después de ser entregados) con su estado en tiempo real.
                 </p>
               </div>
               <button
@@ -1382,47 +2034,91 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                 Comenzar a Cotizar Ahora 🎨
               </button>
             </div>
+          ) : clientOrders.filter((ord) => {
+              if (orderFilterTab === 'activos') return ord.estado !== 'entregado';
+              if (orderFilterTab === 'entregados') return ord.estado === 'entregado';
+              return true;
+            }).length === 0 ? (
+            <div className="bg-white rounded-3xl p-10 text-center border border-slate-200 shadow-sm space-y-3">
+              <Package className="w-8 h-8 text-slate-400 mx-auto" />
+              <h4 className="text-base font-black text-slate-900">
+                No hay pedidos en la categoría "{orderFilterTab === 'entregados' ? 'Ya Entregados' : 'En Proceso'}"
+              </h4>
+              <p className="text-xs text-slate-500">
+                {orderFilterTab === 'entregados'
+                  ? 'Aún no se ha marcado ningún pedido como entregado en obra.'
+                  : 'Todos tus pedidos actuales ya han sido entregados y guardados en tu historial.'}
+              </p>
+              <button
+                type="button"
+                onClick={() => setOrderFilterTab('todos')}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+              >
+                Ver todos los pedidos ({clientOrders.length})
+              </button>
+            </div>
           ) : (
             <div className="space-y-4">
-              {clientOrders.map((ord) => {
+              {clientOrders
+                .filter((ord) => {
+                  if (orderFilterTab === 'activos') return ord.estado !== 'entregado';
+                  if (orderFilterTab === 'entregados') return ord.estado === 'entregado';
+                  return true;
+                })
+                .map((ord) => {
                 // Configuración de Colores Vivos y Mensaje Dinámico según el Estado (Requirement 6)
                 let badgeClass = 'bg-amber-400 text-slate-950 font-black shadow-xs';
-                let labelEstado = 'Pendiente • En Cola (2s)';
-                let dotColor = 'bg-amber-600';
+                let labelEstado = '⏳ EN PROCESO • PEDIDO RECIBIDO';
+                let dotColor = 'bg-amber-700 animate-pulse';
                 let msgBannerClass = 'bg-amber-50/90 border-amber-300 text-amber-950';
+                let currentStageStep = 1;
 
                 if (ord.estado === 'preparando') {
                   badgeClass = 'bg-sky-600 text-white font-black shadow-xs shadow-sky-500/30';
-                  labelEstado = 'En Tintometría / Dosificación';
+                  labelEstado = '🎨 EN PROCESO • EN TINTOMETRÍA';
                   dotColor = 'bg-sky-200 animate-pulse';
                   msgBannerClass = 'bg-sky-50/90 border-sky-300 text-sky-950';
+                  currentStageStep = 2;
                 } else if (ord.estado === 'en_ruta') {
                   badgeClass = 'bg-purple-600 text-white font-black shadow-xs shadow-purple-600/30';
-                  labelEstado = 'Despachando en Ruta a Obra';
+                  labelEstado = '🚚 EN PROCESO • DESPACHANDO EN RUTA';
                   dotColor = 'bg-purple-200 animate-pulse';
                   msgBannerClass = 'bg-purple-50/90 border-purple-300 text-purple-950';
+                  currentStageStep = 3;
                 } else if (ord.estado === 'entregado') {
                   badgeClass = 'bg-emerald-600 text-white font-black shadow-xs shadow-emerald-500/30';
-                  labelEstado = 'Entregado con Éxito en Obra';
+                  labelEstado = '✅ YA ENTREGADO EN OBRA';
                   dotColor = 'bg-emerald-200';
                   msgBannerClass = 'bg-emerald-50/90 border-emerald-300 text-emerald-950';
+                  currentStageStep = 4;
                 }
 
+                const safeDetalle = {
+                  obra: ord.detalle?.obra || ord.cliente || formData.cliente || 'Constructora / Proyecto',
+                  tipoObra: ord.detalle?.tipoObra || 'Fachada / Obra',
+                  areaM2: Number(ord.detalle?.areaM2 ?? ord.areaM2 ?? 85),
+                  tipoPintura: ord.detalle?.tipoPintura || ord.tipoPintura || 'Exterior Tipo 1',
+                  color: ord.detalle?.color || ord.color || 'Blanco Puro (Mate)',
+                  ciudad: ord.detalle?.ciudad || ord.ciudad || 'Medellín'
+                };
+                const safeTotal = Number(ord.total ?? ord.totalCOP ?? 0);
+                const safeOrderNum = ord.orderNumber || ord.id || 'ORD-2026';
+
                 const ordStateInfo = buildOrderStateMessage({
-                  status: ord.estado,
-                  orderId: ord.orderNumber,
-                  cliente: ord.detalle.obra || formData.cliente || 'Constructora',
-                  responsable: formData.responsable || 'Cliente Colorlink',
-                  color: ord.detalle.color,
-                  tipoPintura: ord.detalle.tipoPintura,
-                  ciudad: ord.detalle.ciudad,
-                  totalCOP: ord.total,
-                  cuñetes: Math.max(1, Math.ceil((ord.detalle.areaM2 || 50) / 28))
+                  status: ord.estado || ord.status || 'pendiente',
+                  orderId: safeOrderNum,
+                  cliente: safeDetalle.obra,
+                  responsable: ord.responsable || formData.responsable || 'Cliente Colorlink',
+                  color: safeDetalle.color,
+                  tipoPintura: safeDetalle.tipoPintura,
+                  ciudad: safeDetalle.ciudad,
+                  totalCOP: safeTotal,
+                  cuñetes: Math.max(1, Math.ceil((safeDetalle.areaM2 || 50) / 28))
                 });
 
                 return (
                   <div
-                    key={ord.id}
+                    key={ord.id || safeOrderNum}
                     className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/90 shadow-sm hover:shadow-md transition-all flex flex-col gap-4 relative overflow-hidden"
                   >
                     {/* Borde izquierdo colorido */}
@@ -1435,11 +2131,11 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         {/* Fila 1: Número de orden, fecha y etiqueta viva de estado */}
                         <div className="flex flex-wrap items-center gap-2.5">
                           <span className="font-mono font-black text-sm text-[#003882] bg-sky-50 px-3 py-1 rounded-xl border border-sky-200">
-                            #{ord.orderNumber}
+                            #{safeOrderNum}
                           </span>
                           <span className="text-xs text-slate-500 flex items-center gap-1">
                             <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                            <span>{ord.fecha}</span>
+                            <span>{ord.fecha || 'Hoy'}</span>
                           </span>
                           {/* ETIQUETA VIVA DE ESTADO */}
                           <span className={`px-3 py-1 rounded-full text-xs uppercase tracking-wider flex items-center gap-1.5 ${badgeClass}`}>
@@ -1452,63 +2148,70 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         <div className="text-xs text-slate-700 space-y-1">
                           <div className="font-bold text-slate-900 text-sm flex items-center gap-2">
                             <Building2 className="w-4 h-4 text-sky-600" />
-                            <span>{ord.detalle.obra}</span>
+                            <span>{safeDetalle.obra}</span>
                             <span className="text-slate-400">•</span>
-                            <span className="font-normal text-slate-600">{ord.detalle.tipoObra}</span>
+                            <span className="font-normal text-slate-600">{safeDetalle.tipoObra}</span>
                             <span className="text-slate-400">•</span>
-                            <span className="font-normal text-slate-500">{ord.detalle.areaM2} m²</span>
+                            <span className="font-normal text-slate-500">{safeDetalle.areaM2} m²</span>
                           </div>
                           <div className="text-slate-600 flex flex-wrap items-center gap-x-3 gap-y-1">
-                            <span><strong>Especificación:</strong> {ord.detalle.tipoPintura}</span>
+                            <span><strong>Especificación:</strong> {safeDetalle.tipoPintura}</span>
                             <span>•</span>
-                            <span><strong>Color / Acabado:</strong> {ord.detalle.color}</span>
+                            <span><strong>Color / Acabado:</strong> {safeDetalle.color}</span>
                             <span>•</span>
                             <span className="flex items-center gap-1">
                               <MapPin className="w-3.5 h-3.5 text-rose-500" />
-                              <strong>Destino:</strong> {ord.detalle.ciudad}
+                              <strong>Destino:</strong> {safeDetalle.ciudad}
                             </span>
                           </div>
                         </div>
                       </div>
 
-                      {/* Fila 3: Total resaltado en color vivo y selector rápido de estado para ver cambio de mensaje */}
-                      <div className="flex flex-col sm:flex-row md:flex-col items-start sm:items-center md:items-end justify-between w-full md:w-auto gap-2 pt-3 md:pt-0 border-t md:border-t-0 border-slate-100">
+                      {/* Fila 3: Total resaltado en color vivo (el cliente solo visualiza el estado actual, no puede cambiarlo) */}
+                      <div className="flex flex-col sm:flex-row md:flex-col items-start sm:items-center md:items-end justify-between w-full md:w-auto gap-1.5 pt-3 md:pt-0 border-t md:border-t-0 border-slate-100">
                         <div>
                           <span className="text-[10px] uppercase font-bold text-slate-400 block md:text-right">Total Liquidado</span>
                           <div className="text-xl sm:text-2xl font-black font-mono text-[#003882] md:text-right">
-                            {formatCOP(ord.total)} COP
+                            {formatCOP(safeTotal)} COP
                           </div>
                         </div>
-
-                        <div className="flex items-center gap-1 flex-wrap">
-                          {[
-                            { id: 'pendiente', label: '1. Recibido' },
-                            { id: 'preparando', label: '2. Tintometría' },
-                            { id: 'en_ruta', label: '3. En Ruta' },
-                            { id: 'entregado', label: '4. Entregado' }
-                          ].map((stBtn) => (
-                            <button
-                              key={stBtn.id}
-                              type="button"
-                              onClick={() => {
-                                setClientOrders((prev) =>
-                                  prev.map((item) =>
-                                    item.id === ord.id ? { ...item, estado: stBtn.id as any } : item
-                                  )
-                                );
-                              }}
-                              className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
-                                ord.estado === stBtn.id
-                                  ? 'bg-[#003882] text-white shadow-2xs'
-                                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                              }`}
-                              title="Cambiar estado para ver el mensaje correspondiente"
-                            >
-                              {stBtn.label}
-                            </button>
-                          ))}
-                        </div>
+                        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border ${
+                          ord.estado === 'entregado'
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                            : 'bg-sky-50 text-sky-800 border-sky-200'
+                        }`}>
+                          {ord.estado === 'entregado' ? '✓ Entrega Finalizada y Guardada' : '● Pedido en Proceso Activo'}
+                        </span>
                       </div>
+                    </div>
+
+                    {/* Barra visual de las 4 etapas del pedido guardado */}
+                    <div className="ml-2 grid grid-cols-4 gap-1.5 text-[10px] font-bold">
+                      {[
+                        { step: 1, label: '1. Recibido' },
+                        { step: 2, label: '2. En Tintometría' },
+                        { step: 3, label: '3. En Despacho' },
+                        { step: 4, label: '4. Ya Entregado' }
+                      ].map((st) => {
+                        const completed = currentStageStep >= st.step;
+                        const isCurrent = currentStageStep === st.step;
+                        return (
+                          <div
+                            key={st.step}
+                            className={`px-2.5 py-1.5 rounded-xl border text-center truncate transition-all ${
+                              completed
+                                ? ord.estado === 'entregado'
+                                  ? 'bg-emerald-100/90 border-emerald-300 text-emerald-950 font-black'
+                                  : isCurrent
+                                  ? 'bg-sky-600 border-sky-600 text-white font-black shadow-2xs'
+                                  : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                                : 'bg-slate-50 border-slate-200 text-slate-400'
+                            }`}
+                          >
+                            {completed && !isCurrent ? '✓ ' : isCurrent ? '● ' : ''}{st.label}
+                          </div>
+                        );
+                      })}
                     </div>
 
                     {/* MENSAJE DINÁMICO EXCLUSIVO SEGÚN EL ESTADO ACTUAL DEL PEDIDO */}
@@ -1527,6 +2230,21 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         {ordStateInfo.mensajeNotificacion}
                       </p>
                     </div>
+
+                    {/* CONFIRMACIÓN VISUAL DE GUARDADO PERMANENTE DEL PEDIDO ENTREGADO */}
+                    {ord.estado === 'entregado' && (
+                      <div className="ml-2 px-3.5 py-2.5 rounded-2xl bg-emerald-50 border border-emerald-300 text-xs text-emerald-950 font-medium flex items-center justify-between gap-3 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span>
+                            <strong>Pedido guardado en "Mis Pedidos":</strong> La entrega en obra fue realizada con éxito y este registro se conserva permanentemente en tu historial con sus especificaciones técnicas, remisión y garantía.
+                          </span>
+                        </div>
+                        <span className="text-[11px] font-mono font-bold px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-900 border border-emerald-300 shrink-0">
+                          Historial Permanente ✓
+                        </span>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -1636,608 +2354,10 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
             </div>
           )}
 
-          {/* MÓDULO DE DECISIÓN DEL CLIENTE: ACEPTAR / MODIFICAR / RECHAZAR TOTALMENTE & SELECTOR DE TIPO DE PINTURA */}
+          {/* MÓDULO DE ESTADO POST-DECISIÓN (SOLO SI YA FUE ACEPTADA O RECHAZADA) */}
           <div className="no-print space-y-4">
-            {/* 1. SI ESTÁ PENDIENTE DE DECISIÓN */}
-            {quotationDecision === 'pending' && (
-              <div className="bg-white rounded-3xl p-6 sm:p-7 border-2 border-sky-300 shadow-lg space-y-5 relative overflow-hidden">
-                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="px-3 py-1 bg-amber-500/15 text-amber-900 border border-amber-300 text-xs font-black rounded-full uppercase tracking-wider">
-                        Decisión Requerida
-                      </span>
-                      <span className="text-xs text-slate-500">
-                        Pintura seleccionada: <strong className="text-slate-900">{formData.tipoPintura || 'Tipo 1'}</strong>
-                      </span>
-                    </div>
-                    <h3 className="text-xl font-black text-slate-950 mt-1.5">
-                      ¿Deseas Aprobar, Ajustar o Rechazar esta Cotización?
-                    </h3>
-                    <p className="text-xs text-slate-600">
-                      Selecciona la opción deseada. El precio se ajusta automáticamente si cambias de Tipo 1 a Tipo 2 o 3.
-                    </p>
-                  </div>
-
-                  <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 text-right shrink-0">
-                    <span className="text-[10px] text-slate-500 uppercase font-bold block">Valor Total Liquidado:</span>
-                    <strong className="text-xl font-black bg-gradient-to-r from-sky-600 to-blue-700 bg-clip-text text-transparent font-mono">
-                      {formatCOP(presupuesto.totalPresupuesto)} COP
-                    </strong>
-                  </div>
-                </div>
-
-                {/* SELECTOR INTERACTIVO EN VIVO DE TIPO DE PINTURA (TIPO 1, 2 O 3 PARA EXTERIOR E INTERIOR) */}
-                <div className="bg-slate-50/80 p-4 sm:p-5 rounded-2xl border border-slate-200/80 space-y-3">
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                    <div>
-                      <span className="text-xs font-black text-slate-800 block">
-                        Comparar Presupuesto con Otros Tipos de Pintura (Norma NTC 1335 / NTC 5828):
-                      </span>
-                      <p className="text-[11px] text-slate-500">
-                        El precio de los cuñetes y galones se recalcula inmediatamente al cambiar de opción.
-                      </p>
-                    </div>
-                    <span className="text-[10px] bg-gradient-to-r from-amber-500 via-rose-500 to-purple-600 text-white px-2.5 py-0.5 rounded-full font-bold shrink-0 shadow-2xs">
-                      Actualización en Vivo
-                    </span>
-                  </div>
-
-                  {/* Selector de Línea: Exterior vs Interior */}
-                  <div className="flex items-center gap-2 p-1 bg-slate-200/70 rounded-xl border border-slate-200 w-fit">
-                    <button
-                      type="button"
-                      onClick={() => setActivePaintLine('Exterior')}
-                      className={`py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                        activePaintLine === 'Exterior' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      🌤️ Línea Exterior (Fachadas)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setActivePaintLine('Interior')}
-                      className={`py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                        activePaintLine === 'Interior' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      🏠 Línea Interior (Muros y Cielos)
-                    </button>
-                  </div>
-
-                  {activePaintLine === 'Exterior' ? (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
-                      {/* Exterior Tipo 1 */}
-                      <button
-                        type="button"
-                        onClick={() => handleSwitchPaintType('Exterior Tipo 1')}
-                        className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer ${
-                          formData.tipoPintura === 'Exterior Tipo 1' || formData.tipoPintura === 'Tipo 1'
-                            ? 'border-[#009FE3] bg-sky-50 shadow-xs ring-2 ring-[#009FE3]/25'
-                            : 'border-slate-200 bg-white hover:border-slate-300'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-black text-xs text-slate-900">Exterior Tipo 1</span>
-                          {(formData.tipoPintura === 'Exterior Tipo 1' || formData.tipoPintura === 'Tipo 1') && (
-                            <span className="w-5 h-5 rounded-full bg-[#009FE3] text-white flex items-center justify-center text-xs font-bold">✓</span>
-                          )}
-                        </div>
-                        <span className="text-[11px] font-bold text-[#009FE3] block mt-0.5">100% Acrílica Fachadas (NTC 1335 / 5828)</span>
-                        <p className="text-[10px] text-slate-600 mt-1 leading-snug">Máxima resistencia UV, lluvia e intemperie (&gt;1.200 ciclos). 5 a 7 años.</p>
-                        <div className="mt-2 pt-2 border-t border-slate-200 flex items-center justify-between text-[11px]">
-                          <span className="text-slate-500 font-medium">Cuñete:</span>
-                          <strong className="text-slate-900 font-mono font-bold">
-                            {formatCOP(getPaintTypePrice('Exterior Tipo 1', formData.marcaPintura).precioCunete)}
-                          </strong>
-                        </div>
-                      </button>
-
-                      {/* Exterior Tipo 2 */}
-                      <button
-                        type="button"
-                        onClick={() => handleSwitchPaintType('Exterior Tipo 2')}
-                        className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer ${
-                          formData.tipoPintura === 'Exterior Tipo 2'
-                            ? 'border-sky-600 bg-sky-50 shadow-xs ring-2 ring-sky-500/25'
-                            : 'border-slate-200 bg-white hover:border-slate-300'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-black text-xs text-slate-900">Exterior Tipo 2</span>
-                          {formData.tipoPintura === 'Exterior Tipo 2' && (
-                            <span className="w-5 h-5 rounded-full bg-sky-600 text-white flex items-center justify-center text-xs font-bold">✓</span>
-                          )}
-                        </div>
-                        <span className="text-[11px] font-bold text-sky-700 block mt-0.5">Fachada Estándar Vinil-Acrílica</span>
-                        <p className="text-[10px] text-slate-600 mt-1 leading-snug">Intemperie moderada, aleros, patios y terrazas (&gt;600 ciclos). 3-4 años.</p>
-                        <div className="mt-2 pt-2 border-t border-slate-200 flex items-center justify-between text-[11px]">
-                          <span className="text-slate-500 font-medium">Cuñete:</span>
-                          <strong className="text-slate-900 font-mono font-bold">
-                            {formatCOP(getPaintTypePrice('Exterior Tipo 2', formData.marcaPintura).precioCunete)}
-                          </strong>
-                        </div>
-                      </button>
-
-                      {/* Exterior Tipo 3 */}
-                      <button
-                        type="button"
-                        onClick={() => handleSwitchPaintType('Exterior Tipo 3')}
-                        className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer ${
-                          formData.tipoPintura === 'Exterior Tipo 3'
-                            ? 'border-indigo-600 bg-indigo-50 shadow-xs ring-2 ring-indigo-500/25'
-                            : 'border-slate-200 bg-white hover:border-slate-300'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-black text-xs text-slate-900">Exterior Tipo 3</span>
-                          {formData.tipoPintura === 'Exterior Tipo 3' && (
-                            <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-bold">✓</span>
-                          )}
-                        </div>
-                        <span className="text-[11px] font-bold text-indigo-700 block mt-0.5">Base Imprimante & Cerramientos</span>
-                        <p className="text-[10px] text-slate-600 mt-1 leading-snug">Capa base para regularizar mampostería nueva o cerramientos provisionales. 1 año.</p>
-                        <div className="mt-2 pt-2 border-t border-slate-200 flex items-center justify-between text-[11px]">
-                          <span className="text-slate-500 font-medium">Cuñete:</span>
-                          <strong className="text-slate-900 font-mono font-bold">
-                            {formatCOP(getPaintTypePrice('Exterior Tipo 3', formData.marcaPintura).precioCunete)}
-                          </strong>
-                        </div>
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
-                      {/* Interior Tipo 1 */}
-                      <button
-                        type="button"
-                        onClick={() => handleSwitchPaintType('Interior Tipo 1')}
-                        className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer ${
-                          formData.tipoPintura === 'Interior Tipo 1'
-                            ? 'border-emerald-600 bg-emerald-50 shadow-xs ring-2 ring-emerald-500/25'
-                            : 'border-slate-200 bg-white hover:border-slate-300'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-black text-xs text-emerald-950">Interior Tipo 1</span>
-                          {formData.tipoPintura === 'Interior Tipo 1' && (
-                            <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-bold">✓</span>
-                          )}
-                        </div>
-                        <span className="text-[11px] font-bold text-emerald-700 block mt-0.5">Vinilo Superlavable Alto Tráfico</span>
-                        <p className="text-[10px] text-slate-600 mt-1 leading-snug">Superlavable (&gt;800 ciclos). Muros de salas, pasillos, cocinas y clínicas. 4-5 años.</p>
-                        <div className="mt-2 pt-2 border-t border-slate-200 flex items-center justify-between text-[11px]">
-                          <span className="text-slate-500 font-medium">Cuñete:</span>
-                          <strong className="text-slate-900 font-mono font-bold">
-                            {formatCOP(getPaintTypePrice('Interior Tipo 1', formData.marcaPintura).precioCunete)}
-                          </strong>
-                        </div>
-                      </button>
-
-                      {/* Interior Tipo 2 */}
-                      <button
-                        type="button"
-                        onClick={() => handleSwitchPaintType('Interior Tipo 2')}
-                        className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer ${
-                          formData.tipoPintura === 'Interior Tipo 2' || formData.tipoPintura === 'Tipo 2'
-                            ? 'border-teal-600 bg-teal-50 shadow-xs ring-2 ring-teal-500/25'
-                            : 'border-slate-200 bg-white hover:border-slate-300'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-black text-xs text-teal-950">Interior Tipo 2</span>
-                          {(formData.tipoPintura === 'Interior Tipo 2' || formData.tipoPintura === 'Tipo 2') && (
-                            <span className="w-5 h-5 rounded-full bg-teal-600 text-white flex items-center justify-center text-xs font-bold">✓</span>
-                          )}
-                        </div>
-                        <span className="text-[11px] font-bold text-teal-700 block mt-0.5">Interior Lavable Estándar</span>
-                        <p className="text-[10px] text-slate-600 mt-1 leading-snug">Lavabilidad media (&gt;400 ciclos). Habitaciones, alcobas y zonas secas. 3-4 años.</p>
-                        <div className="mt-2 pt-2 border-t border-slate-200 flex items-center justify-between text-[11px]">
-                          <span className="text-slate-500 font-medium">Cuñete:</span>
-                          <strong className="text-slate-900 font-mono font-bold">
-                            {formatCOP(getPaintTypePrice('Interior Tipo 2', formData.marcaPintura).precioCunete)}
-                          </strong>
-                        </div>
-                      </button>
-
-                      {/* Interior Tipo 3 */}
-                      <button
-                        type="button"
-                        onClick={() => handleSwitchPaintType('Interior Tipo 3')}
-                        className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer ${
-                          formData.tipoPintura === 'Interior Tipo 3' || formData.tipoPintura === 'Tipo 3'
-                            ? 'border-amber-600 bg-amber-50 shadow-xs ring-2 ring-amber-500/25'
-                            : 'border-slate-200 bg-white hover:border-slate-300'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-black text-xs text-amber-950">Interior Tipo 3</span>
-                          {(formData.tipoPintura === 'Interior Tipo 3' || formData.tipoPintura === 'Tipo 3') && (
-                            <span className="w-5 h-5 rounded-full bg-amber-600 text-white flex items-center justify-center text-xs font-bold">✓</span>
-                          )}
-                        </div>
-                        <span className="text-[11px] font-bold text-amber-700 block mt-0.5">Económica Cielorrasos & Techos</span>
-                        <p className="text-[10px] text-slate-600 mt-1 leading-snug">Cero abrasión / No lavable (&lt;100 ciclos). Techos y placas de drywall. 1-2 años.</p>
-                        <div className="mt-2 pt-2 border-t border-slate-200 flex items-center justify-between text-[11px]">
-                          <span className="text-slate-500 font-medium">Cuñete:</span>
-                          <strong className="text-slate-900 font-mono font-bold">
-                            {formatCOP(getPaintTypePrice('Interior Tipo 3', formData.marcaPintura).precioCunete)}
-                          </strong>
-                        </div>
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* PARÁMETROS TÉCNICOS CLAVE: MANOS Y DESPERDICIO / MERMA */}
-                <div className="bg-sky-50/70 rounded-2xl p-4 sm:p-5 border border-sky-200/80 space-y-3">
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                    <span className="text-xs font-black text-sky-950 uppercase tracking-wider flex items-center gap-1.5">
-                      <Sparkles className="w-4 h-4 text-sky-600" />
-                      Cálculo Técnico: Rendimiento, Manos y Desperdicio
-                    </span>
-                    <span className="text-[11px] font-bold text-sky-700 bg-white px-3 py-1 rounded-full border border-sky-200 shadow-2xs">
-                      Sustrato: {formData.superficie} ({formData.ambiente})
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                    <div className="bg-white p-3.5 rounded-2xl border border-sky-100 space-y-1 shadow-2xs">
-                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Manos de Pintura</span>
-                      <strong className="text-sm font-black text-slate-900 block">{technicalCalc.manosSugeridas} Manos Requeridas</strong>
-                      <p className="text-[11px] text-slate-600 leading-snug">{technicalCalc.explicacionManos}</p>
-                    </div>
-
-                    <div className="bg-white p-3.5 rounded-2xl border border-sky-100 space-y-1 shadow-2xs">
-                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Factor de Desperdicio Técnico</span>
-                      <strong className="text-sm font-black text-amber-700 block">+{technicalCalc.factorDesperdicioPorcentaje}% (+{technicalCalc.galonesDesperdicio} gal)</strong>
-                      <p className="text-[11px] text-slate-600 leading-snug">{technicalCalc.explicacionDesperdicio}</p>
-                    </div>
-
-                    <div className="bg-white p-3.5 rounded-2xl border border-sky-100 space-y-1 shadow-2xs">
-                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Dosificación Final de Envases</span>
-                      <strong className="text-sm font-black text-sky-700 block">
-                        {technicalCalc.cuñetesRequeridos} Cuñetes + {technicalCalc.galonesSueltosRequeridos} Galones
-                      </strong>
-                      <p className="text-[11px] text-slate-600 leading-snug">
-                        {technicalCalc.galonesNetosSinDesperdicio} gal netos + {technicalCalc.galonesDesperdicio} gal merma = {technicalCalc.galonesRequeridos} gal totales
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* SELECTOR OFICIAL DE MÉTODO DE PAGO */}
-                <div className="bg-white rounded-3xl p-5 sm:p-6 border-2 border-indigo-100 shadow-xs space-y-4">
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
-                        <CreditCard className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h4 className="font-black text-sm text-slate-900">
-                          ¿Cómo deseas realizar el pago de este pedido?
-                        </h4>
-                        <p className="text-xs text-slate-500">
-                          Selecciona tu método de pago oficial para facturación, despacho y emisión de recibo.
-                        </p>
-                      </div>
-                    </div>
-                    <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-200">
-                      Transacción Segura Colorlink
-                    </span>
-                  </div>
-
-                  {/* Opciones de Métodos de Pago */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {/* 1. Bancolombia Transferencia / QR */}
-                    <div
-                      onClick={() => handleInputChange('metodoPago', 'bancolombia')}
-                      className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
-                        (formData.metodoPago || 'bancolombia') === 'bancolombia'
-                          ? 'border-yellow-500 bg-yellow-50/50 shadow-xs ring-2 ring-yellow-400/20'
-                          : 'border-slate-200 hover:border-slate-300 bg-white'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="font-black text-xs text-slate-900">Bancolombia / QR</span>
-                        <span className="text-[9px] font-bold bg-yellow-500 text-slate-900 px-2 py-0.5 rounded-md">
-                          Sin comisión
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-600 leading-snug">
-                        Transferencia electrónica a Cuenta de Ahorros o escaneo de código QR oficial.
-                      </p>
-                    </div>
-
-                    {/* 2. PSE Débito en Línea */}
-                    <div
-                      onClick={() => handleInputChange('metodoPago', 'pse')}
-                      className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
-                        formData.metodoPago === 'pse'
-                          ? 'border-[#009FE3] bg-sky-50/60 shadow-xs ring-2 ring-[#009FE3]/20'
-                          : 'border-slate-200 hover:border-slate-300 bg-white'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="font-black text-xs text-slate-900">PSE Débito en Línea</span>
-                        <span className="text-[9px] font-bold bg-[#009FE3] text-white px-2 py-0.5 rounded-md">
-                          Todos los bancos
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-600 leading-snug">
-                        Débito seguro desde cuenta corriente o ahorros de cualquier banco colombiano.
-                      </p>
-                    </div>
-
-                    {/* 3. Nequi / Daviplata */}
-                    <div
-                      onClick={() => handleInputChange('metodoPago', 'nequi')}
-                      className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
-                        formData.metodoPago === 'nequi'
-                          ? 'border-sky-600 bg-sky-50/60 shadow-xs ring-2 ring-sky-500/20'
-                          : 'border-slate-200 hover:border-slate-300 bg-white'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="font-black text-xs text-slate-900">Nequi / Daviplata</span>
-                        <span className="text-[9px] font-bold bg-sky-600 text-white px-2 py-0.5 rounded-md">
-                          Al instante
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-600 leading-snug">
-                        Envío directo a la línea corporativa Colorlink desde tu celular con QR o número.
-                      </p>
-                    </div>
-
-                    {/* 4. Contra Entrega en Obra */}
-                    <div
-                      onClick={() => handleInputChange('metodoPago', 'contraentrega')}
-                      className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
-                        formData.metodoPago === 'contraentrega'
-                          ? 'border-emerald-600 bg-emerald-50/60 shadow-xs ring-2 ring-emerald-500/20'
-                          : 'border-slate-200 hover:border-slate-300 bg-white'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="font-black text-xs text-slate-900">Contra Entrega en Obra</span>
-                        <span className="text-[9px] font-bold bg-emerald-600 text-white px-2 py-0.5 rounded-md">
-                          En sitio
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-600 leading-snug">
-                        Paga en efectivo o datáfono móvil inalámbrico al recibir los cuñetes en obra.
-                      </p>
-                    </div>
-
-                    {/* 5. Crédito Corporativo 30 Días */}
-                    <div
-                      onClick={() => handleInputChange('metodoPago', 'credito')}
-                      className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
-                        formData.metodoPago === 'credito'
-                          ? 'border-purple-600 bg-purple-50/60 shadow-xs ring-2 ring-purple-500/20'
-                          : 'border-slate-200 hover:border-slate-300 bg-white'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="font-black text-xs text-slate-900">Crédito 30 Días (NIT)</span>
-                        <span className="text-[9px] font-bold bg-purple-600 text-white px-2 py-0.5 rounded-md">
-                          Empresas
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-600 leading-snug">
-                        Factura electrónica DIAN a 30 días para constructoras y contratistas registrados.
-                      </p>
-                    </div>
-
-                    {/* 6. Tarjeta de Crédito / Débito */}
-                    <div
-                      onClick={() => handleInputChange('metodoPago', 'tarjeta')}
-                      className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
-                        formData.metodoPago === 'tarjeta'
-                          ? 'border-indigo-600 bg-indigo-50/60 shadow-xs ring-2 ring-indigo-500/20'
-                          : 'border-slate-200 hover:border-slate-300 bg-white'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="font-black text-xs text-slate-900">Tarjeta Crédito / Débito</span>
-                        <span className="text-[9px] font-bold bg-indigo-600 text-white px-2 py-0.5 rounded-md">
-                          Hasta 12 cuotas
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-600 leading-snug">
-                        Procesamiento en línea para tarjetas Visa, Mastercard o American Express.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Detalles Dinámicos según Método de Pago Seleccionado */}
-                  {(formData.metodoPago || 'bancolombia') === 'bancolombia' && (
-                    <div className="p-4 rounded-2xl bg-yellow-50/80 border border-yellow-200 space-y-3">
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                        <div>
-                          <span className="text-[11px] font-bold text-yellow-900 uppercase tracking-wider block">
-                            Datos Bancarios Oficiales Colorlink S.A.S.
-                          </span>
-                          <p className="text-xs text-yellow-800 mt-0.5">
-                            Realiza tu transferencia por App Bancolombia, Sucursal Virtual o Corresponsal Bancario.
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            navigator.clipboard.writeText('24589104512');
-                            setCopiedBankInfo(true);
-                            setTimeout(() => setCopiedBankInfo(false), 3000);
-                          }}
-                          className="px-3 py-1.5 bg-yellow-400 hover:bg-yellow-500 text-slate-900 text-xs font-black rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                        >
-                          <Copy className="w-3.5 h-3.5" />
-                          <span>{copiedBankInfo ? '¡Copiado!' : 'Copiar Cuenta'}</span>
-                        </button>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-                        <div className="bg-white p-2.5 rounded-xl border border-yellow-200">
-                          <span className="text-[10px] text-slate-500 block">Tipo & Número de Cuenta</span>
-                          <strong className="text-sm font-black text-slate-900 font-mono">Ahorros: 245-891045-12</strong>
-                        </div>
-                        <div className="bg-white p-2.5 rounded-xl border border-yellow-200">
-                          <span className="text-[10px] text-slate-500 block">Titular de la Cuenta</span>
-                          <strong className="text-xs font-black text-slate-900">COLORLINK PINTURAS S.A.S.</strong>
-                        </div>
-                        <div className="bg-white p-2.5 rounded-xl border border-yellow-200">
-                          <span className="text-[10px] text-slate-500 block">NIT de la Empresa</span>
-                          <strong className="text-xs font-black text-slate-900 font-mono">900.854.219-3</strong>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {formData.metodoPago === 'pse' && (
-                    <div className="p-4 rounded-2xl bg-sky-50/80 border border-sky-200 space-y-3">
-                      <span className="text-[11px] font-bold text-sky-950 uppercase tracking-wider block">
-                        Pasarela Segura PSE • Selecciona tu Banco
-                      </span>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                        <div>
-                          <label className="text-[11px] font-bold text-slate-700 block mb-1">Banco Emisor *</label>
-                          <select
-                            value={selectedBankPSE}
-                            onChange={(e) => {
-                              setSelectedBankPSE(e.target.value);
-                              handleInputChange('bancoPSE', e.target.value);
-                            }}
-                            className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium"
-                          >
-                            <option value="Bancolombia">Bancolombia</option>
-                            <option value="Banco de Bogotá">Banco de Bogotá</option>
-                            <option value="Davivienda">Davivienda</option>
-                            <option value="BBVA Colombia">BBVA Colombia</option>
-                            <option value="Banco de Occidente">Banco de Occidente</option>
-                            <option value="Banco Popular">Banco Popular</option>
-                            <option value="Scotiabank Colpatria">Scotiabank Colpatria</option>
-                            <option value="Banco Caja Social">Banco Caja Social</option>
-                            <option value="Nequi">Nequi</option>
-                            <option value="Daviplata">Daviplata</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-[11px] font-bold text-slate-700 block mb-1">Tipo de Cliente *</label>
-                          <select className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium">
-                            <option value="juridica">Persona Jurídica (Empresa / NIT)</option>
-                            <option value="natural">Persona Natural (C.C.)</option>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {formData.metodoPago === 'nequi' && (
-                    <div className="p-4 rounded-2xl bg-sky-50/80 border border-sky-200 space-y-3">
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                        <div>
-                          <span className="text-[11px] font-bold text-sky-950 uppercase tracking-wider block">
-                            Pago Inmediato Nequi / Daviplata
-                          </span>
-                          <p className="text-xs text-sky-800 mt-0.5">
-                            Envía a la línea corporativa autorizada o escanea el QR desde tu aplicación móvil.
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            navigator.clipboard.writeText('3212460658');
-                            setCopiedBankInfo(true);
-                            setTimeout(() => setCopiedBankInfo(false), 3000);
-                          }}
-                          className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-black rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                        >
-                          <Copy className="w-3.5 h-3.5" />
-                          <span>{copiedBankInfo ? '¡Número Copiado!' : 'Copiar Celular'}</span>
-                        </button>
-                      </div>
-
-                      <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-sky-200">
-                        <div className="w-10 h-10 rounded-xl bg-sky-100 text-sky-800 flex items-center justify-center font-bold shrink-0">
-                          <Phone className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <strong className="text-base font-black text-slate-900 font-mono">+57 321 246 0658</strong>
-                          <span className="text-[11px] text-slate-500 block">Titular: Colorlink Pinturas Oficial</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {formData.metodoPago === 'contraentrega' && (
-                    <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200 text-xs text-emerald-900 space-y-1">
-                      <strong className="block font-black text-sm">Pago Contra Entrega Habilitado para {formData.ciudad || 'tu ciudad'}</strong>
-                      <p className="leading-relaxed">
-                        El conductor del camión de reparto Colorlink llevará datáfono móvil inalámbrico para tarjetas débito/crédito, o podrás entregar el valor exacto en efectivo recibiendo tu factura fiscal física.
-                      </p>
-                    </div>
-                  )}
-
-                  {formData.metodoPago === 'credito' && (
-                    <div className="p-4 rounded-2xl bg-purple-50/80 border border-purple-200 text-xs text-purple-900 space-y-1">
-                      <strong className="block font-black text-sm">Crédito Corporativo 30 Días para NIT {formData.nitDocumento || 'Empresarial'}</strong>
-                      <p className="leading-relaxed">
-                        Se emitirá Factura Electrónica con plazo comercial a 30 días calendario respaldada por orden de compra corporativa.
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* NOTA INFORMATIVA DE EMISIÓN DE RECIBO OFICIAL */}
-                <div className="p-3.5 bg-sky-50/60 rounded-2xl border border-sky-100 text-xs text-slate-700 flex items-start gap-2.5">
-                  <Lock className="w-4 h-4 text-[#009FE3] shrink-0 mt-0.5" />
-                  <p className="leading-relaxed">
-                    <strong>Generación Oficial de Recibo:</strong> El recibo formal con firma fiscal, código QR de certificación y la orden de entrega en ruta se generarán y enviarán a su correo <strong>{formData.emailResponsable}</strong> inmediatamente después de presionar <strong>"Aceptar Cotización"</strong> con el método de pago seleccionado.
-                  </p>
-                </div>
-
-                {/* BOTONES PRINCIPALES DE DECISIÓN CON LA PALETA DE MARCA */}
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={handleAcceptQuotation}
-                    className="flex-1 py-3.5 px-6 bg-gradient-to-r from-emerald-500 to-teal-600 hover:brightness-110 text-white font-black text-xs sm:text-sm rounded-2xl shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
-                  >
-                    <CheckCircle2 className="w-4.5 h-4.5 text-white" />
-                    <span>Aceptar ({formatCOP(presupuesto.totalPresupuesto)})</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setShowRejectModal(true)}
-                    className="py-3.5 px-6 bg-rose-50 hover:bg-rose-100 text-rose-700 font-black text-xs sm:text-sm rounded-2xl border-2 border-rose-300 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
-                  >
-                    <ThumbsDown className="w-4 h-4 text-rose-600" />
-                    <span>Rechazar</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleModifyQuotation(2)}
-                    className="py-3.5 px-5 bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-110 text-white font-black text-xs rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-sky-500/25 active:scale-95"
-                  >
-                    <Edit3 className="w-4 h-4 text-white" />
-                    <span>Modificar</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={resetForm}
-                    className="py-3.5 px-5 bg-white hover:bg-slate-50 text-slate-800 font-bold text-xs rounded-2xl border border-slate-200 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs active:scale-95"
-                  >
-                    <Sparkles className="w-4 h-4 text-amber-500" />
-                    <span>Otra cotización</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* 2. SI LA COTIZACIÓN FUE ACEPTADA */}
-            {quotationDecision === 'accepted' && (() => {
+            {/* 2. SI LA COTIZACIÓN FUE ACEPTADA Y EL PAGO CONFIRMADO */}
+            {quotationDecision === 'accepted' && paymentConfirmed && (() => {
               const currentMappedStatus = orderLifecyclePhase === 'aceptado' ? 'pendiente' : orderLifecyclePhase;
               const liveStateMsg = buildOrderStateMessage({
                 status: currentMappedStatus,
@@ -2255,20 +2375,20 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                 aceptado: {
                   bg: 'from-amber-500 via-orange-500 to-amber-600 border-amber-300/40',
                   badge: `📋 ESTADO 1/4: PEDIDO CONFIRMADO (${orderNumber})`,
-                  title: '1. Pedido Confirmado • En Espera de Tintometría (2 seg)',
-                  desc: `Tu pedido de ${formData.tipoPintura || 'Tipo 1'} (Color: ${formData.colorAcabado || 'Blanco'}) fue registrado en la sede ${formData.ciudad}. Ingresará automáticamente al laboratorio de tintometría computarizada en 2 segundos.`
+                  title: '1. Pedido Confirmado • En Espera de Tintometría',
+                  desc: `Tu pedido de ${formData.tipoPintura || 'Tipo 1'} (Color: ${formData.colorAcabado || 'Blanco'}) fue registrado en la sede ${formData.ciudad} y programado para ingreso al laboratorio de tintometría computarizada.`
                 },
                 preparando: {
                   bg: 'from-sky-500 via-sky-600 to-blue-700 border-sky-300/40',
                   badge: `🎨 ESTADO 2/4: EN LABORATORIO DE TINTOMETRÍA (${liveStateMsg.lote})`,
                   title: '2. ¡Tu Pintura está en el Laboratorio de Tintometría!',
-                  desc: `A los 2 segundos de aprobado, tu pedido #${orderNumber} ingresó a dosificación computarizada del color "${formData.colorAcabado || 'Seleccionado'}" sobre base ${formData.tipoPintura || 'Tipo 1'} (Norma NTC 1335). Próximo avance: Despacho en 20 minutos.`
+                  desc: `Tu pedido #${orderNumber} se encuentra en dosificación computarizada del color "${formData.colorAcabado || 'Seleccionado'}" sobre base ${formData.tipoPintura || 'Tipo 1'} (Norma NTC 1335). Próximo paso: Despacho hacia tu obra.`
                 },
                 en_ruta: {
                   bg: 'from-indigo-700 via-purple-700 to-blue-700 border-purple-300/40',
                   badge: `🚚 ESTADO 3/4: DESPACHANDO EN RUTA (PLACA ${liveStateMsg.logistica.placa})`,
                   title: `3. ¡Se Está Despachando tu Pedido hacia ${formData.ciudad}!`,
-                  desc: `Tu pedido #${orderNumber} completó tintometría a los 20 minutos y salió hacia tu obra en el ${liveStateMsg.logistica.vehiculo} (Placa ${liveStateMsg.logistica.placa}) con el conductor ${liveStateMsg.logistica.conductor} por ${liveStateMsg.logistica.corredorRuta}. Remisión oficial #${liveStateMsg.remision}.`
+                  desc: `Tu pedido #${orderNumber} completó el proceso de tintometría y salió hacia tu obra en el ${liveStateMsg.logistica.vehiculo} (Placa ${liveStateMsg.logistica.placa}) con el conductor ${liveStateMsg.logistica.conductor} por ${liveStateMsg.logistica.corredorRuta}. Remisión oficial #${liveStateMsg.remision}.`
                 },
                 entregado: {
                   bg: 'from-emerald-600 via-emerald-700 to-teal-700 border-emerald-300/40',
@@ -2333,7 +2453,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                   </div>
                 </div>
 
-                {/* TARJETA OFICIAL DE SEGUIMIENTO EN VIVO: CICLO CADA 20 MINUTOS (2s Tintometría -> 20m Despachando -> 20m Entregado) */}
+                {/* TARJETA OFICIAL DE SEGUIMIENTO EN VIVO DEL PEDIDO */}
                 <div className="bg-white rounded-3xl p-6 sm:p-7 border-2 border-sky-300 shadow-md space-y-5 text-slate-800 animate-fadeIn">
                   <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-100">
                     <div className="flex items-center gap-3">
@@ -2346,66 +2466,25 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                             Seguimiento en Vivo de su Pedido #{orderNumber}
                           </h4>
                           <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300">
-                            ● Ciclo Activo
+                            ● Seguimiento en Tiempo Real
                           </span>
-                          {phaseSecondsLeft > 0 && orderLifecyclePhase !== 'entregado' && (
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-sky-100 text-sky-900 border border-sky-200">
-                              Próxima actualización en: <strong>{Math.floor(phaseSecondsLeft / 60)}m {String(phaseSecondsLeft % 60).padStart(2, '0')}s</strong>
-                            </span>
-                          )}
                         </div>
                         <p className="text-xs text-slate-600 mt-0.5">
-                          Actualización automática cada 20 minutos: <strong>A los 2s en Tintometría</strong> ➔ <strong>A los 20 min Despachando con mensaje</strong> ➔ <strong>A los 20 min Entregado</strong>.
+                          Trazabilidad oficial desde el laboratorio de tintometría hasta la entrega certificada en tu obra en <strong>{formData.ciudad}</strong>.
                         </p>
                       </div>
                     </div>
-
-                    <div className="flex items-center gap-2 flex-wrap self-end lg:self-auto">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setLifecycleFastDemo(prev => {
-                            const next = !prev;
-                            setPhaseSecondsLeft(next ? 20 : 1200);
-                            return next;
-                          });
-                        }}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 ${
-                          lifecycleFastDemo
-                            ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-500/20'
-                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                        }`}
-                        title="Alternar entre ciclo de 20 minutos reales o 20 segundos de demostración rápida"
-                      >
-                        <Zap className={`w-3.5 h-3.5 ${lifecycleFastDemo ? 'text-amber-200 fill-amber-200' : 'text-slate-500'}`} />
-                        <span>{lifecycleFastDemo ? '⚡ Modo Rápido (20 seg)' : '⏱️ Tiempo Real (20 min)'}</span>
-                      </button>
-
-                      {orderLifecyclePhase !== 'entregado' && (
-                        <button
-                          type="button"
-                          onClick={handleAdvanceClientLifecycle}
-                          className="px-3.5 py-1.5 bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-110 text-white font-black text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
-                          title="Avanzar 20 minutos inmediatamente para probar la siguiente fase"
-                        >
-                          <ArrowRight className="w-3.5 h-3.5" />
-                          <span>Avanzar +20 Minutos Ahora</span>
-                        </button>
-                      )}
-                    </div>
                   </div>
 
-                  {/* STEPPER VISUAL INTERACTIVO DE 4 ETAPAS (Haz clic en cualquier etapa para probar el cambio de mensaje inmediatamente) */}
+                  {/* STEPPER VISUAL DE 4 ETAPAS DEL PEDIDO (SOLO LECTURA PARA EL CLIENTE) */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
                     {/* Etapa 1: Aceptado */}
                     <div
-                      onClick={() => orderNumber && triggerClientLifecycleTransition('aceptado', orderNumber)}
-                      className={`p-3.5 rounded-2xl border-2 space-y-1 relative overflow-hidden cursor-pointer transition-all ${
+                      className={`p-3.5 rounded-2xl border-2 space-y-1 relative overflow-hidden transition-all ${
                         orderLifecyclePhase === 'aceptado'
                           ? 'bg-amber-50 border-amber-500 text-amber-950 shadow-sm ring-2 ring-amber-400/20'
-                          : 'bg-emerald-50/80 border-emerald-400 text-emerald-950 hover:brightness-98'
+                          : 'bg-emerald-50/80 border-emerald-400 text-emerald-950'
                       }`}
-                      title="Haz clic para ver el mensaje de Estado 1: Pedido Confirmado"
                     >
                       <div className="flex items-center justify-between">
                         <span className={`w-6 h-6 rounded-lg text-white flex items-center justify-center font-black text-xs ${
@@ -2420,21 +2499,19 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         </span>
                       </div>
                       <strong className="block font-black text-sm text-slate-900 mt-1">1. Pedido Confirmado</strong>
-                      <p className="text-[11px] text-slate-600 leading-tight">Orden radicada • En cola para tintometría (2s).</p>
+                      <p className="text-[11px] text-slate-600 leading-tight">Orden radicada • Programada para tintometría.</p>
                       <span className="text-[10px] text-emerald-700 font-mono block pt-1">Pago: {formData.metodoPago || 'Bancolombia'}</span>
                     </div>
 
-                    {/* Etapa 2: Tintometría (A los 2s) */}
+                    {/* Etapa 2: Tintometría */}
                     <div
-                      onClick={() => orderNumber && triggerClientLifecycleTransition('preparando', orderNumber)}
-                      className={`p-3.5 rounded-2xl border-2 space-y-1 relative overflow-hidden cursor-pointer transition-all ${
+                      className={`p-3.5 rounded-2xl border-2 space-y-1 relative overflow-hidden transition-all ${
                         orderLifecyclePhase === 'preparando'
                           ? 'bg-sky-50 border-sky-500 text-sky-950 shadow-sm ring-2 ring-sky-400/20'
                           : orderLifecyclePhase === 'en_ruta' || orderLifecyclePhase === 'entregado'
                           ? 'bg-emerald-50/80 border-emerald-400 text-emerald-950'
-                          : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-sky-300'
+                          : 'bg-slate-50 border-slate-200 text-slate-500'
                       }`}
-                      title="Haz clic para ver el mensaje de Estado 2: En Tintometría"
                     >
                       <div className="flex items-center justify-between">
                         <span className={`w-6 h-6 rounded-lg flex items-center justify-center font-black text-xs ${
@@ -2453,25 +2530,23 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                             ? 'bg-emerald-200 text-emerald-900 font-bold'
                             : 'bg-slate-100 text-slate-500'
                         }`}>
-                          {orderLifecyclePhase === 'preparando' ? '● En Tintometría' : orderLifecyclePhase === 'en_ruta' || orderLifecyclePhase === 'entregado' ? 'Completado' : 'A los 2 seg'}
+                          {orderLifecyclePhase === 'preparando' ? '● En Tintometría' : orderLifecyclePhase === 'en_ruta' || orderLifecyclePhase === 'entregado' ? 'Completado' : 'En Proceso'}
                         </span>
                       </div>
                       <strong className="block font-black text-sm text-slate-900 mt-1">2. En Tintometría</strong>
-                      <p className="text-[11px] text-slate-600 leading-tight">A los 2s: Dosificación de pigmentos y lote.</p>
+                      <p className="text-[11px] text-slate-600 leading-tight">Dosificación computarizada de pigmentos y lote.</p>
                       <span className="text-[10px] text-sky-700 font-bold block pt-1 truncate">{formData.colorAcabado || 'Color Específico'} ({liveStateMsg.lote})</span>
                     </div>
 
-                    {/* Etapa 3: Despachando (A los 20 min) */}
+                    {/* Etapa 3: Despachando */}
                     <div
-                      onClick={() => orderNumber && triggerClientLifecycleTransition('en_ruta', orderNumber)}
-                      className={`p-3.5 rounded-2xl border-2 space-y-1 relative overflow-hidden cursor-pointer transition-all ${
+                      className={`p-3.5 rounded-2xl border-2 space-y-1 relative overflow-hidden transition-all ${
                         orderLifecyclePhase === 'en_ruta'
                           ? 'bg-purple-50 border-purple-500 text-purple-950 shadow-sm ring-2 ring-purple-400/20'
                           : orderLifecyclePhase === 'entregado'
                           ? 'bg-emerald-50/80 border-emerald-400 text-emerald-950'
-                          : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-purple-300'
+                          : 'bg-slate-50 border-slate-200 text-slate-500'
                       }`}
-                      title="Haz clic para ver el mensaje de Estado 3: Despachando en Ruta"
                     >
                       <div className="flex items-center justify-between">
                         <span className={`w-6 h-6 rounded-lg flex items-center justify-center font-black text-xs ${
@@ -2490,23 +2565,21 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                             ? 'bg-emerald-200 text-emerald-900 font-bold'
                             : 'bg-slate-100 text-slate-500'
                         }`}>
-                          {orderLifecyclePhase === 'en_ruta' ? '● Despachando' : orderLifecyclePhase === 'entregado' ? 'Completado' : 'A los 20 min'}
+                          {orderLifecyclePhase === 'en_ruta' ? '● En Ruta' : orderLifecyclePhase === 'entregado' ? 'Completado' : 'Próximo Paso'}
                         </span>
                       </div>
                       <strong className="block font-black text-sm text-slate-900 mt-1">3. Despachando en Ruta</strong>
-                      <p className="text-[11px] text-slate-600 leading-tight">A los 20 min: Salida de camión y remisión en ruta.</p>
+                      <p className="text-[11px] text-slate-600 leading-tight">Salida de camión de flota y remisión en ruta.</p>
                       <span className="text-[10px] text-purple-700 font-bold block pt-1 truncate">{liveStateMsg.logistica.vehiculo} ({liveStateMsg.logistica.placa})</span>
                     </div>
 
-                    {/* Etapa 4: Entregado (A los 20 min) */}
+                    {/* Etapa 4: Entregado */}
                     <div
-                      onClick={() => orderNumber && triggerClientLifecycleTransition('entregado', orderNumber)}
-                      className={`p-3.5 rounded-2xl border-2 space-y-1 relative overflow-hidden cursor-pointer transition-all ${
+                      className={`p-3.5 rounded-2xl border-2 space-y-1 relative overflow-hidden transition-all ${
                         orderLifecyclePhase === 'entregado'
                           ? 'bg-emerald-50 border-emerald-500 text-emerald-950 shadow-sm ring-2 ring-emerald-400/20'
-                          : 'bg-slate-50 border-slate-200 text-slate-500 hover:border-emerald-300'
+                          : 'bg-slate-50 border-slate-200 text-slate-500'
                       }`}
-                      title="Haz clic para ver el mensaje de Estado 4: Entregado en Obra"
                     >
                       <div className="flex items-center justify-between">
                         <span className={`w-6 h-6 rounded-lg flex items-center justify-center font-black text-xs ${
@@ -2517,11 +2590,11 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
                           orderLifecyclePhase === 'entregado' ? 'bg-emerald-200 text-emerald-900 font-black' : 'bg-slate-100 text-slate-500'
                         }`}>
-                          {orderLifecyclePhase === 'entregado' ? '● Entregado' : 'A los 20 min'}
+                          {orderLifecyclePhase === 'entregado' ? '● Entregado' : 'Entrega Final'}
                         </span>
                       </div>
                       <strong className="block font-black text-sm text-slate-900 mt-1">4. Entregado en Obra</strong>
-                      <p className="text-[11px] text-slate-600 leading-tight">A los 20 min: Remisión #{liveStateMsg.remision} y garantía NTC.</p>
+                      <p className="text-[11px] text-slate-600 leading-tight">Entrega certificada con remisión #{liveStateMsg.remision}.</p>
                       <span className="text-[10px] text-emerald-700 font-bold block pt-1">Garantía NTC 1335 Activa</span>
                     </div>
                   </div>
@@ -2861,29 +2934,47 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       <div className="space-y-0.5">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-200 text-emerald-900 px-2.5 py-0.5 rounded-full border border-emerald-300">
-                            ✓ Estado de la Factura: Total Aceptado y Aprobado
+                            ✓ Estado del Presupuesto: Aceptado por el Cliente
                           </span>
                           <span className="text-xs text-emerald-800 font-mono font-bold">
                             Orden Oficial: #{orderNumber}
                           </span>
                         </div>
                         <h4 className="text-sm sm:text-base font-black text-emerald-950">
-                          El cliente ha ACEPTADO el valor total liquidado de {formatCOP(presupuesto.totalPresupuesto)} COP
+                          Has ACEPTADO el presupuesto total liquidado de {formatCOP(presupuesto.totalPresupuesto)} COP
                         </h4>
                         <p className="text-xs text-emerald-800">
-                          Autorizado por: <strong>{formData.responsable || formData.cliente}</strong> (NIT: {formData.nitDocumento}) • Registrado: {decisionTimestamp} • Método de Pago: <strong className="capitalize">{formData.metodoPago || 'Bancolombia'}</strong>
+                          Autorizado por: <strong>{formData.responsable || formData.cliente}</strong> (NIT: {formData.nitDocumento}) • Registrado: {decisionTimestamp}{' '}
+                          {paymentConfirmed ? (
+                            <>• Pago Confirmado: <strong className="capitalize">{formData.metodoPago || 'Bancolombia'}</strong></>
+                          ) : (
+                            <>• <strong>Paso siguiente abajo: Seleccionar medio de pago y confirmar</strong></>
+                          )}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 self-end sm:self-auto shrink-0 no-print">
-                      <span className="px-3 py-1.5 bg-emerald-600 text-white text-xs font-black rounded-xl shadow-xs flex items-center gap-1.5">
-                        <CheckCircle2 className="w-4 h-4" /> Aprobado
-                      </span>
+                      {!paymentConfirmed ? (
+                        <button
+                          type="button"
+                          onClick={() => document.getElementById('seccion-pago-final')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                          className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <CreditCard className="w-4 h-4" /> Ir al Pago Final ↓
+                        </button>
+                      ) : (
+                        <span className="px-3 py-1.5 bg-emerald-600 text-white text-xs font-black rounded-xl shadow-xs flex items-center gap-1.5">
+                          <CheckCircle2 className="w-4 h-4" /> Presupuesto & Pago Aprobados
+                        </span>
+                      )}
                       <button
                         type="button"
-                        onClick={() => setQuotationDecision('pending')}
+                        onClick={() => {
+                          setQuotationDecision('pending');
+                          setPaymentConfirmed(false);
+                        }}
                         className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 transition-all cursor-pointer"
-                        title="Reevaluar decisión sobre la cotización"
+                        title="Reevaluar decisión sobre el presupuesto"
                       >
                         Reevaluar
                       </button>
@@ -2898,14 +2989,14 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       <div className="space-y-0.5">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="text-[10px] font-black uppercase tracking-wider bg-rose-200 text-rose-900 px-2.5 py-0.5 rounded-full border border-rose-300">
-                            ✕ Estado de la Factura: Total Rechazado por el Cliente
+                            ✕ Estado del Presupuesto: Rechazado por el Cliente
                           </span>
                           <span className="text-xs text-rose-700 font-mono">
                             Fecha: {decisionTimestamp}
                           </span>
                         </div>
                         <h4 className="text-sm sm:text-base font-black text-rose-950">
-                          El cliente ha RECHAZADO el valor total cotizado de {formatCOP(presupuesto.totalPresupuesto)} COP
+                          El cliente ha RECHAZADO el presupuesto cotizado de {formatCOP(presupuesto.totalPresupuesto)} COP
                         </h4>
                         <p className="text-xs text-rose-800">
                           Motivo de rechazo: <strong>{rejectionReason || 'No especificado'}</strong> {rejectionNotes ? `("${rejectionNotes}")` : ''}
@@ -2930,13 +3021,13 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       </div>
                       <div className="space-y-0.5">
                         <span className="text-[10px] font-black uppercase tracking-wider bg-amber-200 text-amber-900 px-2.5 py-0.5 rounded-full border border-amber-300 inline-block mb-0.5">
-                          ⏳ Decisión Requerida: Confirmación de Total
+                          ⏳ Decisión Requerida: Aceptar o Rechazar Presupuesto
                         </span>
                         <h4 className="text-sm sm:text-base font-black text-amber-950">
-                          ¿El cliente acepta o rechaza el valor total liquidado de {formatCOP(presupuesto.totalPresupuesto)} COP?
+                          ¿Aceptas o rechazas el presupuesto liquidado por {formatCOP(presupuesto.totalPresupuesto)} COP?
                         </h4>
                         <p className="text-xs text-amber-800">
-                          Seleccione a continuación para que la factura refleje la decisión formal del cliente.
+                          Revisa únicamente el presupuesto oficial a continuación. La opción de pago se habilitará de últimas después de aceptar.
                         </p>
                       </div>
                     </div>
@@ -2946,14 +3037,14 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         onClick={handleAcceptQuotation}
                         className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
                       >
-                        <CheckCheck className="w-4 h-4" /> Aceptar
+                        <CheckCheck className="w-4 h-4" /> Aceptar Presupuesto
                       </button>
                       <button
                         type="button"
                         onClick={() => setShowRejectModal(true)}
                         className="px-3.5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-black rounded-xl border border-rose-300 transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
                       >
-                        <ThumbsDown className="w-4 h-4 text-rose-600" /> Rechazar
+                        <ThumbsDown className="w-4 h-4 text-rose-600" /> Rechazar Presupuesto
                       </button>
                     </div>
                   </div>
@@ -3231,7 +3322,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
               {/* SELLO DE VALIDACIÓN TÉCNICA & TÉRMINOS */}
               <div className="pt-3 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
                 <div className="space-y-1">
-                  <p>• <strong>Forma de Pago:</strong> Transferencia bancaria / Facturación electrónica Colorlink.</p>
+                  <p>• <strong>Validez del Presupuesto:</strong> Precios oficiales garantizados por 15 días calendario bajo norma NTC 1335.</p>
                   <p>• <strong>Acompañamiento Técnico:</strong> Asesoría en obra y validación de primera mano sin costo adicional.</p>
                 </div>
 
@@ -3250,6 +3341,362 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
               </div>
             </div>
           </div>
+
+          {/* =========================================================================
+              SECCIÓN FINAL DE PAGO (SALE DE ÚLTIMAS ÚNICAMENTE DESPUÉS DE ACEPTAR EL PRESUPUESTO)
+             ========================================================================= */}
+          {quotationDecision === 'accepted' && (
+            <div
+              id="seccion-pago-final"
+              className="no-print bg-white rounded-3xl p-6 sm:p-8 border-2 border-indigo-300 shadow-xl space-y-5 animate-fadeIn scroll-mt-24"
+            >
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-sky-500 text-white flex items-center justify-center font-bold shadow-md shrink-0">
+                    <CreditCard className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-800 px-2.5 py-0.5 rounded-full border border-indigo-200 inline-block mb-1">
+                      Paso Final • Pago tras Aceptar el Presupuesto
+                    </span>
+                    <h3 className="font-black text-base sm:text-xl text-slate-900">
+                      ¿Cómo deseas realizar el pago del presupuesto aceptado ({formatCOP(presupuesto.totalPresupuesto)} COP)?
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Selecciona tu medio de pago oficial y confirma el pago para formalizar la facturación y el despacho de tu orden #{orderNumber}.
+                    </p>
+                  </div>
+                </div>
+                <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 shrink-0">
+                  ✓ Presupuesto Aceptado
+                </span>
+              </div>
+
+              {/* Opciones de Métodos de Pago */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {/* 1. Bancolombia Transferencia / QR */}
+                <div
+                  onClick={() => handleInputChange('metodoPago', 'bancolombia')}
+                  className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
+                    (formData.metodoPago || 'bancolombia') === 'bancolombia'
+                      ? 'border-yellow-500 bg-yellow-50/50 shadow-xs ring-2 ring-yellow-400/20'
+                      : 'border-slate-200 hover:border-slate-300 bg-white'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="font-black text-xs text-slate-900">Bancolombia / QR</span>
+                    <span className="text-[9px] font-bold bg-yellow-500 text-slate-900 px-2 py-0.5 rounded-md">
+                      Sin comisión
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-snug">
+                    Transferencia electrónica a Cuenta de Ahorros o escaneo de código QR oficial.
+                  </p>
+                </div>
+
+                {/* 2. PSE Débito en Línea */}
+                <div
+                  onClick={() => handleInputChange('metodoPago', 'pse')}
+                  className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
+                    formData.metodoPago === 'pse'
+                      ? 'border-[#009FE3] bg-sky-50/60 shadow-xs ring-2 ring-[#009FE3]/20'
+                      : 'border-slate-200 hover:border-slate-300 bg-white'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="font-black text-xs text-slate-900">PSE Débito en Línea</span>
+                    <span className="text-[9px] font-bold bg-[#009FE3] text-white px-2 py-0.5 rounded-md">
+                      Todos los bancos
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-snug">
+                    Débito seguro desde cuenta corriente o ahorros de cualquier banco colombiano.
+                  </p>
+                </div>
+
+                {/* 3. Nequi / Daviplata */}
+                <div
+                  onClick={() => handleInputChange('metodoPago', 'nequi')}
+                  className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
+                    formData.metodoPago === 'nequi'
+                      ? 'border-sky-600 bg-sky-50/60 shadow-xs ring-2 ring-sky-500/20'
+                      : 'border-slate-200 hover:border-slate-300 bg-white'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="font-black text-xs text-slate-900">Nequi / Daviplata</span>
+                    <span className="text-[9px] font-bold bg-sky-600 text-white px-2 py-0.5 rounded-md">
+                      Al instante
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-snug">
+                    Envío directo a la línea corporativa Colorlink desde tu celular con QR o número.
+                  </p>
+                </div>
+
+                {/* 4. Contra Entrega en Obra */}
+                <div
+                  onClick={() => handleInputChange('metodoPago', 'contraentrega')}
+                  className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
+                    formData.metodoPago === 'contraentrega'
+                      ? 'border-emerald-600 bg-emerald-50/60 shadow-xs ring-2 ring-emerald-500/20'
+                      : 'border-slate-200 hover:border-slate-300 bg-white'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="font-black text-xs text-slate-900">Contra Entrega en Obra</span>
+                    <span className="text-[9px] font-bold bg-emerald-600 text-white px-2 py-0.5 rounded-md">
+                      En sitio
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-snug">
+                    Paga en efectivo o datáfono móvil inalámbrico al recibir los cuñetes en obra.
+                  </p>
+                </div>
+
+                {/* 5. Crédito Corporativo 30 Días */}
+                <div
+                  onClick={() => handleInputChange('metodoPago', 'credito')}
+                  className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
+                    formData.metodoPago === 'credito'
+                      ? 'border-purple-600 bg-purple-50/60 shadow-xs ring-2 ring-purple-500/20'
+                      : 'border-slate-200 hover:border-slate-300 bg-white'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="font-black text-xs text-slate-900">Crédito 30 Días (NIT)</span>
+                    <span className="text-[9px] font-bold bg-purple-600 text-white px-2 py-0.5 rounded-md">
+                      Empresas
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-snug">
+                    Factura electrónica DIAN a 30 días para constructoras y contratistas registrados.
+                  </p>
+                </div>
+
+                {/* 6. Tarjeta de Crédito / Débito */}
+                <div
+                  onClick={() => handleInputChange('metodoPago', 'tarjeta')}
+                  className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
+                    formData.metodoPago === 'tarjeta'
+                      ? 'border-indigo-600 bg-indigo-50/60 shadow-xs ring-2 ring-indigo-500/20'
+                      : 'border-slate-200 hover:border-slate-300 bg-white'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="font-black text-xs text-slate-900">Tarjeta Crédito / Débito</span>
+                    <span className="text-[9px] font-bold bg-indigo-600 text-white px-2 py-0.5 rounded-md">
+                      Hasta 12 cuotas
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-snug">
+                    Procesamiento en línea para tarjetas Visa, Mastercard o American Express.
+                  </p>
+                </div>
+              </div>
+
+              {/* Detalles Dinámicos según Método de Pago Seleccionado */}
+              {(formData.metodoPago || 'bancolombia') === 'bancolombia' && (
+                <div className="p-4 rounded-2xl bg-yellow-50/80 border border-yellow-200 space-y-3">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                    <div>
+                      <span className="text-[11px] font-bold text-yellow-900 uppercase tracking-wider block">
+                        Datos Bancarios Oficiales Colorlink S.A.S.
+                      </span>
+                      <p className="text-xs text-yellow-800 mt-0.5">
+                        Realiza tu transferencia por App Bancolombia, Sucursal Virtual o Corresponsal Bancario.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText('24589104512');
+                        setCopiedBankInfo(true);
+                        setTimeout(() => setCopiedBankInfo(false), 3000);
+                      }}
+                      className="px-3 py-1.5 bg-yellow-400 hover:bg-yellow-500 text-slate-900 text-xs font-black rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>{copiedBankInfo ? '¡Copiado!' : 'Copiar Cuenta'}</span>
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                    <div className="bg-white p-2.5 rounded-xl border border-yellow-200">
+                      <span className="text-[10px] text-slate-500 block">Tipo & Número de Cuenta</span>
+                      <strong className="text-sm font-black text-slate-900 font-mono">Ahorros: 245-891045-12</strong>
+                    </div>
+                    <div className="bg-white p-2.5 rounded-xl border border-yellow-200">
+                      <span className="text-[10px] text-slate-500 block">Titular de la Cuenta</span>
+                      <strong className="text-xs font-black text-slate-900">COLORLINK PINTURAS S.A.S.</strong>
+                    </div>
+                    <div className="bg-white p-2.5 rounded-xl border border-yellow-200">
+                      <span className="text-[10px] text-slate-500 block">NIT de la Empresa</span>
+                      <strong className="text-xs font-black text-slate-900 font-mono">900.854.219-3</strong>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {formData.metodoPago === 'pse' && (
+                <div className="p-4 rounded-2xl bg-sky-50/80 border border-sky-200 space-y-3">
+                  <span className="text-[11px] font-bold text-sky-950 uppercase tracking-wider block">
+                    Pasarela Segura PSE • Selecciona tu Banco
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-700 block mb-1">Banco Emisor *</label>
+                      <select
+                        value={selectedBankPSE}
+                        onChange={(e) => {
+                          setSelectedBankPSE(e.target.value);
+                          handleInputChange('bancoPSE', e.target.value);
+                        }}
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium"
+                      >
+                        <option value="Bancolombia">Bancolombia</option>
+                        <option value="Banco de Bogotá">Banco de Bogotá</option>
+                        <option value="Davivienda">Davivienda</option>
+                        <option value="BBVA Colombia">BBVA Colombia</option>
+                        <option value="Banco de Occidente">Banco de Occidente</option>
+                        <option value="Banco Popular">Banco Popular</option>
+                        <option value="Scotiabank Colpatria">Scotiabank Colpatria</option>
+                        <option value="Banco Caja Social">Banco Caja Social</option>
+                        <option value="Nequi">Nequi</option>
+                        <option value="Daviplata">Daviplata</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-700 block mb-1">Tipo de Cliente *</label>
+                      <select className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium">
+                        <option value="juridica">Persona Jurídica (Empresa / NIT)</option>
+                        <option value="natural">Persona Natural (C.C.)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {formData.metodoPago === 'nequi' && (
+                <div className="p-4 rounded-2xl bg-sky-50/80 border border-sky-200 space-y-3">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                    <div>
+                      <span className="text-[11px] font-bold text-sky-950 uppercase tracking-wider block">
+                        Pago Inmediato Nequi / Daviplata
+                      </span>
+                      <p className="text-xs text-sky-800 mt-0.5">
+                        Envía a la línea corporativa autorizada o escanea el QR desde tu aplicación móvil.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText('3212460658');
+                        setCopiedBankInfo(true);
+                        setTimeout(() => setCopiedBankInfo(false), 3000);
+                      }}
+                      className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-black rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>{copiedBankInfo ? '¡Número Copiado!' : 'Copiar Celular'}</span>
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-sky-200">
+                    <div className="w-10 h-10 rounded-xl bg-sky-100 text-sky-800 flex items-center justify-center font-bold shrink-0">
+                      <Phone className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <strong className="text-base font-black text-slate-900 font-mono">+57 321 246 0658</strong>
+                      <span className="text-[11px] text-slate-500 block">Titular: Colorlink Pinturas Oficial</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {formData.metodoPago === 'contraentrega' && (
+                <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200 text-xs text-emerald-900 space-y-1">
+                  <strong className="block font-black text-sm">Pago Contra Entrega Habilitado para {formData.ciudad || 'tu ciudad'}</strong>
+                  <p className="leading-relaxed">
+                    El conductor del camión de reparto Colorlink llevará datáfono móvil inalámbrico para tarjetas débito/crédito, o podrás entregar el valor exacto en efectivo recibiendo tu factura fiscal física.
+                  </p>
+                </div>
+              )}
+
+              {formData.metodoPago === 'credito' && (
+                <div className="p-4 rounded-2xl bg-purple-50/80 border border-purple-200 text-xs text-purple-900 space-y-1">
+                  <strong className="block font-black text-sm">Crédito Corporativo 30 Días para NIT {formData.nitDocumento || 'Empresarial'}</strong>
+                  <p className="leading-relaxed">
+                    Se emitirá Factura Electrónica con plazo comercial a 30 días calendario respaldada por orden de compra corporativa.
+                  </p>
+                </div>
+              )}
+
+              {/* Acción de Confirmación de Pago de Últimas */}
+              {!paymentConfirmed ? (
+                <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-indigo-50/70 p-4 rounded-2xl border border-indigo-200">
+                  <div className="text-xs text-slate-700">
+                    <span className="font-black text-slate-900 block">
+                      Total a Pagar Confirmado: {formatCOP(presupuesto.totalPresupuesto)} COP
+                    </span>
+                    <span>
+                      Medio seleccionado: <strong className="capitalize text-indigo-900">{formData.metodoPago || 'Bancolombia'}</strong>
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleConfirmPayment}
+                    className="px-7 py-3.5 bg-gradient-to-r from-emerald-500 via-teal-600 to-sky-600 hover:brightness-110 text-white font-black text-xs sm:text-sm rounded-2xl shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                  >
+                    <CheckCircle2 className="w-5 h-5 text-white" />
+                    <span>Confirmar Pago ({formatCOP(presupuesto.totalPresupuesto)})</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="p-5 rounded-3xl bg-gradient-to-br from-emerald-50 via-teal-50 to-sky-50 border-2 border-emerald-400 text-emerald-950 space-y-3">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-md">
+                        <CheckCircle2 className="w-6 h-6" />
+                      </div>
+                      <div className="text-xs">
+                        <strong className="text-sm sm:text-base font-black block text-emerald-950">
+                          ✓ Pago Confirmado y Registrado Exitosamente ({paymentTimestamp})
+                        </strong>
+                        <span className="text-emerald-800">
+                          Método: <strong className="capitalize">{formData.metodoPago || 'Bancolombia'}</strong> • Monto: <strong>{formatCOP(presupuesto.totalPresupuesto)} COP</strong> • Orden #{orderNumber}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-white/80 border border-emerald-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                    <div className="space-y-0.5">
+                      <span className="font-black text-slate-900 flex items-center gap-1.5">
+                        <Sparkles className="w-4 h-4 text-amber-500" />
+                        Tu orden ha quedado guardada en "Mis Pedidos".
+                      </span>
+                      <p className="text-slate-600">
+                        {paymentSuccessRedirect
+                          ? `Devolviéndote automáticamente al inicio en ${paymentSuccessRedirect.countdown}s para hacer otra cotización...`
+                          : 'Ya puedes realizar otra cotización cuando lo desees.'}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={handleProceedToNewQuote}
+                        className="px-4 py-2 bg-gradient-to-r from-[#FF5500] via-[#FF007A] to-[#0055FF] text-white font-black text-xs rounded-xl shadow-xs transition-all hover:brightness-110 cursor-pointer active:scale-95 flex items-center gap-1.5"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Hacer otra cotización ahora</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ACCIONES INFERIORES */}
           <div className="no-print flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
@@ -3417,8 +3864,8 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                   },
                   {
                     step: 2,
-                    title: '2. Parámetros & Pago',
-                    desc: 'Pintura, Accesorios y Pago',
+                    title: '2. Parámetros',
+                    desc: 'Superficies, Pintura y Accesorios',
                     icon: Sparkles,
                     activeBorder: 'border-[#00D2FF] ring-2 ring-[#00D2FF]/30 bg-sky-50/70',
                     activeIcon: 'bg-gradient-to-tr from-[#0055FF] via-[#0099FF] to-[#00D2FF] text-white shadow-md shadow-blue-500/30'
@@ -3743,73 +4190,154 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       <span className="text-xs font-bold text-sky-700 bg-sky-50 px-3 py-1 rounded-full border border-sky-200/80">Paso 2 de 3</span>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-4">
+                      {/* Selector Múltiple de Superficies (Permite escoger una o varias superficies) */}
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                          Superficie <span className="text-rose-500">*</span>
-                        </label>
-                        <select
-                          id="standalone-select-sustrato"
-                          value={formData.superficie}
-                          onChange={(e) => handleInputChange('superficie', e.target.value)}
-                          className={`w-full px-3 py-2.5 text-xs bg-slate-50/80 border ${
-                            errors.superficie ? 'border-rose-400 bg-rose-50/20' : 'border-slate-200'
-                          } rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#009FE3] transition-all font-medium`}
-                        >
-                          <option value="">-- Seleccionar Superficie / Sustrato --</option>
-                          <option value="Concreto / Revoque">Concreto, revoque o pañete</option>
-                          <option value="Drywall / Yeso">Drywall o panel de yeso</option>
-                          <option value="Metal Ferroso">Metal ferroso (hierro, acero)</option>
-                          <option value="Metal Galvanizado / Aluminio">Metal galvanizado o aluminio</option>
-                          <option value="Madera">Madera o tableros</option>
-                          <option value="Pintura Existente">Pintura existente (repinte)</option>
-                        </select>
-                        {errors.superficie && <p className="text-[11px] text-rose-600 mt-1">{errors.superficie}</p>}
+                        {(() => {
+                          const surfaceOptions = [
+                            { value: 'Concreto / Revoque', label: 'Concreto / Revoque', desc: 'Muros en concreto, revoque o pañete', icon: '🧱' },
+                            { value: 'Drywall / Yeso', label: 'Drywall / Yeso', desc: 'Paneles de yeso, superboard o cielorrasos', icon: '🪧' },
+                            { value: 'Metal Ferroso', label: 'Metal Ferroso', desc: 'Estructuras de hierro, acero o rejas', icon: '🔩' },
+                            { value: 'Metal Galvanizado / Aluminio', label: 'Galvanizado / Aluminio', desc: 'Cubiertas, perfiles o láminas galvanizadas', icon: '⚙️' },
+                            { value: 'Madera', label: 'Madera', desc: 'Puertas, pérgolas, zócalos o tableros', icon: '🪵' },
+                            { value: 'Pintura Existente', label: 'Pintura Existente', desc: 'Superficie ya pintada para repinte', icon: '🎨' },
+                            { value: 'Ladrillo / Mampostería', label: 'Ladrillo / Mampostería', desc: 'Ladrillo a la vista o bloque estructural', icon: '🏗️' },
+                            { value: 'Estuco / Graniplast', label: 'Estuco / Graniplast', desc: 'Estuco plástico, acrílico o texturizado', icon: '✨' }
+                          ];
+
+                          const selectedSurfaces = formData.superficie
+                            ? formData.superficie.split(',').map((s) => s.trim()).filter(Boolean)
+                            : [];
+
+                          const toggleSurface = (surfValue: string) => {
+                            const exists = selectedSurfaces.includes(surfValue);
+                            const next = exists
+                              ? selectedSurfaces.filter((s) => s !== surfValue)
+                              : [...selectedSurfaces, surfValue];
+                            handleInputChange('superficie', next.join(', '));
+                          };
+
+                          return (
+                            <div className="space-y-2.5">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <label className="block text-xs font-bold text-slate-700">
+                                  Superficies a intervenir <span className="text-rose-500">*</span>{' '}
+                                  <span className="text-[11px] font-semibold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-full border border-sky-200 ml-1">
+                                    Puedes escoger una o varias superficies
+                                  </span>
+                                </label>
+                                <div className="flex items-center gap-2">
+                                  {selectedSurfaces.length > 0 && (
+                                    <span className="text-[11px] font-black text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                                      {selectedSurfaces.length} {selectedSurfaces.length === 1 ? 'superficie seleccionada' : 'superficies seleccionadas'}
+                                    </span>
+                                  )}
+                                  {selectedSurfaces.length > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleInputChange('superficie', '')}
+                                      className="text-[11px] font-bold text-slate-500 hover:text-rose-600 cursor-pointer"
+                                    >
+                                      Limpiar
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div
+                                id="standalone-select-sustrato"
+                                className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 p-3 rounded-2xl border ${
+                                  errors.superficie ? 'border-rose-400 bg-rose-50/20' : 'border-slate-200 bg-slate-50/60'
+                                }`}
+                              >
+                                {surfaceOptions.map((surf) => {
+                                  const isSelected = selectedSurfaces.includes(surf.value);
+                                  return (
+                                    <button
+                                      key={surf.value}
+                                      type="button"
+                                      onClick={() => toggleSurface(surf.value)}
+                                      className={`p-3 rounded-xl border-2 text-left transition-all flex items-start gap-2.5 cursor-pointer ${
+                                        isSelected
+                                          ? 'bg-sky-50/90 border-[#009FE3] shadow-xs ring-2 ring-[#009FE3]/15'
+                                          : 'bg-white border-slate-200/90 hover:border-sky-300'
+                                      }`}
+                                    >
+                                      <div
+                                        className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 mt-0.5 border transition-all ${
+                                          isSelected
+                                            ? 'bg-[#009FE3] border-[#009FE3] text-white'
+                                            : 'bg-white border-slate-300 text-transparent'
+                                        }`}
+                                      >
+                                        <Check className="w-3.5 h-3.5" />
+                                      </div>
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="text-sm">{surf.icon}</span>
+                                          <span className={`text-xs font-black truncate ${isSelected ? 'text-[#003882]' : 'text-slate-800'}`}>
+                                            {surf.label}
+                                          </span>
+                                        </div>
+                                        <p className="text-[10px] text-slate-500 leading-tight mt-0.5">
+                                          {surf.desc}
+                                        </p>
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+
+                              {selectedSurfaces.length > 0 && (
+                                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                                  <span className="text-[11px] font-bold text-slate-500">Seleccionadas:</span>
+                                  {selectedSurfaces.map((s) => (
+                                    <span
+                                      key={s}
+                                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-sky-100 text-sky-900 border border-sky-200"
+                                    >
+                                      <span>{s}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleSurface(s)}
+                                        className="hover:text-rose-600 cursor-pointer ml-0.5"
+                                        title={`Quitar ${s}`}
+                                      >
+                                        <X className="w-3 h-3" />
+                                      </button>
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+
+                              {errors.superficie && <p className="text-[11px] text-rose-600 mt-1">{errors.superficie}</p>}
+                            </div>
+                          );
+                        })()}
                       </div>
 
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                          Ambiente de la superficie <span className="text-rose-500">*</span>
-                        </label>
-                        <select
-                          id="standalone-select-ambiente"
-                          value={formData.ambiente}
-                          onChange={(e) => handleInputChange('ambiente', e.target.value)}
-                          className={`w-full px-3 py-2.5 text-xs bg-slate-50/80 border ${
-                            errors.ambiente ? 'border-rose-400 bg-rose-50/20' : 'border-slate-200'
-                          } rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#009FE3] transition-all font-medium`}
-                        >
-                          <option value="">-- Seleccionar Ambiente --</option>
-                          <option value="Exterior Intemperie">Exterior intemperie (sol y lluvia directa)</option>
-                          <option value="Interior Seco">Interior seco (habitaciones, oficinas, pasillos)</option>
-                          <option value="Interior Húmedo (Baños/Cocinas)">Interior húmedo (baños, cocinas, zonas de lavado)</option>
-                          <option value="Industrial Severo / Químico">Industrial o químico severo</option>
-                          <option value="Tráfico Peatonal / Vehicular">Alto tráfico peatonal o vehicular</option>
-                        </select>
-                        {errors.ambiente && <p className="text-[11px] text-rose-600 mt-1">{errors.ambiente}</p>}
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                          Condición de la superficie <span className="text-rose-500">*</span>
-                        </label>
-                        <select
-                          id="standalone-select-condicion"
-                          value={formData.condicion}
-                          onChange={(e) => handleInputChange('condicion', e.target.value)}
-                          className={`w-full px-3 py-2.5 text-xs bg-slate-50/80 border ${
-                            errors.condicion ? 'border-rose-400 bg-rose-50/20' : 'border-slate-200'
-                          } rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#009FE3] transition-all font-medium`}
-                        >
-                          <option value="">-- Seleccionar Condición Actual --</option>
-                          <option value="Nueva sin pintar">Nueva sin pintar (limpia y seca)</option>
-                          <option value="Pintada en buen estado">Pintada en buen estado (cambio de color)</option>
-                          <option value="Fisuras leves y humedad">Fisuras leves o humedad</option>
-                          <option value="Descascaramiento severo">Descascaramiento o tizado</option>
-                          <option value="Oxidación superficial">Presencia de oxidación o corrosión superficial</option>
-                          <option value="Contaminación / Grasa">Grasas, hongos o manchas</option>
-                        </select>
-                        {errors.condicion && <p className="text-[11px] text-rose-600 mt-1">{errors.condicion}</p>}
+                      <div className="grid grid-cols-1 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                            Ambiente de la superficie <span className="text-rose-500">*</span>
+                          </label>
+                          <select
+                            id="standalone-select-ambiente"
+                            value={formData.ambiente}
+                            onChange={(e) => handleInputChange('ambiente', e.target.value)}
+                            className={`w-full px-3 py-2.5 text-xs bg-slate-50/80 border ${
+                              errors.ambiente ? 'border-rose-400 bg-rose-50/20' : 'border-slate-200'
+                            } rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#009FE3] transition-all font-medium`}
+                          >
+                            <option value="">-- Seleccionar Ambiente --</option>
+                            <option value="Exterior Intemperie">Exterior intemperie (sol y lluvia directa)</option>
+                            <option value="Interior Seco">Interior seco (habitaciones, oficinas, pasillos)</option>
+                            <option value="Interior Húmedo (Baños/Cocinas)">Interior húmedo (baños, cocinas, zonas de lavado)</option>
+                            <option value="Industrial Severo / Químico">Industrial o químico severo</option>
+                            <option value="Tráfico Peatonal / Vehicular">Alto tráfico peatonal o vehicular</option>
+                          </select>
+                          {errors.ambiente && <p className="text-[11px] text-rose-600 mt-1">{errors.ambiente}</p>}
+                        </div>
                       </div>
                     </div>
 
@@ -4412,165 +4940,6 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       />
                     </div>
 
-                    {/* Forma / Método de Pago Oficial (Previo al Diagnóstico con IA) */}
-                    <div className="pt-5 border-t border-slate-100 space-y-3.5">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <CreditCard className="w-4 h-4 text-sky-600" />
-                            <h4 className="text-sm font-black text-slate-900">
-                              Forma de Pago del Pedido
-                            </h4>
-                          </div>
-                          <p className="text-xs text-slate-500">
-                            Define tu método de pago antes del diagnóstico de la IA. No se cobra nada en este paso.
-                          </p>
-                        </div>
-                        <span className="text-[10px] font-bold text-sky-700 bg-sky-50 px-2.5 py-0.5 rounded-full border border-sky-200 w-fit">
-                          Paso previo a la auditoría IA
-                        </span>
-                      </div>
-
-                      {/* 6 Opciones de Métodos de Pago */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                        {/* 1. Bancolombia Transferencia / QR */}
-                        <div
-                          onClick={() => handleInputChange('metodoPago', 'bancolombia')}
-                          className={`p-3 rounded-2xl border-2 cursor-pointer transition-all ${
-                            (formData.metodoPago || 'bancolombia') === 'bancolombia'
-                              ? 'border-yellow-500 bg-yellow-50/60 shadow-xs ring-2 ring-yellow-400/20'
-                              : 'border-slate-200 hover:border-slate-300 bg-white'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="font-black text-xs text-slate-900">Bancolombia / QR</span>
-                            <span className="text-[9px] font-bold bg-yellow-500 text-slate-900 px-1.5 py-0.5 rounded">
-                              Sin comisión
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-slate-600 leading-snug">
-                            Transferencia a Cuenta de Ahorros o QR oficial Colorlink.
-                          </p>
-                        </div>
-
-                        {/* 2. PSE Débito en Línea */}
-                        <div
-                          onClick={() => handleInputChange('metodoPago', 'pse')}
-                          className={`p-3 rounded-2xl border-2 cursor-pointer transition-all ${
-                            formData.metodoPago === 'pse'
-                              ? 'border-[#009FE3] bg-sky-50/60 shadow-xs ring-2 ring-[#009FE3]/20'
-                              : 'border-slate-200 hover:border-slate-300 bg-white'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="font-black text-xs text-slate-900">PSE Débito en Línea</span>
-                            <span className="text-[9px] font-bold bg-[#009FE3] text-white px-1.5 py-0.5 rounded">
-                              Todos los bancos
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-slate-600 leading-snug">
-                            Débito bancario desde cuenta de ahorros o corriente.
-                          </p>
-                        </div>
-
-                        {/* 3. Nequi / Daviplata */}
-                        <div
-                          onClick={() => handleInputChange('metodoPago', 'nequi')}
-                          className={`p-3 rounded-2xl border-2 cursor-pointer transition-all ${
-                            formData.metodoPago === 'nequi'
-                              ? 'border-sky-600 bg-sky-50/60 shadow-xs ring-2 ring-sky-500/20'
-                              : 'border-slate-200 hover:border-slate-300 bg-white'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="font-black text-xs text-slate-900">Nequi / Daviplata</span>
-                            <span className="text-[9px] font-bold bg-sky-600 text-white px-1.5 py-0.5 rounded">
-                              Al instante
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-slate-600 leading-snug">
-                            Envío rápido a la línea corporativa desde tu app móvil.
-                          </p>
-                        </div>
-
-                        {/* 4. Contra Entrega en Obra */}
-                        <div
-                          onClick={() => handleInputChange('metodoPago', 'contraentrega')}
-                          className={`p-3 rounded-2xl border-2 cursor-pointer transition-all ${
-                            formData.metodoPago === 'contraentrega'
-                              ? 'border-emerald-600 bg-emerald-50/60 shadow-xs ring-2 ring-emerald-500/20'
-                              : 'border-slate-200 hover:border-slate-300 bg-white'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="font-black text-xs text-slate-900">Contra Entrega en Obra</span>
-                            <span className="text-[9px] font-bold bg-emerald-600 text-white px-1.5 py-0.5 rounded">
-                              En sitio
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-slate-600 leading-snug">
-                            Paga en efectivo o datáfono móvil al recibir el pedido.
-                          </p>
-                        </div>
-
-                        {/* 5. Crédito Corporativo 30 Días */}
-                        <div
-                          onClick={() => handleInputChange('metodoPago', 'credito')}
-                          className={`p-3 rounded-2xl border-2 cursor-pointer transition-all ${
-                            formData.metodoPago === 'credito'
-                              ? 'border-purple-600 bg-purple-50/60 shadow-xs ring-2 ring-purple-500/20'
-                              : 'border-slate-200 hover:border-slate-300 bg-white'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="font-black text-xs text-slate-900">Crédito 30 Días (NIT)</span>
-                            <span className="text-[9px] font-bold bg-purple-600 text-white px-1.5 py-0.5 rounded">
-                              Empresas
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-slate-600 leading-snug">
-                            Facturación electrónica con plazo de 30 días para empresas.
-                          </p>
-                        </div>
-
-                        {/* 6. Tarjeta de Crédito / Débito */}
-                        <div
-                          onClick={() => handleInputChange('metodoPago', 'tarjeta')}
-                          className={`p-3 rounded-2xl border-2 cursor-pointer transition-all ${
-                            formData.metodoPago === 'tarjeta'
-                              ? 'border-indigo-600 bg-indigo-50/60 shadow-xs ring-2 ring-indigo-500/20'
-                              : 'border-slate-200 hover:border-slate-300 bg-white'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="font-black text-xs text-slate-900">Tarjeta Débito / Crédito</span>
-                            <span className="text-[9px] font-bold bg-indigo-600 text-white px-1.5 py-0.5 rounded">
-                              En línea
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-slate-600 leading-snug">
-                            Procesamiento seguro para tarjetas Visa o Mastercard.
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Tarjeta de Resumen Preliminar antes de pasar a la IA */}
-                      <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-                        <div className="flex items-center gap-2">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                          <span className="text-slate-700">
-                            Método de pago seleccionado: <strong className="capitalize text-slate-900">{formData.metodoPago || 'Bancolombia'}</strong>
-                          </span>
-                        </div>
-                        <div className="text-left sm:text-right">
-                          <span className="text-[10px] text-slate-500 block">Total Estimado de la Orden:</span>
-                          <strong className="text-sm font-black bg-gradient-to-r from-sky-600 to-blue-700 bg-clip-text text-transparent font-mono">
-                            {formatCOP(technicalCalc.presupuesto.totalPresupuesto)} COP
-                          </strong>
-                        </div>
-                      </div>
-                    </div>
-
                     <div className="flex items-center justify-between pt-4 border-t border-slate-100">
                       <button
                         type="button"
@@ -4641,7 +5010,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                             Ambiente: {formData.ambiente || 'Exterior Intemperie'}
                           </span>
                           <span className="text-[10px] text-slate-600">
-                            Estado: {formData.condicion || 'Normal / Estable'}
+                            Área total: {formData.areaM2 || 0} m²
                           </span>
                         </div>
 
@@ -4705,21 +5074,6 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                           )}
                           <span className="text-[10px] text-slate-600">
                             Color: {formData.colorAcabado || 'Blanco Puro'}
-                          </span>
-                        </div>
-
-                        <div className="p-3.5 rounded-2xl bg-white border border-sky-200/80 shadow-2xs space-y-1 hover:border-sky-300 transition-all">
-                          <span className="text-[10px] uppercase font-bold text-slate-500 block">Forma de Pago Auditada</span>
-                          <strong className="text-emerald-700 block text-xs font-black capitalize truncate">
-                            {formData.metodoPago === 'bancolombia' ? 'Bancolombia / QR' :
-                             formData.metodoPago === 'pse' ? 'PSE Débito Seguro' :
-                             formData.metodoPago === 'nequi' ? 'Nequi / Daviplata' :
-                             formData.metodoPago === 'contraentrega' ? 'Contra Entrega en Obra' :
-                             formData.metodoPago === 'credito' ? 'Crédito 30 Días (NIT)' :
-                             formData.metodoPago === 'tarjeta' ? 'Tarjeta Débito / Crédito' : 'Bancolombia / QR'}
-                          </strong>
-                          <span className="text-[10px] text-slate-500 block">
-                            Auditada por la IA previo a la emisión
                           </span>
                         </div>
                       </div>
@@ -4832,10 +5186,80 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                           </div>
                           <p className="text-[11px] text-emerald-800 font-semibold flex items-center justify-center gap-1 mt-1">
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>Cualquier foto subida es revisada y validada automáticamente por IA para verificar compatibilidad de pintura</span>
+                            <span>Filtro Estricto IA Vision: Solo se aceptan fotos de fachadas, paredes, muros, techos y cosas para pintar (se rechazan fotos ajenas)</span>
                           </p>
                         </div>
                       </div>
+
+                      {/* Alerta de Fotos Rechazadas por la IA (cuando suben cosas que no son paredes, fachadas ni superficies a pintar) */}
+                      {rejectedPhotos.length > 0 && (
+                        <div className="mt-3 p-4 rounded-2xl bg-rose-50 border-2 border-rose-300 space-y-2.5 animate-fadeIn">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                              <span className="text-xs font-black text-rose-900 uppercase tracking-wide">
+                                🚫 Fotografía Rechazada por IA Vision (No Aceptada)
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setRejectedPhotos([])}
+                              className="text-[11px] font-bold text-rose-700 hover:text-rose-900 underline cursor-pointer"
+                            >
+                              Limpiar aviso
+                            </button>
+                          </div>
+                          <div className="space-y-2">
+                            {rejectedPhotos.map((rej) => (
+                              <div
+                                key={rej.id}
+                                className="flex items-start justify-between gap-3 p-2.5 rounded-xl bg-white border border-rose-200 shadow-2xs"
+                              >
+                                <div className="flex items-start gap-3 min-w-0">
+                                  {rej.previewUrl && (
+                                    <div className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0 border-2 border-rose-400">
+                                      <img
+                                        src={rej.previewUrl}
+                                        alt={rej.name}
+                                        className="w-full h-full object-cover opacity-75"
+                                      />
+                                      <div className="absolute inset-0 bg-rose-600/30 flex items-center justify-center">
+                                        <XCircle className="w-5 h-5 text-white drop-shadow" />
+                                      </div>
+                                    </div>
+                                  )}
+                                  <div className="min-w-0">
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                      <span className="text-xs font-bold text-slate-900 truncate">
+                                        {rej.name}
+                                      </span>
+                                      <span className="px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 border border-rose-300 text-[10px] font-black">
+                                        Rechazada por IA ✕
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] font-bold text-rose-700 mt-0.5">
+                                      🔍 IA detectó: {rej.detectedObject}
+                                    </p>
+                                    <p className="text-[11px] text-slate-600 leading-snug mt-0.5">
+                                      {rej.reason}
+                                    </p>
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setRejectedPhotos((prev) => prev.filter((item) => item.id !== rej.id))
+                                  }
+                                  className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 cursor-pointer shrink-0"
+                                  title="Cerrar aviso"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
                       {/* Galería de Fotos Adjuntas con Revisión Automática IA */}
                       {formData.fotos && formData.fotos.length > 0 && (
@@ -4843,7 +5267,11 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                           {formData.fotos.map((foto, idx) => (
                             <div
                               key={idx}
-                              className="flex items-center justify-between p-3 rounded-2xl bg-white border border-slate-200 shadow-2xs hover:border-sky-300 transition-all"
+                              className={`flex items-center justify-between p-3 rounded-2xl bg-white border shadow-2xs transition-all ${
+                                foto.aiReviewing
+                                  ? 'border-amber-300 bg-amber-50/30'
+                                  : 'border-slate-200 hover:border-sky-300'
+                              }`}
                             >
                               <div className="flex items-center gap-3 truncate min-w-0">
                                 {foto.previewUrl ? (
@@ -4873,10 +5301,19 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                                   <span className="text-[10px] text-slate-400 font-mono block">
                                     {foto.size}
                                   </span>
-                                  <div className="flex items-center gap-1 mt-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 w-fit">
-                                    <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
-                                    <span>Revisada con IA: Aprobada ✓</span>
-                                  </div>
+                                  {foto.aiReviewing ? (
+                                    <div className="flex items-center gap-1.5 mt-0.5 text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md border border-amber-300 w-fit animate-pulse">
+                                      <RefreshCw className="w-3 h-3 text-amber-700 shrink-0 animate-spin" />
+                                      <span>Analizando con IA Vision si es fachada o pared...</span>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-1 mt-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 w-fit">
+                                      <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                                      <span className="truncate">
+                                        Aprobada por IA: {foto.aiDiagnosis?.detectedObject || 'Fachada / Superficie para pintar'} ✓
+                                      </span>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                               <button
@@ -5265,6 +5702,77 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                 className="px-4 py-2 bg-gradient-to-r from-sky-500 to-blue-600 text-white font-bold text-xs rounded-xl cursor-pointer hover:brightness-110 shadow-xs"
               >
                 Cerrar Visor
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CELEBRATORIO Y REDIRECCIÓN AUTOMÁTICA AL INICIO TRAS PAGO Y ACEPTACIÓN */}
+      {paymentSuccessRedirect && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-fadeIn">
+          <div className="bg-white text-slate-900 rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border-2 border-emerald-400 text-center space-y-5 animate-scaleUp relative overflow-hidden">
+            {/* Barra de colores decorativa superior */}
+            <ColorlinkRainbowBar className="h-2 w-full absolute top-0 left-0" />
+
+            <div className="pt-2">
+              <div className="w-16 h-16 mx-auto rounded-3xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-sky-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                <CheckCircle2 className="w-9 h-9 text-white stroke-[2.5]" />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full border border-emerald-300 inline-block">
+                ✓ Presupuesto y Pago Aprobados
+              </span>
+              <h3 className="text-xl sm:text-2xl font-black text-slate-900">
+                ¡Pago Confirmado con Éxito!
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                Tu orden <strong className="text-slate-950 font-mono">#{paymentSuccessRedirect.orderId}</strong> por{' '}
+                <strong className="text-emerald-800 font-mono font-black">{formatCOP(paymentSuccessRedirect.total)} COP</strong>{' '}
+                ha sido radicada y guardada en tu historial de <strong className="text-sky-700">"Mis Pedidos"</strong>.
+              </p>
+            </div>
+
+            {/* Barra de Conteo Regresivo Automático */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-sky-50 via-emerald-50 to-blue-50 border border-sky-200 space-y-2.5">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                <span className="flex items-center gap-1.5 text-sky-900">
+                  <Sparkles className="w-4 h-4 text-amber-500 animate-spin" />
+                  Volviendo al inicio para otra cotización...
+                </span>
+                <span className="font-mono text-emerald-800 font-black text-sm bg-white px-2 py-0.5 rounded-lg border border-emerald-200">
+                  {paymentSuccessRedirect.countdown}s
+                </span>
+              </div>
+              <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                <div
+                  className="bg-gradient-to-r from-[#FF5500] via-[#FF007A] to-[#0055FF] h-2 rounded-full transition-all duration-1000 ease-linear"
+                  style={{ width: `${Math.min(100, Math.max(10, ((5 - paymentSuccessRedirect.countdown) / 4) * 100))}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Acciones para el usuario */}
+            <div className="space-y-2 pt-1">
+              <button
+                type="button"
+                onClick={handleProceedToNewQuote}
+                className="w-full py-3.5 px-6 bg-gradient-to-r from-[#FF5500] via-[#FF007A] to-[#0055FF] hover:brightness-110 text-white font-black text-xs sm:text-sm rounded-2xl shadow-lg shadow-pink-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Hacer otra cotización ahora</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+
+              <button
+                type="button"
+                onClick={handleGoToMisPedidos}
+                className="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Package className="w-4 h-4 text-slate-600" />
+                <span>Ver este pedido en "Mis Pedidos"</span>
               </button>
             </div>
           </div>

@@ -34,23 +34,84 @@ import {
 } from 'lucide-react';
 import { UserProfile } from './types/form';
 
+const ACTIVE_CLIENT_STORAGE_KEY = 'colorlink_active_client_v1';
+const USER_ROLE_STORAGE_KEY = 'colorlink_user_role_v1';
+const SUBMITTED_PROJECTS_STORAGE_KEY = 'colorlink_submitted_projects_v1';
+
 export default function App() {
   // Role switcher: 'client' (default) | 'admin' | 'advisor'
-  const [userRole, setUserRole] = useState<'client' | 'admin' | 'advisor'>('client');
+  const [userRole, setUserRole] = useState<'client' | 'admin' | 'advisor'>(() => {
+    try {
+      const savedRole = localStorage.getItem(USER_ROLE_STORAGE_KEY);
+      if (savedRole === 'admin' || savedRole === 'client' || savedRole === 'advisor') {
+        return savedRole;
+      }
+    } catch {}
+    return 'client';
+  });
   const [showAdminLoginModal, setShowAdminLoginModal] = useState<boolean>(false);
   const [showAdvisorLoginModal, setShowAdvisorLoginModal] = useState<boolean>(false);
-  const [activeAdvisor, setActiveAdvisor] = useState<AdvisorData | null>(null);
+  const [activeAdvisor, setActiveAdvisor] = useState<AdvisorData | null>(() => {
+    try {
+      const saved = localStorage.getItem('colorlink_active_advisor_v1');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return null;
+  });
   const [advisorEmail, setAdvisorEmail] = useState<string>('');
   const [advisorPassword, setAdvisorPassword] = useState<string>('');
   const [showAdvisorPassword, setShowAdvisorPassword] = useState<boolean>(false);
   const [advisorLoginError, setAdvisorLoginError] = useState<string | null>(null);
 
-  const [activeClient, setActiveClient] = useState<UserProfile | null>(null);
-  const [isSimulationMode, setIsSimulationMode] = useState<boolean>(false);
+  const [activeClient, setActiveClient] = useState<UserProfile | null>(() => {
+    try {
+      const savedClient = localStorage.getItem(ACTIVE_CLIENT_STORAGE_KEY);
+      if (savedClient) return JSON.parse(savedClient);
+    } catch {}
+    return null;
+  });
+  const [isSimulationMode, setIsSimulationMode] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('colorlink_sim_mode_v1') === 'true';
+    } catch {}
+    return false;
+  });
   const [adminUsername, setAdminUsername] = useState<string>('');
   const [adminPassword, setAdminPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(USER_ROLE_STORAGE_KEY, userRole);
+    } catch {}
+  }, [userRole]);
+
+  useEffect(() => {
+    try {
+      if (activeClient) {
+        localStorage.setItem(ACTIVE_CLIENT_STORAGE_KEY, JSON.stringify(activeClient));
+      } else {
+        localStorage.removeItem(ACTIVE_CLIENT_STORAGE_KEY);
+      }
+    } catch {}
+  }, [activeClient]);
+
+  useEffect(() => {
+    try {
+      if (activeAdvisor) {
+        localStorage.setItem('colorlink_active_advisor_v1', JSON.stringify(activeAdvisor));
+      } else {
+        localStorage.removeItem('colorlink_active_advisor_v1');
+      }
+    } catch {}
+  }, [activeAdvisor]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('colorlink_sim_mode_v1', String(isSimulationMode));
+    } catch {}
+  }, [isSimulationMode]);
 
   // Initial projects in admin inbox
   const initialHorizonteCalc = calculateTechnicalRequirements({
@@ -75,35 +136,57 @@ export default function App() {
     consentimiento: true
   } as ProjectFormData);
 
-  const [submittedProjects, setSubmittedProjects] = useState([
-    {
-      id: 'PROJ-HORIZONTE-01',
-      submittedAt: 'Hoy, 09:15 AM',
-      formData: {
-        cliente: 'Constructora Horizonte S.A.S.',
-        nitDocumento: '900.854.219-3',
-        responsable: 'Arq. Valentina Gómez',
-        emailResponsable: 'vgomez@constructorahorizonte.com.co',
-        telefonoResponsable: '+57 312 845 6721',
-        canalEntrada: 'Portal Clientes' as const,
-        ciudad: 'Medellín',
-        tipoObra: 'Fachada Edificio' as const,
-        areaM2: 85,
-        fechaRequerida: '2026-09-24',
-        superficie: 'Concreto / Revoque' as const,
-        ambiente: 'Exterior Intemperie' as const,
-        condicion: 'Fisuras leves y humedad' as const,
-        colorAcabado: 'Gris (Mate)',
-        descripcionLibre: 'Mantenimiento preventivo en fachada de edificio de 5 pisos con fisuras superficiales y humedad de lluvia directa.',
-        fotos: [{ name: 'fachada_norte_fisuras.jpg', size: '2.4 MB' }],
-        observaciones: 'Acceso por andamios colgantes certificados de obra.',
-        consentimiento: true
-      },
-      status: 'Validado' as const,
-      totalCOP: initialHorizonteCalc.presupuesto.totalPresupuesto,
-      currentPipelineStep: 15
-    }
-  ]);
+  const defaultHorizonteProject = {
+    id: 'PROJ-HORIZONTE-01',
+    submittedAt: 'Hoy, 09:15 AM',
+    formData: {
+      cliente: 'Constructora Horizonte S.A.S.',
+      nitDocumento: '900.854.219-3',
+      responsable: 'Arq. Valentina Gómez',
+      emailResponsable: 'vgomez@constructorahorizonte.com.co',
+      telefonoResponsable: '+57 312 845 6721',
+      canalEntrada: 'Portal Clientes' as const,
+      ciudad: 'Medellín',
+      tipoObra: 'Fachada Edificio' as const,
+      areaM2: 85,
+      fechaRequerida: '2026-09-24',
+      superficie: 'Concreto / Revoque' as const,
+      ambiente: 'Exterior Intemperie' as const,
+      condicion: 'Fisuras leves y humedad' as const,
+      colorAcabado: 'Gris (Mate)',
+      descripcionLibre: 'Mantenimiento preventivo en fachada de edificio de 5 pisos con fisuras superficiales y humedad de lluvia directa.',
+      fotos: [{ name: 'fachada_norte_fisuras.jpg', size: '2.4 MB' }],
+      observaciones: 'Acceso por andamios colgantes certificados de obra.',
+      consentimiento: true
+    },
+    status: 'Validado' as const,
+    totalCOP: initialHorizonteCalc.presupuesto.totalPresupuesto,
+    currentPipelineStep: 15
+  };
+
+  const [submittedProjects, setSubmittedProjects] = useState(() => {
+    try {
+      const saved = localStorage.getItem(SUBMITTED_PROJECTS_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [defaultHorizonteProject];
+  });
+
+  useEffect(() => {
+    try {
+      const lightweight = submittedProjects.map((p: any) => ({
+        ...p,
+        formData: {
+          ...p.formData,
+          fotos: (p.formData?.fotos || []).map((f: any) => ({ name: f.name, size: f.size }))
+        }
+      }));
+      localStorage.setItem(SUBMITTED_PROJECTS_STORAGE_KEY, JSON.stringify(lightweight));
+    } catch {}
+  }, [submittedProjects]);
 
   // Sincronizar proyectos existentes desde Supabase si las credenciales están configuradas
   useEffect(() => {
@@ -131,9 +214,9 @@ export default function App() {
   }, []);
 
   // When a client submits a quote, record it in the admin inbox and save to Supabase
-  const handleClientSubmit = async (submittedData: ProjectFormData) => {
+  const handleClientSubmit = async (submittedData: ProjectFormData, preferredOrderId?: string) => {
     const calc = calculateTechnicalRequirements(submittedData);
-    const tempId = `PROJ-${Date.now().toString().slice(-4)}`;
+    const tempId = preferredOrderId || `ORD-CLK-2026-${Date.now().toString().slice(-4)}`;
     const newProject = {
       id: tempId,
       submittedAt: 'Recién ingresado',
@@ -144,7 +227,7 @@ export default function App() {
     };
 
     // Actualizar UI inmediatamente para experiencia fluida
-    setSubmittedProjects((prev) => [newProject, ...prev]);
+    setSubmittedProjects((prev) => [newProject, ...prev.filter((p) => p.id !== tempId)]);
 
     // Guardar en Supabase
     try {
@@ -158,16 +241,16 @@ export default function App() {
       const { proyectoId, orderNumber } = await submitProjectToSupabase(submittedData, calc);
       console.log(`[Supabase] Proyecto guardado exitosamente en base de datos. ID: ${proyectoId}, Pedido: ${orderNumber}`);
 
-      // Actualizar el ID en la lista con el número de orden oficial retornado
-      if (orderNumber) {
+      const finalId = preferredOrderId || orderNumber || tempId;
+      if (finalId !== tempId) {
         setSubmittedProjects((prev) =>
-          prev.map((p) => (p.id === tempId ? { ...p, id: orderNumber } : p))
+          prev.map((p) => (p.id === tempId ? { ...p, id: finalId } : p))
         );
       }
 
       // Enviar correo de confirmación mediante EmailJS si está configurado
       try {
-        await sendConfirmationEmail(submittedData, calc, orderNumber || tempId);
+        await sendConfirmationEmail(submittedData, calc, finalId);
       } catch (emailErr) {
         console.warn('[EmailJS] Advertencia al enviar correo de confirmación:', emailErr);
       }
@@ -178,7 +261,7 @@ export default function App() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            orderNumber: orderNumber || tempId,
+            orderNumber: finalId,
             cliente: submittedData.cliente,
             nit: submittedData.nitDocumento,
             responsable: submittedData.responsable,

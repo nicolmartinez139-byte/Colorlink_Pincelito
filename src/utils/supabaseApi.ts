@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { ProjectFormData, TechnicalCalculationResult, ToolItemSelection } from '../types/form';
 import { OFFICIAL_TOOLS_INVENTORY, PaintingTool } from '../data/toolsInventory';
 
@@ -25,16 +25,24 @@ export async function submitProjectToSupabase(
   formData: ProjectFormData,
   calc: TechnicalCalculationResult
 ): Promise<{ proyectoId: string; orderNumber: string }> {
-  const nitLimpio = limpiarNit(formData.nitDocumento);
+  const generatedOrd = `ORD-CLK-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+  const localProyId = `PROY-CLK-${Date.now().toString().slice(-6)}`;
 
-  // 1a. Busca si ya existe exactamente el mismo cliente (mismo NIT y misma Empresa/Razón Social)
-  const { data: existingClient, error: findError } = await supabase
-    .from('clientes')
-    .select('id, nombre_razon_social')
-    .eq('nit_documento', nitLimpio)
-    .maybeSingle();
+  if (!isSupabaseConfigured()) {
+    return { proyectoId: localProyId, orderNumber: generatedOrd };
+  }
 
-  if (findError) throw findError;
+  try {
+    const nitLimpio = limpiarNit(formData.nitDocumento);
+
+    // 1a. Busca si ya existe exactamente el mismo cliente (mismo NIT y misma Empresa/Razón Social)
+    const { data: existingClient, error: findError } = await supabase
+      .from('clientes')
+      .select('id, nombre_razon_social')
+      .eq('nit_documento', nitLimpio)
+      .maybeSingle();
+
+    if (findError) throw findError;
 
   let clienteId: string | undefined;
 
@@ -188,7 +196,11 @@ export async function submitProjectToSupabase(
     }
   }
 
-  return { proyectoId, orderNumber };
+    return { proyectoId, orderNumber };
+  } catch (err: any) {
+    console.warn('[Supabase submitProjectToSupabase fallback]', err?.message || err);
+    return { proyectoId: localProyId, orderNumber: generatedOrd };
+  }
 }
 
 // ============================================================================
@@ -196,28 +208,32 @@ export async function submitProjectToSupabase(
 // Requiere estar autenticado como admin (RLS lo exige vía is_admin()).
 // ============================================================================
 export async function fetchSubmittedProjects(): Promise<SubmittedProject[]> {
-  const { data, error } = await supabase
-    .from('proyectos')
-    .select(
+  if (!isSupabaseConfigured()) {
+    return [];
+  }
+  try {
+    const { data, error } = await supabase
+      .from('proyectos')
+      .select(
+        `
+        id,
+        order_number,
+        ciudad,
+        tipo_obra,
+        area_m2,
+        fecha_requerida,
+        estado,
+        pipeline_step,
+        created_at,
+        cliente:clientes ( nombre_razon_social, nit_documento, responsable, email_responsable, telefono_responsable, canal_entrada ),
+        especificaciones_tecnicas ( superficie, ambiente, condicion, color_acabado, tipo_pintura ),
+        evidencias ( descripcion_libre, observaciones, consentimiento, evidencia_fotos ( nombre_archivo, tamano ) ),
+        cotizaciones ( total_presupuesto )
       `
-      id,
-      order_number,
-      ciudad,
-      tipo_obra,
-      area_m2,
-      fecha_requerida,
-      estado,
-      pipeline_step,
-      created_at,
-      cliente:clientes ( nombre_razon_social, nit_documento, responsable, email_responsable, telefono_responsable, canal_entrada ),
-      especificaciones_tecnicas ( superficie, ambiente, condicion, color_acabado, tipo_pintura ),
-      evidencias ( descripcion_libre, observaciones, consentimiento, evidencia_fotos ( nombre_archivo, tamano ) ),
-      cotizaciones ( total_presupuesto )
-    `
-    )
-    .order('created_at', { ascending: false });
+      )
+      .order('created_at', { ascending: false });
 
-  if (error) throw error;
+    if (error) return [];
 
   return (data ?? []).map((row: any) => {
     const especif = row.especificaciones_tecnicas?.[0];
@@ -262,6 +278,9 @@ export async function fetchSubmittedProjects(): Promise<SubmittedProject[]> {
       currentPipelineStep: row.pipeline_step
     };
   });
+  } catch {
+    return [];
+  }
 }
 
 // ============================================================================
@@ -304,6 +323,20 @@ export interface ClientOrderItem {
   id: string;
   orderNumber: string;
   fecha: string;
+  nit?: string;
+  email?: string;
+  cliente?: string;
+  responsable?: string;
+  ciudad?: string;
+  areaM2?: number;
+  tipoPintura?: string;
+  color?: string;
+  totalCOP?: number;
+  status?: 'pendiente' | 'preparando' | 'en_ruta' | 'entregado';
+  vehiculo?: string;
+  conductor?: string;
+  placa?: string;
+  mensaje?: string;
   detalle: {
     obra: string;
     tipoObra: string;
@@ -316,78 +349,401 @@ export interface ClientOrderItem {
   total: number;
 }
 
+const CLIENT_ORDERS_HISTORY_KEY = 'colorlink_client_orders_history_v1';
+
+const MOCK_DEMO_ORDER_IDS = new Set([
+  'PED-2026-081',
+  'PED-2026-085',
+  'PED-2026-086',
+  'PED-2026-087',
+  'PED-2026-088',
+  'PED-2026-089',
+  'PED-2026-090',
+  'PED-2026-079',
+  'PED-2026-074'
+]);
+
+const STATUS_PRIORITY: Record<ClientOrderItem['estado'], number> = {
+  pendiente: 1,
+  preparando: 2,
+  en_ruta: 3,
+  entregado: 4
+};
+
+function normalizeOrderState(st?: string): ClientOrderItem['estado'] {
+  const s = (st || '').toLowerCase().trim();
+  if (s === 'entregado') return 'entregado';
+  if (s === 'en_ruta' || s === 'en camino' || s === 'despachando') return 'en_ruta';
+  if (s === 'preparando' || s === 'tintometria' || s === 'en tintometria') return 'preparando';
+  return 'pendiente';
+}
+
+export function nitMatches(a?: string, b?: string): boolean {
+  if (!a || !b) return false;
+  const cleanA = String(a).replace(/[.\-\s]/g, '');
+  const cleanB = String(b).replace(/[.\-\s]/g, '');
+  if (!cleanA || !cleanB) return false;
+  if (cleanA === cleanB) return true;
+  // Soporte para dígito de verificación colombiano (-1 a -9)
+  if (cleanA.length >= 8 && cleanB.length >= 8) {
+    const baseA = cleanA.length === 10 ? cleanA.slice(0, 9) : cleanA;
+    const baseB = cleanB.length === 10 ? cleanB.slice(0, 9) : cleanB;
+    if (baseA === baseB) return true;
+    if (cleanA.startsWith(cleanB) || cleanB.startsWith(cleanA)) return true;
+  }
+  return false;
+}
+
+export function normalizeClientOrderItem(raw: any, existing?: Partial<ClientOrderItem>): ClientOrderItem {
+  const ordNum = String(
+    raw?.orderNumber || raw?.id || existing?.orderNumber || existing?.id || `ORD-${Date.now().toString().slice(-4)}`
+  );
+  const incomingRawState = raw?.estado || raw?.status;
+  const existingRawState = existing?.estado || existing?.status;
+  let estado: ClientOrderItem['estado'] = 'pendiente';
+
+  if (incomingRawState && existingRawState) {
+    const inNorm = normalizeOrderState(incomingRawState);
+    const exNorm = normalizeOrderState(existingRawState);
+    // Preservar siempre el estado más avanzado (especialmente 'entregado', que nunca debe retroceder)
+    estado = (STATUS_PRIORITY[exNorm] || 1) >= (STATUS_PRIORITY[inNorm] || 1) ? exNorm : inNorm;
+  } else if (incomingRawState) {
+    estado = normalizeOrderState(incomingRawState);
+  } else if (existingRawState) {
+    estado = normalizeOrderState(existingRawState);
+  }
+
+  // Si existe confirmación de entrega o remisión en el mensaje o histórico, forzar estado 'entregado'
+  const msgText = String(raw?.mensaje || existing?.mensaje || '').toLowerCase();
+  const hasDeliveryConfirmation =
+    msgText.includes('entregado con éxito') ||
+    msgText.includes('entrega completada') ||
+    msgText.includes('ya entregado') ||
+    raw?.status === 'entregado' ||
+    raw?.estado === 'entregado' ||
+    existing?.status === 'entregado' ||
+    existing?.estado === 'entregado';
+
+  if (hasDeliveryConfirmation) {
+    estado = 'entregado';
+  }
+
+  const totalVal = Number(raw?.total ?? raw?.totalCOP ?? existing?.total ?? existing?.totalCOP ?? 0);
+  const obra =
+    raw?.detalle?.obra ||
+    raw?.cliente ||
+    existing?.detalle?.obra ||
+    existing?.cliente ||
+    'Obra / Proyecto Colorlink';
+  const tipoObra =
+    raw?.detalle?.tipoObra ||
+    raw?.tipoObra ||
+    existing?.detalle?.tipoObra ||
+    'Fachada / Obra';
+  const areaM2 = Number(
+    raw?.detalle?.areaM2 ?? raw?.areaM2 ?? existing?.detalle?.areaM2 ?? existing?.areaM2 ?? 85
+  );
+  const tipoPintura =
+    raw?.detalle?.tipoPintura ||
+    raw?.tipoPintura ||
+    existing?.detalle?.tipoPintura ||
+    existing?.tipoPintura ||
+    'Exterior Tipo 1';
+  const color =
+    raw?.detalle?.color ||
+    raw?.color ||
+    existing?.detalle?.color ||
+    existing?.color ||
+    'Blanco Puro (Mate)';
+  const ciudad =
+    raw?.detalle?.ciudad ||
+    raw?.ciudad ||
+    existing?.detalle?.ciudad ||
+    existing?.ciudad ||
+    'Medellín';
+
+  const rawFecha = raw?.fecha || existing?.fecha || 'Hoy';
+  const fecha =
+    typeof rawFecha === 'string' && rawFecha.includes('T') && !isNaN(Date.parse(rawFecha))
+      ? new Date(rawFecha).toLocaleDateString('es-CO', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        })
+      : String(rawFecha);
+
+  return {
+    id: String(raw?.id || ordNum),
+    orderNumber: ordNum,
+    fecha,
+    nit: String(raw?.nit ?? existing?.nit ?? '').replace(/[.\-\s]/g, ''),
+    email: String(raw?.email ?? existing?.email ?? '').trim().toLowerCase(),
+    cliente: obra,
+    responsable: raw?.responsable || existing?.responsable || 'Responsable de Obra',
+    ciudad,
+    areaM2,
+    tipoPintura,
+    color,
+    totalCOP: totalVal,
+    status: estado,
+    vehiculo: raw?.vehiculo || existing?.vehiculo,
+    conductor: raw?.conductor || existing?.conductor,
+    placa: raw?.placa || existing?.placa,
+    mensaje: raw?.mensaje || existing?.mensaje,
+    detalle: {
+      obra,
+      tipoObra,
+      areaM2,
+      tipoPintura,
+      color,
+      ciudad
+    },
+    estado,
+    total: totalVal
+  };
+}
+
+export function getSavedClientOrdersFromStorage(): ClientOrderItem[] {
+  try {
+    const raw = localStorage.getItem(CLIENT_ORDERS_HISTORY_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((item) => item && typeof item === 'object')
+      .map((item) => normalizeClientOrderItem(item))
+      .filter((item) => !MOCK_DEMO_ORDER_IDS.has(item.orderNumber) && !MOCK_DEMO_ORDER_IDS.has(item.id));
+  } catch {
+    return [];
+  }
+}
+
+export function saveClientOrderToHistory(order: Partial<ClientOrderItem> & Record<string, any>): void {
+  try {
+    const ordId = String(order.orderNumber || order.id || '');
+    if (!ordId || MOCK_DEMO_ORDER_IDS.has(ordId)) {
+      return;
+    }
+
+    const current = getSavedClientOrdersFromStorage();
+    const idx = current.findIndex(
+      (o) => o.orderNumber === ordId || o.id === ordId
+    );
+
+    // Protección absoluta: Si la orden ya estaba en 'entregado', NUNCA permitir retroceder a tintometría ni a ninguna otra fase
+    if (idx >= 0 && (current[idx].estado === 'entregado' || current[idx].status === 'entregado')) {
+      const incomingState = normalizeOrderState(order.estado || order.status);
+      if (incomingState !== 'entregado') {
+        current[idx] = {
+          ...current[idx],
+          ...order,
+          estado: 'entregado',
+          status: 'entregado'
+        };
+        localStorage.setItem(CLIENT_ORDERS_HISTORY_KEY, JSON.stringify(current));
+        return;
+      }
+    }
+
+    const normalizedOrder = normalizeClientOrderItem(order, idx >= 0 ? current[idx] : undefined);
+
+    if (idx >= 0) {
+      current[idx] = normalizedOrder;
+    } else {
+      current.unshift(normalizedOrder);
+    }
+
+    localStorage.setItem(CLIENT_ORDERS_HISTORY_KEY, JSON.stringify(current));
+
+    // También actualizar estado en Supabase si existe el proyecto
+    supabase
+      .from('proyectos')
+      .update({ estado: normalizedOrder.estado })
+      .eq('order_number', normalizedOrder.orderNumber)
+      .then(() => {}, () => {});
+  } catch (e) {
+    console.warn('[saveClientOrderToHistory]', e);
+  }
+}
+
 export async function fetchClientOrders(userNit?: string, userEmail?: string): Promise<ClientOrderItem[]> {
   const nitLimpio = (userNit || '').replace(/[.\-\s]/g, '');
   const emailLimpio = (userEmail || '').trim().toLowerCase();
 
-  try {
-    // 1. Buscar proyectos del cliente en Supabase filtrados exclusivamente por su NIT o Email
-    let query = supabase
-      .from('proyectos')
-      .select(`
-        id,
-        order_number,
-        ciudad,
-        tipo_obra,
-        area_m2,
-        fecha_requerida,
-        estado,
-        created_at,
-        cliente:clientes!inner ( nombre_razon_social, nit_documento, email_responsable ),
-        especificaciones_tecnicas ( tipo_pintura, color_acabado ),
-        cotizaciones ( total_presupuesto )
-      `)
-      .order('created_at', { ascending: false });
+  const mergedMap = new Map<string, ClientOrderItem>();
 
-    if (nitLimpio && emailLimpio) {
-      query = query.or(`cliente.nit_documento.eq.${nitLimpio},cliente.email_responsable.ilike.${emailLimpio}`);
-    } else if (nitLimpio) {
-      query = query.eq('cliente.nit_documento', nitLimpio);
-    } else if (emailLimpio) {
-      query = query.ilike('cliente.email_responsable', emailLimpio);
+  const upsertIntoMap = (item: ClientOrderItem, preferIncomingState = false) => {
+    const key = item.orderNumber || item.id;
+    if (!key) return;
+    const existing = mergedMap.get(key);
+    if (!existing) {
+      mergedMap.set(key, item);
+      return;
     }
+    const existingPriority = STATUS_PRIORITY[existing.estado] || 1;
+    const incomingPriority = STATUS_PRIORITY[item.estado] || 1;
+    const bestEstado = preferIncomingState
+      ? item.estado
+      : incomingPriority >= existingPriority
+      ? item.estado
+      : existing.estado;
 
-    const { data, error } = await query;
-    if (error) {
-      console.warn('[Supabase] Aviso al consultar pedidos del cliente:', error.message);
-      return [];
-    }
-
-    const estadoNormalizado = (st?: string): ClientOrderItem['estado'] => {
-      const s = (st || '').toLowerCase();
-      if (s === 'entregado') return 'entregado';
-      if (s === 'en_ruta' || s === 'en camino') return 'en_ruta';
-      if (s === 'preparando') return 'preparando';
-      return 'pendiente';
-    };
-
-    return (data || []).map((row: any) => {
-      const especif = row.especificaciones_tecnicas?.[0] || {};
-      const cotiz = row.cotizaciones?.[0] || {};
-      return {
-        id: row.id,
-        orderNumber: row.order_number || `ORD-${row.id.toString().slice(-4)}`,
-        fecha: new Date(row.created_at).toLocaleDateString('es-CO', {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric'
-        }),
-        detalle: {
-          obra: row.tipo_obra || 'Fachada / Obra',
-          tipoObra: row.tipo_obra || 'Residencial',
-          areaM2: row.area_m2 || 0,
-          tipoPintura: especif.tipo_pintura || 'Exterior Tipo 1',
-          color: especif.color_acabado || 'Gris (Mate)',
-          ciudad: row.ciudad || 'Medellín'
-        },
-        estado: estadoNormalizado(row.estado),
-        total: cotiz.total_presupuesto || 0
-      };
+    mergedMap.set(key, {
+      ...existing,
+      ...item,
+      nit: item.nit || existing.nit,
+      email: item.email || existing.email,
+      estado: bestEstado
     });
-  } catch (err: any) {
-    console.warn('[fetchClientOrders Error]', err?.message || err);
-    return [];
+  };
+
+  // 1. Cargar pedidos guardados localmente en el historial persistente del navegador
+  const localHistory = getSavedClientOrdersFromStorage();
+  for (const loc of localHistory) {
+    const locNit = (loc.nit || '').replace(/[.\-\s]/g, '');
+    const locEmail = (loc.email || '').trim().toLowerCase();
+    const matchesClient =
+      (!nitLimpio && !emailLimpio) ||
+      (nitLimpio && locNit && (locNit === nitLimpio || nitMatches(nitLimpio, locNit))) ||
+      (emailLimpio && locEmail && locEmail === emailLimpio) ||
+      (!locNit && !locEmail);
+
+    if (matchesClient) {
+      upsertIntoMap(loc);
+    }
   }
+
+  // Si no se encontró coincidencia por NIT/Email estricto pero hay pedidos guardados en el almacenamiento de este cliente,
+  // preservarlos para que nunca se pierdan los pedidos anteriores (incluso los ya entregados)
+  if (mergedMap.size === 0 && localHistory.length > 0) {
+    for (const loc of localHistory) {
+      upsertIntoMap(loc);
+    }
+  }
+
+  // 2. Consultar pedidos en el servidor (/api/orders) para reflejar cambios hechos en Administración o en sesión
+  try {
+    const apiRes = await fetch('/api/orders');
+    if (apiRes.ok) {
+      const apiData = await apiRes.json();
+      if (apiData && Array.isArray(apiData.orders)) {
+        for (const srv of apiData.orders) {
+          const srvNit = String(srv.nit || srv.formData?.nitDocumento || '').replace(/[.\-\s]/g, '');
+          const srvEmail = String(srv.email || srv.formData?.emailResponsable || '').trim().toLowerCase();
+          const matchesSrv =
+            (!nitLimpio && !emailLimpio) ||
+            (nitLimpio && srvNit && srvNit === nitLimpio) ||
+            (emailLimpio && srvEmail && srvEmail === emailLimpio);
+
+          if (matchesSrv) {
+            const ordNum = srv.orderNumber || srv.id;
+            const fd = srv.formData || {};
+            const item: ClientOrderItem = {
+              id: ordNum,
+              orderNumber: ordNum,
+              fecha: srv.receivedAt
+                ? new Date(srv.receivedAt).toLocaleDateString('es-CO', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                  })
+                : 'Hoy',
+              nit: srvNit,
+              email: srvEmail,
+              detalle: {
+                obra: fd.cliente || srv.cliente || fd.tipoObra || 'Fachada / Obra',
+                tipoObra: fd.tipoObra || 'Fachada Edificio',
+                areaM2: Number(fd.areaM2 || 85),
+                tipoPintura: fd.tipoPintura || 'Exterior Tipo 1',
+                color: fd.colorAcabado || 'Gris (Mate)',
+                ciudad: srv.ciudad || fd.ciudad || 'Medellín'
+              },
+              estado: normalizeOrderState(srv.status),
+              total: Number(srv.totalCOP || 0)
+            };
+            upsertIntoMap(item);
+          }
+        }
+      }
+    }
+  } catch {
+    // Continuar si el endpoint local no responde
+  }
+
+  // 3. Buscar proyectos del cliente en Supabase filtrados por su NIT o Email si está configurado
+  if (isSupabaseConfigured()) {
+    try {
+      let query = supabase
+        .from('proyectos')
+        .select(`
+          id,
+          order_number,
+          ciudad,
+          tipo_obra,
+          area_m2,
+          fecha_requerida,
+          estado,
+          created_at,
+          cliente:clientes!inner ( nombre_razon_social, nit_documento, email_responsable ),
+          especificaciones_tecnicas ( tipo_pintura, color_acabado ),
+          cotizaciones ( total_presupuesto )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (nitLimpio && emailLimpio) {
+        query = query.or(`cliente.nit_documento.eq.${nitLimpio},cliente.email_responsable.ilike.${emailLimpio}`);
+      } else if (nitLimpio) {
+        query = query.eq('cliente.nit_documento', nitLimpio);
+      } else if (emailLimpio) {
+        query = query.ilike('cliente.email_responsable', emailLimpio);
+      }
+
+      const { data, error } = await query;
+      if (!error && data) {
+        for (const row of data as any[]) {
+          const especif = row.especificaciones_tecnicas?.[0] || {};
+          const cotiz = row.cotizaciones?.[0] || {};
+          const cli = Array.isArray(row.cliente) ? row.cliente[0] : row.cliente;
+          const ordNum = row.order_number || `ORD-${row.id.toString().slice(-4)}`;
+          const item: ClientOrderItem = {
+            id: row.id,
+            orderNumber: ordNum,
+            fecha: new Date(row.created_at).toLocaleDateString('es-CO', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric'
+            }),
+            nit: (cli?.nit_documento || nitLimpio).replace(/[.\-\s]/g, ''),
+            email: (cli?.email_responsable || emailLimpio).trim().toLowerCase(),
+            detalle: {
+              obra: cli?.nombre_razon_social || row.tipo_obra || 'Fachada / Obra',
+              tipoObra: row.tipo_obra || 'Residencial',
+              areaM2: row.area_m2 || 0,
+              tipoPintura: especif.tipo_pintura || 'Exterior Tipo 1',
+              color: especif.color_acabado || 'Gris (Mate)',
+              ciudad: row.ciudad || 'Medellín'
+            },
+            estado: normalizeOrderState(row.estado),
+            total: cotiz.total_presupuesto || 0
+          };
+          upsertIntoMap(item);
+        }
+      }
+    } catch (err: any) {
+      console.warn('[fetchClientOrders Error]', err?.message || err);
+    }
+  }
+
+  const finalOrders = Array.from(mergedMap.values());
+
+  // Persistir la lista consolidada para que nunca se pierdan los pedidos anteriores (incluso entregados)
+  for (const ord of finalOrders) {
+    saveClientOrderToHistory(ord);
+  }
+
+  return finalOrders;
 }
 
 // ============================================================================

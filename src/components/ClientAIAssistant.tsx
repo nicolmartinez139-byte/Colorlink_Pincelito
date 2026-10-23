@@ -21,6 +21,7 @@ import {
 import { ProjectFormData } from '../types/form';
 import { CASE_STUDY_PRESET } from '../data/dictionaryData';
 import { saveAdvisorLead } from '../utils/advisorService';
+import { validatePhotoWithAI } from '../utils/photoAiValidator';
 
 interface Message {
   id: string;
@@ -39,6 +40,56 @@ interface ClientAIAssistantProps {
   onApplyData: (dataToApply: Partial<ProjectFormData>) => void;
   isOpen: boolean;
   onClose: () => void;
+}
+
+/**
+ * Limpia cualquier expresión LaTeX ($m^2$, \text{}, \times, \%) o separadores Markdown (###, ---)
+ * y renderiza las negritas (**texto**) limpiamente sin caracteres extraños.
+ */
+function sanitizeChatMessageText(raw: string): string {
+  if (!raw) return '';
+  return raw
+    .replace(/\$\$([\s\S]*?)\$\$/g, '$1')
+    .replace(/\$([^$]+)\$/g, '$1')
+    .replace(/\\text\{([^}]*)\}/g, '$1')
+    .replace(/\\textbf\{([^}]*)\}/g, '$1')
+    .replace(/\\mathrm\{([^}]*)\}/g, '$1')
+    .replace(/\\times/g, '×')
+    .replace(/\\cdot/g, '·')
+    .replace(/\\div/g, '÷')
+    .replace(/\\approx/g, '≈')
+    .replace(/\\%/g, '%')
+    .replace(/m\^2/g, 'm²')
+    .replace(/m\^3/g, 'm³')
+    .replace(/\^2/g, '²')
+    .replace(/\^3/g, '³')
+    .replace(/\\[a-zA-Z]+/g, '')
+    .replace(/\$/g, '')
+    .replace(/^---+$/gm, '')
+    .replace(/^#{1,6}\s*/gm, '')
+    .replace(/^\s*\*\s+/gm, '• ')
+    .replace(/\*([^*\n]+)\*/g, '$1')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function renderFormattedChatText(rawText: string) {
+  // Primero convertir **texto** en marcador temporal antes de limpiar * simples
+  const withBoldTokens = (rawText || '').replace(/\*\*([^*]+)\*\*/g, '⟪BOLD:$1⟫');
+  const cleaned = sanitizeChatMessageText(withBoldTokens);
+  const parts = cleaned.split(/(⟪BOLD:[^⟫]+⟫)/g);
+
+  return parts.map((part, idx) => {
+    if (part.startsWith('⟪BOLD:') && part.endsWith('⟫')) {
+      const content = part.slice(6, -1);
+      return (
+        <strong key={idx} className="font-bold">
+          {content}
+        </strong>
+      );
+    }
+    return <React.Fragment key={idx}>{part}</React.Fragment>;
+  });
 }
 
 export function ClientAIAssistant({
@@ -66,6 +117,7 @@ export function ClientAIAssistant({
   const [inputQuery, setInputQuery] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [attachedImage, setAttachedImage] = useState<string | null>(null);
+  const [attachedImageName, setAttachedImageName] = useState<string>('foto_chat.jpg');
   const [appliedNotice, setAppliedNotice] = useState<string | null>(null);
   const [advisorConnected, setAdvisorConnected] = useState<boolean>(false);
   const [isConnectingAdvisor, setIsConnectingAdvisor] = useState<boolean>(false);
@@ -83,6 +135,7 @@ export function ClientAIAssistant({
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setAttachedImageName(file.name);
       const reader = new FileReader();
       reader.onload = (event) => {
         const result = event.target?.result as string;
@@ -308,32 +361,62 @@ export function ClientAIAssistant({
       return;
     }
 
-    // 0. Si el usuario adjuntó una imagen
+    // 0. Si el usuario adjuntó una imagen, validarla con Visión Artificial real (solo fachadas, paredes y cosas para pintar)
     if (currentImg) {
-      setTimeout(() => {
+      const imgName = attachedImageName || 'foto_subida.jpg';
+      const diagnosis = await validatePhotoWithAI({
+        photoName: imgName,
+        previewUrl: currentImg,
+        isOfficialSample: false,
+        currentContext: {
+          superficie: currentFormData.superficie,
+          ambiente: currentFormData.ambiente,
+          tipoPintura: currentFormData.tipoPintura,
+          tipoObra: currentFormData.tipoObra
+        }
+      });
+
+      if (!diagnosis.valid) {
         setMessages((prev) => [
           ...prev,
           {
             id: Date.now().toString(),
             sender: 'pincelito',
-            text: '📸 **Diagnóstico de Imagen de Pincelito:**\n\nHe analizado la fotografía de tu pared mediante visión artificial:\n\n• **Sustrato detectado:** Revoque / Concreto arquitectónico con exposición ambiental.\n• **Evaluación técnica:** Superficie apta con adherencia adecuada para repinte.\n• **Recomendación Técnica Colorlink:** Imprimante Sellador Hidrófugo + Pintura Acrílica Elastomérica Tipo 1 (Fachadas de Alta Resistencia NTC 1335).\n• **Rendimiento estimado:** Aprox. 20 a 25 m² por galón a 2 manos.\n\n¿Quieres aplicar este diagnóstico técnico automáticamente a tu cotización?',
+            text: `🚫 **Fotografía Rechazada por Visión Artificial**\n\nHe analizado la imagen que enviaste y detecté: **${diagnosis.detectedObject || 'Objeto no arquitectónico'}**.\n\n• **Motivo de rechazo:** ${diagnosis.rejectionReason || 'La imagen no corresponde a una fachada, pared, muro, techo ni superficie arquitectónica para pintar.'}\n• **Regla del sistema:** Solo se aceptan fotos de **fachadas, paredes, muros, cielorrasos o estructuras para pintar**, no fotos de personas, mascotas, vehículos, capturas de pantalla ni objetos cotidianos.\n\nPor favor sube una fotografía real de la fachada o pared que vas a pintar para poder darte el diagnóstico técnico. 🐧🎨`,
             timestamp: 'Ahora',
-            actionLabel: 'Aplicar Diagnóstico al Formulario',
-            actionPayload: {
-              superficie: 'Concreto / Revoque',
-              ambiente: 'Exterior Intemperie',
-              condicion: 'Fisuras leves y humedad',
-              descripcionLibre: 'Diagnóstico con IA Pincelito: Fachada exterior analizada. Apta para sellador hidrófugo y pintura acrílica elastomérica Tipo 1.'
-            },
             options: [
-              'Aplicar este diagnóstico al formulario',
-              '👤 Hablar con un asesor para validar la foto',
-              '📐 ¿Cuántos galones necesito?'
+              '📐 ¿Cómo calculo los m² de mi fachada?',
+              '🎨 ¿Qué diferencia hay entre Tipo 1, 2 y 3?',
+              '👤 Hablar con un asesor humano'
             ]
           }
         ]);
         setIsTyping(false);
-      }, 700);
+        return;
+      }
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now().toString(),
+          sender: 'pincelito',
+          text: `📸 **Diagnóstico de Imagen Aprobada por Pincelito:**\n\nHe verificado tu fotografía mediante visión artificial y corresponde a una superficie apta para pintar:\n\n• **Elemento identificado:** ${diagnosis.detectedObject || 'Fachada / Pared arquitectónica'}\n• **Sustrato detectado:** ${diagnosis.sustrato || 'Concreto / Revoque arquitectónico'}\n• **Evaluación técnica:** ${diagnosis.condicion || 'Superficie apta con adherencia adecuada para repinte'}\n• **Recomendación Técnica Colorlink:** ${diagnosis.recomendacion || 'Imprimante Sellador Hidrófugo + Pintura Acrílica Tipo 1 / Tipo 2 (NTC 1335)'}\n\n¿Quieres aplicar este diagnóstico técnico y adjuntar esta foto aprobada a tu cotización?`,
+          timestamp: 'Ahora',
+          actionLabel: 'Aplicar Diagnóstico al Formulario',
+          actionPayload: {
+            superficie: diagnosis.sustrato || 'Concreto / Revoque',
+            ambiente: diagnosis.ambienteDetectado || 'Exterior Intemperie',
+            condicion: diagnosis.condicionDetectada || 'Fisuras leves y humedad',
+            descripcionLibre: `Diagnóstico con IA Vision Pincelito (${diagnosis.detectedObject}): ${diagnosis.condicion}. ${diagnosis.recomendacion}`
+          },
+          options: [
+            'Aplicar este diagnóstico al formulario',
+            '👤 Hablar con un asesor para validar la foto',
+            '📐 ¿Cuántos galones necesito?'
+          ]
+        }
+      ]);
+      setIsTyping(false);
       return;
     }
 
@@ -612,7 +695,7 @@ export function ClientAIAssistant({
                 )}
 
                 <div className="whitespace-pre-line text-xs font-normal">
-                  {msg.text}
+                  {renderFormattedChatText(msg.text)}
                 </div>
 
                 {/* Botón de acción para aplicar al formulario */}

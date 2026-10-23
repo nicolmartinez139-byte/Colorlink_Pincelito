@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, Lock, Mail, Building, User, Phone, Check, ArrowRight, ShieldCheck, MessageCircle, Sparkles, UserCheck } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail, Building, User, Phone, Check, ArrowRight, ShieldCheck, MessageCircle, Sparkles, UserCheck, KeyRound, RefreshCw, CheckCircle2, ArrowLeft } from 'lucide-react';
 import { ColorlinkPenguin } from './ColorlinkPenguin';
 import { UserProfile } from '../types/form';
-import { supabase } from '../lib/supabase';
-import { sendRegistrationWelcomeEmail } from '../utils/emailService';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { sendRegistrationWelcomeEmail, sendPasswordRecoveryEmail } from '../utils/emailService';
 import paintSplatterBg from '../assets/images/paint_splatter_bg_1788742862980.jpg';
 
 interface ColorlinkLoginLandingProps {
@@ -12,12 +12,81 @@ interface ColorlinkLoginLandingProps {
   onOpenAdvisorModal: () => void;
 }
 
+interface StoredAccount {
+  id: string;
+  email: string;
+  password?: string;
+  empresa: string;
+  nit: string;
+  responsable: string;
+  telefono: string;
+  ciudad?: string;
+  createdAt?: string;
+}
+
+const ACCOUNTS_STORAGE_KEY = 'colorlink_registered_accounts_v1';
+
+const DEFAULT_REGISTERED_ACCOUNTS: Record<string, StoredAccount> = {
+  'vgomez@constructorahorizonte.com.co': {
+    id: 'horizonte-sim-001',
+    email: 'vgomez@constructorahorizonte.com.co',
+    empresa: 'Constructora Horizonte S.A.S.',
+    nit: '900854219',
+    responsable: 'Arq. Valentina Gómez',
+    telefono: '3124567890',
+    ciudad: 'Medellín'
+  },
+  'proyectos@constructorahorizonte.com.co': {
+    id: 'horizonte-sim-002',
+    email: 'proyectos@constructorahorizonte.com.co',
+    empresa: 'Constructora Horizonte S.A.S.',
+    nit: '900854219',
+    responsable: 'Ing. Sebastián Morales',
+    telefono: '3109876543',
+    ciudad: 'Medellín'
+  },
+  'nicolmartinez139@gmail.com': {
+    id: 'usr-nicol-001',
+    email: 'nicolmartinez139@gmail.com',
+    empresa: 'Proyectos & Obras Colorlink',
+    nit: '901452890',
+    responsable: 'Nicol Martínez',
+    telefono: '3001234567',
+    ciudad: 'Medellín'
+  }
+};
+
+function getStoredAccounts(): Record<string, StoredAccount> {
+  try {
+    const raw = localStorage.getItem(ACCOUNTS_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return { ...DEFAULT_REGISTERED_ACCOUNTS, ...parsed };
+  } catch {
+    return { ...DEFAULT_REGISTERED_ACCOUNTS };
+  }
+}
+
+function saveStoredAccount(account: StoredAccount) {
+  try {
+    const cleanEmail = account.email.trim().toLowerCase();
+    const current = getStoredAccounts();
+    current[cleanEmail] = {
+      ...current[cleanEmail],
+      ...account,
+      email: cleanEmail
+    };
+    localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(current));
+  } catch (e) {
+    console.warn('[Storage] No se pudo guardar cuenta local:', e);
+  }
+}
+
 export function ColorlinkLoginLanding({
   onLoginSuccess,
   onOpenAdminModal,
   onOpenAdvisorModal
 }: ColorlinkLoginLandingProps) {
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot_email' | 'forgot_verify' | 'forgot_reset'>('login');
   
   // Login fields
   const [username, setUsername] = useState('');
@@ -32,11 +101,22 @@ export function ColorlinkLoginLanding({
   const [regEmail, setRegEmail] = useState('');
   const [regTelefono, setRegTelefono] = useState('');
   const [regPassword, setRegPassword] = useState('');
+
+  // Forgot Password / Recovery fields
+  const [recoveryEmail, setRecoveryEmail] = useState('');
+  const [generatedTempPassword, setGeneratedTempPassword] = useState('');
+  const [verificationPasswordInput, setVerificationPasswordInput] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
+  const [recoveryClientInfo, setRecoveryClientInfo] = useState<{ nombre: string; empresa: string } | null>(null);
+  const [showRecoveryEmailPreview, setShowRecoveryEmailPreview] = useState(false);
   
   // Feedback
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [forgotPasswordMsg, setForgotPasswordMsg] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Activación de la simulación con el punto chiquito multicolor
   const handleTriggerSimulation = () => {
@@ -53,36 +133,31 @@ export function ColorlinkLoginLanding({
     onLoginSuccess(simProfile, true);
   };
 
-  // Entrada directa como Invitado / Sin cuenta (Modo Real no simulado)
-  const handleGuestEntry = () => {
-    const guestProfile: UserProfile = {
-      id: `guest-${Date.now()}`,
-      empresa: '',
-      nit: '',
-      responsable: '',
-      email: '',
-      telefono: '',
-      ciudad: '',
-      createdAt: new Date().toISOString()
-    };
-    onLoginSuccess(guestProfile, false);
-  };
-
   // Acción de Login
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+    setSuccessMessage(null);
 
     const emailToUse = username.trim().toLowerCase();
     const passToUse = password.trim();
 
     if (!emailToUse || !passToUse) {
-      setErrorMessage('Por favor ingresa tu correo electrónico y contraseña, o entra como invitado.');
+      setErrorMessage('Por favor ingresa tu correo electrónico y contraseña.');
       return;
     }
 
     setLoading(true);
     try {
+      // Verificar si tiene contraseña actualizada o registrada en el almacén local
+      const storedAccounts = getStoredAccounts();
+      const storedAccount = storedAccounts[emailToUse];
+      if (storedAccount?.password && storedAccount.password !== passToUse) {
+        setErrorMessage('La contraseña ingresada no coincide con la registrada para este correo. Puedes usar "¿Se te olvidó tu contraseña?" para cambiarla.');
+        setLoading(false);
+        return;
+      }
+
       // 1. Intentar autenticar con Supabase Auth si coincide
       let authUser: any = null;
       try {
@@ -104,15 +179,28 @@ export function ColorlinkLoginLanding({
         .maybeSingle();
 
       const userProfile: UserProfile = {
-        id: clientRow?.id || authUser?.id || `usr-${Date.now()}`,
-        empresa: clientRow?.nombre_razon_social || emailToUse.split('@')[0],
-        nit: clientRow?.nit_documento || '',
-        responsable: clientRow?.responsable || emailToUse.split('@')[0],
-        email: clientRow?.email_responsable || emailToUse,
-        telefono: clientRow?.telefono_responsable || '',
+        id: clientRow?.id || storedAccount?.id || authUser?.id || `usr-${Date.now()}`,
+        empresa: clientRow?.nombre_razon_social || storedAccount?.empresa || emailToUse.split('@')[0],
+        nit: clientRow?.nit_documento || storedAccount?.nit || '',
+        responsable: clientRow?.responsable || storedAccount?.responsable || emailToUse.split('@')[0],
+        email: clientRow?.email_responsable || storedAccount?.email || emailToUse,
+        telefono: clientRow?.telefono_responsable || storedAccount?.telefono || '',
         ciudad: 'Medellín',
-        createdAt: clientRow?.created_at || new Date().toISOString()
+        createdAt: clientRow?.created_at || storedAccount?.createdAt || new Date().toISOString()
       };
+
+      // Sincronizar cuenta en registro local para futuras recuperaciones de contraseña
+      saveStoredAccount({
+        id: userProfile.id,
+        email: userProfile.email,
+        password: storedAccount?.password || passToUse,
+        empresa: userProfile.empresa,
+        nit: userProfile.nit,
+        responsable: userProfile.responsable,
+        telefono: userProfile.telefono,
+        ciudad: userProfile.ciudad,
+        createdAt: userProfile.createdAt
+      });
 
       onLoginSuccess(userProfile, false);
     } catch (err: any) {
@@ -123,10 +211,173 @@ export function ColorlinkLoginLanding({
     }
   };
 
+  // Paso 1 Recuperar Contraseña: Verificar si el correo está registrado y enviar contraseña temporal
+  const handleSendRecoveryEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    const cleanEmail = recoveryEmail.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      setErrorMessage('Por favor ingresa un correo electrónico válido.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // 1. Buscar en tabla 'clientes' de Supabase
+      let foundClient: { nombre: string; empresa: string; email: string } | null = null;
+      try {
+        const { data: clientRows } = await supabase
+          .from('clientes')
+          .select('*')
+          .ilike('email_responsable', cleanEmail)
+          .limit(1);
+
+        if (clientRows && clientRows.length > 0) {
+          const row = clientRows[0];
+          foundClient = {
+            nombre: row.responsable || cleanEmail.split('@')[0],
+            empresa: row.nombre_razon_social || 'Empresa Registrada',
+            email: row.email_responsable || cleanEmail
+          };
+        }
+      } catch (dbErr) {
+        console.warn('[Recovery DB Check]', dbErr);
+      }
+
+      // 2. Buscar también en cuentas registradas localmente
+      if (!foundClient) {
+        const storedAccounts = getStoredAccounts();
+        const localMatch = storedAccounts[cleanEmail];
+        if (localMatch) {
+          foundClient = {
+            nombre: localMatch.responsable || cleanEmail.split('@')[0],
+            empresa: localMatch.empresa || 'Empresa Registrada',
+            email: cleanEmail
+          };
+        }
+      }
+
+      if (!foundClient) {
+        setErrorMessage(
+          `El correo "${cleanEmail}" no se encuentra registrado. Verifica que esté bien escrito o crea una cuenta nueva.`
+        );
+        setLoading(false);
+        return;
+      }
+
+      // 3. Generar contraseña temporal de comprobación (6 dígitos claros)
+      const tempPass = Math.floor(100000 + Math.random() * 900000).toString();
+      setGeneratedTempPassword(tempPass);
+      setRecoveryClientInfo({ nombre: foundClient.nombre, empresa: foundClient.empresa });
+      setVerificationPasswordInput('');
+      setShowRecoveryEmailPreview(false);
+
+      // 4. Enviar correo real con la contraseña de comprobación
+      await sendPasswordRecoveryEmail({
+        email: cleanEmail,
+        nombre: foundClient.nombre,
+        empresa: foundClient.empresa,
+        tempPassword: tempPass
+      });
+
+      setSuccessMessage(
+        `¡Correo verificado! Hemos enviado una contraseña de comprobación a ${cleanEmail}.`
+      );
+      setMode('forgot_verify');
+    } catch (err: any) {
+      console.error('[Recovery Error]', err);
+      setErrorMessage('No se pudo procesar la solicitud en este momento. Intenta nuevamente.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Paso 2 Recuperar Contraseña: Comprobar que la contraseña enviada al correo coincide
+  const handleVerifyTemporaryPassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    const cleanInput = verificationPasswordInput.trim();
+    if (!cleanInput) {
+      setErrorMessage('Por favor ingresa la contraseña de comprobación que llegó a tu correo.');
+      return;
+    }
+
+    if (cleanInput !== generatedTempPassword) {
+      setErrorMessage('La contraseña de comprobación ingresada no es correcta. Verifica el correo enviado e intenta de nuevo.');
+      return;
+    }
+
+    setSuccessMessage('¡Identidad comprobada con éxito! Ahora ingresa tu nueva contraseña.');
+    setNewPassword('');
+    setConfirmNewPassword('');
+    setMode('forgot_reset');
+  };
+
+  // Paso 3 Recuperar Contraseña: Cambiar a la nueva contraseña
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    const cleanNewPass = newPassword.trim();
+    const cleanConfirmPass = confirmNewPassword.trim();
+
+    if (cleanNewPass.length < 6) {
+      setErrorMessage('La nueva contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+
+    if (cleanNewPass !== cleanConfirmPass) {
+      setErrorMessage('Las contraseñas no coinciden. Por favor verifica ambos campos.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const cleanEmail = recoveryEmail.trim().toLowerCase();
+
+      // Actualizar en Supabase Auth si hay sesión activa
+      try {
+        await supabase.auth.updateUser({ password: cleanNewPass });
+      } catch {
+        // Continuar guardando en almacén de cuentas
+      }
+
+      // Guardar la nueva contraseña asociada al correo del usuario
+      const currentAccounts = getStoredAccounts();
+      const existing = currentAccounts[cleanEmail];
+      saveStoredAccount({
+        id: existing?.id || `usr-${Date.now()}`,
+        email: cleanEmail,
+        password: cleanNewPass,
+        empresa: recoveryClientInfo?.empresa || existing?.empresa || cleanEmail.split('@')[0],
+        nit: existing?.nit || '',
+        responsable: recoveryClientInfo?.nombre || existing?.responsable || cleanEmail.split('@')[0],
+        telefono: existing?.telefono || '',
+        ciudad: existing?.ciudad || 'Medellín'
+      });
+
+      setUsername(cleanEmail);
+      setPassword('');
+      setMode('login');
+      setSuccessMessage('¡Contraseña actualizada correctamente! Ahora puedes iniciar sesión con tu nueva contraseña.');
+    } catch (err: any) {
+      console.error('[Reset Password Error]', err);
+      setErrorMessage('Ocurrió un error al guardar la nueva contraseña.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Acción de Registro
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+    setSuccessMessage(null);
 
     if (!regEmail || !regPassword) {
       setErrorMessage('Por favor ingresa correo y contraseña.');
@@ -136,12 +387,13 @@ export function ColorlinkLoginLanding({
     setLoading(true);
     try {
       const nitLimpio = (regNit || '').replace(/[.\-\s]/g, '');
+      const cleanRegEmail = regEmail.trim().toLowerCase();
 
       // 1. Intentar registrar en Supabase Auth
       let authUserId: string | null = null;
       try {
         const { data: authData } = await supabase.auth.signUp({
-          email: regEmail,
+          email: cleanRegEmail,
           password: regPassword,
           options: {
             data: {
@@ -158,34 +410,53 @@ export function ColorlinkLoginLanding({
         console.warn('[Supabase Auth] Registro Auth:', authErr);
       }
 
-      // 2. Guardar SIEMPRE un nuevo registro en la tabla 'clientes' de Supabase
-      const { data: newClient, error: clientErr } = await supabase
-        .from('clientes')
-        .insert({
-          auth_user_id: authUserId,
-          nombre_razon_social: regEmpresa || 'Cliente Registrado',
-          nit_documento: nitLimpio || `NIT-${Date.now().toString().slice(-6)}`,
-          responsable: regResponsable || regEmail.split('@')[0],
-          email_responsable: regEmail,
-          telefono_responsable: regTelefono || null,
-          canal_entrada: 'Registro Portal Web'
-        })
-        .select('*')
-        .single();
+      // 2. Guardar registro en la tabla 'clientes' de Supabase si está disponible
+      let clienteId = `CLI-${Date.now().toString().slice(-6)}`;
+      let clientCreatedAt = new Date().toISOString();
 
-      if (clientErr) {
-        console.error('[Supabase Clientes] Error al insertar cliente:', clientErr);
-        throw clientErr;
+      if (isSupabaseConfigured()) {
+        try {
+          const { data: newClient } = await supabase
+            .from('clientes')
+            .insert({
+              auth_user_id: authUserId,
+              nombre_razon_social: regEmpresa || 'Cliente Registrado',
+              nit_documento: nitLimpio || `NIT-${Date.now().toString().slice(-6)}`,
+              responsable: regResponsable || cleanRegEmail.split('@')[0],
+              email_responsable: cleanRegEmail,
+              telefono_responsable: regTelefono || null,
+              canal_entrada: 'Registro Portal Web'
+            })
+            .select('*')
+            .single();
+
+          if (newClient) {
+            clienteId = newClient.id;
+            clientCreatedAt = newClient.created_at || clientCreatedAt;
+          }
+        } catch (clientErr: any) {
+          console.warn('[Supabase Clientes] Guardado en modo local:', clientErr?.message || clientErr);
+        }
       }
 
-      const clienteId = newClient.id;
-      console.log('[Supabase] Nuevo cliente guardado exitosamente en tabla clientes:', newClient);
+      // Guardar también en almacén local para soporte de login y cotizaciones
+      saveStoredAccount({
+        id: clienteId,
+        email: cleanRegEmail,
+        password: regPassword.trim(),
+        empresa: regEmpresa || 'Cliente Registrado',
+        nit: nitLimpio || '',
+        responsable: regResponsable || cleanRegEmail.split('@')[0],
+        telefono: regTelefono || '',
+        ciudad: 'Medellín',
+        createdAt: clientCreatedAt
+      });
 
       // Enviar correo de bienvenida corporativo mediante EmailJS
       try {
         await sendRegistrationWelcomeEmail({
-          email: regEmail,
-          nombre: regResponsable || regEmail.split('@')[0],
+          email: cleanRegEmail,
+          nombre: regResponsable || cleanRegEmail.split('@')[0],
           empresa: regEmpresa || 'Cliente Registrado',
           nit: nitLimpio || 'No especificado',
           telefono: regTelefono
@@ -198,8 +469,8 @@ export function ColorlinkLoginLanding({
         id: clienteId,
         empresa: newClient.nombre_razon_social || regEmpresa || '',
         nit: newClient.nit_documento || nitLimpio || '',
-        responsable: newClient.responsable || regResponsable || regEmail.split('@')[0],
-        email: newClient.email_responsable || regEmail,
+        responsable: newClient.responsable || regResponsable || cleanRegEmail.split('@')[0],
+        email: newClient.email_responsable || cleanRegEmail,
         telefono: newClient.telefono_responsable || regTelefono || '',
         ciudad: 'Medellín',
         createdAt: newClient.created_at || new Date().toISOString()
@@ -351,12 +622,26 @@ export function ColorlinkLoginLanding({
         {/* TÍTULO PRINCIPAL CON DEGRADADO VIBRANTE COLORIDO */}
         <div className="text-center mb-6">
           <h1 className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-[#FF5500] via-[#0055FF] to-[#00D2FF] bg-clip-text text-transparent tracking-tight">
-            {mode === 'login' ? 'Inicia sesión ahora' : 'Crear cuenta nueva'}
+            {mode === 'login'
+              ? 'Inicia sesión ahora'
+              : mode === 'register'
+              ? 'Crear cuenta nueva'
+              : mode === 'forgot_email'
+              ? 'Recuperar contraseña'
+              : mode === 'forgot_verify'
+              ? 'Comprobar identidad'
+              : 'Cambiar contraseña'}
           </h1>
           <p className="text-xs text-slate-500 mt-1 font-semibold">
             {mode === 'login'
               ? 'Accede para gestionar tus pedidos de pintura y cotizaciones'
-              : 'Ingresa los datos para registrar tu empresa'}
+              : mode === 'register'
+              ? 'Ingresa los datos para registrar tu empresa'
+              : mode === 'forgot_email'
+              ? 'Ingresa tu correo registrado para recibir una contraseña de comprobación'
+              : mode === 'forgot_verify'
+              ? 'Ingresa la contraseña temporal que enviamos a tu correo electrónico'
+              : 'Define tu nueva contraseña para acceder a tu cuenta'}
           </p>
         </div>
 
@@ -367,9 +652,11 @@ export function ColorlinkLoginLanding({
           </div>
         )}
 
-        {forgotPasswordMsg && (
-          <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-800 text-center">
-            Para restablecer tu contraseña o consultar tus datos corporativos, comunícate al PBX <strong>(604) 448-0000</strong> o ingresa con la cuenta demo.
+        {/* MENSAJE DE ÉXITO */}
+        {successMessage && (
+          <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-800 text-center font-semibold flex items-center justify-center gap-1.5">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{successMessage}</span>
           </div>
         )}
 
@@ -395,14 +682,14 @@ export function ColorlinkLoginLanding({
             {/* Campo Password */}
             <div className="space-y-1.5 text-left">
               <label className="block text-xs font-bold text-slate-600 pl-2">
-                Password *
+                Contraseña *
               </label>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your Password"
+                  placeholder="Ingresa tu contraseña"
                   className="w-full bg-[#f8fafc] hover:bg-slate-100 focus:bg-white text-slate-800 placeholder:text-slate-400 text-sm font-medium px-5 py-3.5 pr-11 rounded-full border border-slate-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 transition-all outline-none"
                 />
                 <button
@@ -425,7 +712,7 @@ export function ColorlinkLoginLanding({
                   onChange={(e) => setRememberMe(e.target.checked)}
                   className="w-4 h-4 text-sky-600 rounded border-slate-300 focus:ring-sky-500 cursor-pointer"
                 />
-                <span>Remember me</span>
+                <span>Recordarme</span>
               </label>
             </div>
 
@@ -438,17 +725,8 @@ export function ColorlinkLoginLanding({
               {loading ? 'ACCEDIENDO...' : 'ACCESO'}
             </button>
 
-            {/* ENTRADA DIRECTA: COTIZAR SIN INICIAR SESIÓN */}
-            <div className="pt-1 space-y-2">
-              <button
-                type="button"
-                onClick={handleGuestEntry}
-                className="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-full transition-all border border-slate-200 shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <span>Cotizar directamente sin iniciar sesión</span>
-                <ArrowRight className="w-3.5 h-3.5 text-sky-600" />
-              </button>
-
+            {/* ACCESO PARA ASESORES COMERCIALES */}
+            <div className="pt-1">
               <button
                 type="button"
                 onClick={onOpenAdvisorModal}
@@ -466,6 +744,7 @@ export function ColorlinkLoginLanding({
                 onClick={() => {
                   setMode('register');
                   setErrorMessage(null);
+                  setSuccessMessage(null);
                 }}
                 className="text-sky-600 hover:text-sky-700 hover:underline cursor-pointer transition-colors"
               >
@@ -475,8 +754,13 @@ export function ColorlinkLoginLanding({
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setForgotPasswordMsg(true)}
-                  className="text-slate-500 hover:text-slate-800 hover:underline cursor-pointer"
+                  onClick={() => {
+                    setRecoveryEmail(username.trim());
+                    setErrorMessage(null);
+                    setSuccessMessage(null);
+                    setMode('forgot_email');
+                  }}
+                  className="text-slate-500 hover:text-sky-700 hover:underline cursor-pointer transition-colors"
                 >
                   ¿Se te olvidó tu contraseña?
                 </button>
@@ -490,6 +774,239 @@ export function ColorlinkLoginLanding({
                   aria-label="Simulación"
                 />
               </div>
+            </div>
+          </form>
+        ) : mode === 'forgot_email' ? (
+          /* PASO 1 RECUPERAR CONTRASEÑA: PEDIR EL CORREO REGISTRADO */
+          <form onSubmit={handleSendRecoveryEmail} className="space-y-4">
+            <div className="p-3 bg-sky-50 border border-sky-200/80 rounded-2xl text-xs text-sky-900 leading-relaxed text-left">
+              <p className="font-bold flex items-center gap-1.5 text-sky-800 mb-1">
+                <Mail className="w-4 h-4 text-sky-600" />
+                Paso 1 de 3: Verifica tu correo registrado
+              </p>
+              Ingresa el correo electrónico con el que te registraste. Si tu cuenta está registrada, te enviaremos una <strong>contraseña temporal de comprobación</strong> a tu correo.
+            </div>
+
+            <div className="space-y-1.5 text-left">
+              <label className="block text-xs font-bold text-slate-600 pl-2">
+                Correo Electrónico Registrado *
+              </label>
+              <input
+                type="email"
+                required
+                value={recoveryEmail}
+                onChange={(e) => setRecoveryEmail(e.target.value)}
+                placeholder="Ej: proyectos@empresa.com"
+                className="w-full bg-[#f8fafc] hover:bg-slate-100 focus:bg-white text-slate-800 placeholder:text-slate-400 text-sm font-medium px-5 py-3.5 rounded-full border border-slate-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 transition-all outline-none"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-gradient-to-r from-[#FF5500] via-[#FF007A] to-[#0055FF] hover:brightness-110 text-white font-black text-xs sm:text-sm tracking-wider uppercase py-3.5 rounded-full shadow-[0_10px_25px_-5px_rgba(255,85,0,0.45)] transition-all active:scale-[0.98] cursor-pointer"
+            >
+              {loading ? 'VERIFICANDO Y ENVIANDO CORREO...' : 'ENVIAR CONTRASEÑA AL CORREO'}
+            </button>
+
+            <div className="flex items-center justify-between pt-2 px-1 text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('login');
+                  setErrorMessage(null);
+                  setSuccessMessage(null);
+                }}
+                className="text-slate-500 hover:text-slate-800 flex items-center gap-1 cursor-pointer"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Volver al inicio de sesión</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('register');
+                  setErrorMessage(null);
+                  setSuccessMessage(null);
+                }}
+                className="text-sky-600 hover:text-sky-700 hover:underline cursor-pointer"
+              >
+                Crear cuenta nueva
+              </button>
+            </div>
+          </form>
+        ) : mode === 'forgot_verify' ? (
+          /* PASO 2 RECUPERAR CONTRASEÑA: COMPROBAR CON LA CONTRASEÑA ENVIADA AL CORREO */
+          <form onSubmit={handleVerifyTemporaryPassword} className="space-y-4">
+            <div className="p-3 bg-sky-50 border border-sky-200/80 rounded-2xl text-xs text-sky-900 leading-relaxed text-left space-y-1.5">
+              <p className="font-bold flex items-center gap-1.5 text-sky-800">
+                <KeyRound className="w-4 h-4 text-sky-600" />
+                Paso 2 de 3: Comprobar contraseña enviada
+              </p>
+              <p>
+                Enviamos una contraseña temporal de comprobación a <strong className="text-sky-700">{recoveryEmail}</strong>. Ingrésala abajo para comprobar que eres tú y pasar a cambiar tu contraseña.
+              </p>
+              <div className="pt-1 flex flex-wrap items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowRecoveryEmailPreview(!showRecoveryEmailPreview)}
+                  className="text-[11px] font-bold text-sky-700 bg-white hover:bg-sky-100 px-2.5 py-1 rounded-lg border border-sky-200 cursor-pointer transition-colors"
+                >
+                  {showRecoveryEmailPreview ? 'Ocultar vista previa del correo' : '📩 Ver correo enviado'}
+                </button>
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={handleSendRecoveryEmail}
+                  className="text-[11px] font-bold text-slate-600 hover:text-sky-700 flex items-center gap-1 cursor-pointer"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  <span>Reenviar clave</span>
+                </button>
+              </div>
+              {showRecoveryEmailPreview && (
+                <div className="mt-2 p-2.5 bg-white rounded-xl border border-sky-200 text-[11px] text-slate-700 space-y-1 shadow-2xs">
+                  <div className="font-bold text-slate-900 border-b border-slate-100 pb-1">
+                    Asunto: 🔐 COLORLINK® • Contraseña de Comprobación
+                  </div>
+                  <p>
+                    Hola <strong>{recoveryClientInfo?.nombre || recoveryEmail}</strong>, tu contraseña temporal para comprobar tu identidad es:
+                  </p>
+                  <div className="text-center py-1.5 bg-sky-50 rounded-lg font-mono font-black text-base tracking-widest text-sky-900 border border-sky-200">
+                    {generatedTempPassword}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-1.5 text-left">
+              <label className="block text-xs font-bold text-slate-600 pl-2">
+                Contraseña de Comprobación *
+              </label>
+              <input
+                type="text"
+                required
+                value={verificationPasswordInput}
+                onChange={(e) => setVerificationPasswordInput(e.target.value)}
+                placeholder="Ingresa la clave de 6 dígitos enviada a tu correo"
+                className="w-full bg-[#f8fafc] hover:bg-slate-100 focus:bg-white text-slate-800 placeholder:text-slate-400 text-sm font-mono font-bold tracking-widest text-center px-5 py-3.5 rounded-full border border-slate-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 transition-all outline-none"
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-gradient-to-r from-[#FF5500] via-[#FF007A] to-[#0055FF] hover:brightness-110 text-white font-black text-xs sm:text-sm tracking-wider uppercase py-3.5 rounded-full shadow-[0_10px_25px_-5px_rgba(255,85,0,0.45)] transition-all active:scale-[0.98] cursor-pointer"
+            >
+              COMPROBAR Y CONTINUAR
+            </button>
+
+            <div className="flex items-center justify-between pt-1 px-1 text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('forgot_email');
+                  setErrorMessage(null);
+                  setSuccessMessage(null);
+                }}
+                className="text-slate-500 hover:text-slate-800 flex items-center gap-1 cursor-pointer"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Cambiar correo</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('login');
+                  setErrorMessage(null);
+                  setSuccessMessage(null);
+                }}
+                className="text-sky-600 hover:text-sky-700 hover:underline cursor-pointer"
+              >
+                Cancelar
+              </button>
+            </div>
+          </form>
+        ) : mode === 'forgot_reset' ? (
+          /* PASO 3 RECUPERAR CONTRASEÑA: OPCIÓN PARA CAMBIAR LA CONTRASEÑA */
+          <form onSubmit={handleUpdatePassword} className="space-y-4">
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-900 leading-relaxed text-left">
+              <p className="font-bold flex items-center gap-1.5 text-emerald-800 mb-0.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                Paso 3 de 3: Crear nueva contraseña
+              </p>
+              Identidad verificada para <strong>{recoveryEmail}</strong>. Ingresa tu nueva contraseña a continuación.
+            </div>
+
+            <div className="space-y-1.5 text-left">
+              <label className="block text-xs font-bold text-slate-600 pl-2">
+                Nueva Contraseña *
+              </label>
+              <div className="relative">
+                <input
+                  type={showNewPassword ? 'text' : 'password'}
+                  required
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Mínimo 6 caracteres"
+                  className="w-full bg-[#f8fafc] hover:bg-slate-100 focus:bg-white text-slate-800 placeholder:text-slate-400 text-sm font-medium px-5 py-3.5 pr-11 rounded-full border border-slate-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 transition-all outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  tabIndex={-1}
+                >
+                  {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-1.5 text-left">
+              <label className="block text-xs font-bold text-slate-600 pl-2">
+                Confirmar Nueva Contraseña *
+              </label>
+              <div className="relative">
+                <input
+                  type={showConfirmNewPassword ? 'text' : 'password'}
+                  required
+                  value={confirmNewPassword}
+                  onChange={(e) => setConfirmNewPassword(e.target.value)}
+                  placeholder="Repite tu nueva contraseña"
+                  className="w-full bg-[#f8fafc] hover:bg-slate-100 focus:bg-white text-slate-800 placeholder:text-slate-400 text-sm font-medium px-5 py-3.5 pr-11 rounded-full border border-slate-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 transition-all outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  tabIndex={-1}
+                >
+                  {showConfirmNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-gradient-to-r from-[#FF5500] via-[#FF007A] to-[#0055FF] hover:brightness-110 text-white font-black text-xs sm:text-sm tracking-wider uppercase py-3.5 rounded-full shadow-[0_10px_25px_-5px_rgba(255,85,0,0.45)] transition-all active:scale-[0.98] cursor-pointer"
+            >
+              {loading ? 'GUARDANDO CONTRASEÑA...' : 'CAMBIAR CONTRASEÑA'}
+            </button>
+
+            <div className="text-center pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('login');
+                  setErrorMessage(null);
+                  setSuccessMessage(null);
+                }}
+                className="text-xs font-bold text-slate-500 hover:text-slate-800 hover:underline cursor-pointer"
+              >
+                Cancelar y volver al inicio de sesión
+              </button>
             </div>
           </form>
         ) : (

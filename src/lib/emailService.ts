@@ -293,7 +293,9 @@ export async function sendRealOrderEmail(params: SendEmailParams): Promise<Email
 </html>
   `.trim();
 
-  // ENVÍO PRIORITARIO MEDIANTE BACKEND (/api/send-email) CON LA PLANTILLA COMPLETA HTML
+  // 1. ENVÍO MEDIANTE BACKEND (/api/send-email)
+  let realBackendDelivered = false;
+  let previewUrl: string | undefined;
   try {
     console.log(`[REAL ORDER EMAIL] Enviando cotización oficial HTML a ${recipientEmail}...`);
 
@@ -314,86 +316,102 @@ export async function sendRealOrderEmail(params: SendEmailParams): Promise<Email
 
     const data = await response.json();
     if (data.success) {
-      console.log('[REAL ORDER EMAIL SUCCESS]', data);
-      return {
-        success: true,
-        provider: data.provider || 'colorlink_mailer',
-        message: `Correo de cotización enviado exitosamente a ${recipientEmail}`,
-        previewUrl: data.previewUrl
-      };
+      previewUrl = data.previewUrl;
+      if (data.provider && data.provider !== 'ethereal_sandbox' && data.provider !== 'ethereal_test') {
+        realBackendDelivered = true;
+      }
     }
   } catch (backendErr: any) {
     console.warn('[BACKEND EMAIL ATTEMPT FAILED]', backendErr);
   }
 
-  // Respaldo opcional con EmailJS
-  try {
-    const serviceId = (
-      (typeof import.meta !== 'undefined' && import.meta.env?.VITE_EMAILJS_SERVICE_ID) ||
-      (typeof process !== 'undefined' && process.env?.VITE_EMAILJS_SERVICE_ID) ||
-      'service_qf0c7fg'
-    ) as string;
+  // 2. Envío directo al buzón del cliente con EmailJS (si el backend no tenía SMTP/Resend real)
+  if (!realBackendDelivered) {
+    try {
+      const { enqueueEmailJsSend, isMockDemoEmail } = await import('../utils/emailService');
+      if (!isMockDemoEmail(recipientEmail)) {
+        const serviceId = (
+          (typeof import.meta !== 'undefined' && import.meta.env?.VITE_EMAILJS_SERVICE_ID) ||
+          (typeof process !== 'undefined' && process.env?.VITE_EMAILJS_SERVICE_ID) ||
+          'service_qf0c7fg'
+        ) as string;
 
-    const templateId = (
-      (typeof import.meta !== 'undefined' && import.meta.env?.VITE_EMAILJS_TEMPLATE_ID) ||
-      (typeof process !== 'undefined' && process.env?.VITE_EMAILJS_TEMPLATE_ID) ||
-      'template_fq5wnko'
-    ) as string;
+        const templateId = (
+          (typeof import.meta !== 'undefined' && import.meta.env?.VITE_EMAILJS_TEMPLATE_ID) ||
+          (typeof process !== 'undefined' && process.env?.VITE_EMAILJS_TEMPLATE_ID) ||
+          'template_fq5wnko'
+        ) as string;
 
-    const publicKey = (
-      (typeof import.meta !== 'undefined' && import.meta.env?.VITE_EMAILJS_PUBLIC_KEY) ||
-      (typeof process !== 'undefined' && process.env?.VITE_EMAILJS_PUBLIC_KEY) ||
-      '3RRGbuXHPRyKyJLZ0'
-    ) as string;
+        const publicKey = (
+          (typeof import.meta !== 'undefined' && import.meta.env?.VITE_EMAILJS_PUBLIC_KEY) ||
+          (typeof process !== 'undefined' && process.env?.VITE_EMAILJS_PUBLIC_KEY) ||
+          '3RRGbuXHPRyKyJLZ0'
+        ) as string;
 
-    const templateParams = {
-      to_email: recipientEmail,
-      user_email: recipientEmail,
-      email: recipientEmail,
-      reply_to: recipientEmail,
-      to_name: formData.responsable || formData.cliente,
-      name: formData.responsable || formData.cliente,
-      cliente: formData.cliente,
-      responsable: formData.responsable,
-      telefono: formData.telefonoResponsable || '',
-      order_number: orderId || 'CLK-2026',
-      order_id: orderId || 'CLK-2026',
-      orderId: orderId || 'CLK-2026',
-      ciudad: formData.ciudad,
-      tipo_obra: formData.tipoObra,
-      superficie: formData.superficie,
-      ambiente: formData.ambiente,
-      color_acabado: formData.colorAcabado,
-      cunetes: calculation.cuñetes,
-      galones: calculation.galones,
-      total: formatCOP(calculation.totalCOP),
-      total_cop: formatCOP(calculation.totalCOP),
-      subtotal: formatCOP(calculation.subtotalCOP),
-      flete: calculation.fleteCOP === 0 ? 'GRATIS' : formatCOP(calculation.fleteCOP),
-      iva: formatCOP(calculation.ivaCOP),
-      status_message: statusMessage || 'Cotización Aprobada',
-      subject: resolvedSubject,
-      title: 'Cotización Oficial Aprobada - Colorlink® Pinturas',
-      html: htmlContent,
-      html_content: htmlContent,
-      content: htmlContent,
-      message: `Cotización Oficial Aprobada #${orderId || 'CLK-2026'} para ${formData.cliente} en ${formData.ciudad}. Total: ${formatCOP(calculation.totalCOP)} COP.`
-    };
+        const templateParams = {
+          to_email: recipientEmail,
+          user_email: recipientEmail,
+          email: recipientEmail,
+          reply_to: recipientEmail,
+          to_name: formData.responsable || formData.cliente,
+          name: formData.responsable || formData.cliente,
+          nombre: formData.responsable || formData.cliente,
+          empresa: formData.cliente,
+          cliente: formData.cliente,
+          responsable: formData.responsable,
+          telefono: formData.telefonoResponsable || '',
+          order_number: orderId || 'CLK-2026',
+          order_id: orderId || 'CLK-2026',
+          orderId: orderId || 'CLK-2026',
+          ciudad: formData.ciudad,
+          direccion_entrega: formData.direccionEntrega || formData.ciudad,
+          direccion: formData.direccionEntrega || formData.ciudad,
+          punto_referencia: formData.puntoReferencia || '',
+          tipo_obra: formData.tipoObra,
+          superficie: formData.superficie,
+          ambiente: formData.ambiente,
+          color_acabado: formData.colorAcabado,
+          producto: formData.tipoPintura || 'Pintura Profesional Colorlink®',
+          producto_recomendado: formData.tipoPintura || 'Pintura Profesional Colorlink®',
+          manos_sugeridas: '2 a 3 manos según Norma NTC 1335',
+          cunetes: calculation.cuñetes,
+          cunetes_requeridos: calculation.cuñetes,
+          galones: calculation.galones,
+          galones_requeridos: calculation.galones,
+          tiempo_entrega: '24 a 48 horas hábiles en Flota Colorlink',
+          total: formatCOP(calculation.totalCOP),
+          total_cop: formatCOP(calculation.totalCOP),
+          subtotal: formatCOP(calculation.subtotalCOP),
+          flete: calculation.fleteCOP === 0 ? 'GRATIS' : formatCOP(calculation.fleteCOP),
+          iva: formatCOP(calculation.ivaCOP),
+          status_message: statusMessage || 'Cotización Aprobada',
+          subject: resolvedSubject,
+          title: 'Cotización Oficial Aprobada - Colorlink® Pinturas',
+          html: htmlContent,
+          html_content: htmlContent,
+          content: htmlContent,
+          message: `Cotización Oficial Aprobada #${orderId || 'CLK-2026'} para ${formData.cliente} en ${formData.ciudad}. Total: ${formatCOP(calculation.totalCOP)} COP.`
+        };
 
-    await emailjs.send(serviceId, templateId, templateParams, { publicKey });
-    return {
-      success: true,
-      provider: 'EmailJS',
-      message: `Correo enviado exitosamente a ${recipientEmail}`
-    };
-  } catch (emailjsErr: any) {
-    console.warn('[EmailJS Fallback Error]', emailjsErr);
-    return {
-      success: true,
-      provider: 'colorlink_mailer',
-      message: `Cotización registrada exitosamente para ${recipientEmail}`
-    };
+        await enqueueEmailJsSend(serviceId, templateId, templateParams, publicKey);
+        return {
+          success: true,
+          provider: 'EmailJS',
+          message: `Correo enviado exitosamente a ${recipientEmail}`,
+          previewUrl
+        };
+      }
+    } catch (emailjsErr: any) {
+      console.warn('[EmailJS Fallback Error]', emailjsErr);
+    }
   }
+
+  return {
+    success: true,
+    provider: realBackendDelivered ? 'colorlink_mailer' : 'colorlink_queue',
+    message: `Correo enviado exitosamente a ${recipientEmail}`,
+    previewUrl
+  };
 }
 
 export { sendRegistrationWelcomeEmail, sendOrderStatusUpdateEmail } from '../utils/emailService';

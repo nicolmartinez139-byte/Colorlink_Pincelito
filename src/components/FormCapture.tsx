@@ -401,24 +401,49 @@ export function FormCapture({ onSuccessSubmit }: FormCaptureProps) {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Superficie / Sustrato <span className="text-rose-500">*</span>
+              <div className="md:col-span-2">
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Superficies / Sustratos <span className="text-rose-500">*</span>{' '}
+                  <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">
+                    Puedes escoger varias
+                  </span>
                 </label>
-                <select
-                  id="select-superficie"
-                  value={formData.superficie}
-                  onChange={(e) => handleInputChange('superficie', e.target.value)}
-                  className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                >
-                  <option value="">-- Seleccionar Superficie --</option>
-                  <option value="Concreto / Revoque">Concreto / Revoque / Mampostería</option>
-                  <option value="Drywall / Yeso">Drywall / Yeso / Paneles</option>
-                  <option value="Metal Ferroso">Metal Ferroso (Hierro, Acero)</option>
-                  <option value="Metal Galvanizado / Aluminio">Metal Galvanizado / Aluminio</option>
-                  <option value="Madera">Madera natural o procesada</option>
-                  <option value="Pintura Existente">Pintura Existente en Sustrato</option>
-                </select>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    'Concreto / Revoque',
+                    'Drywall / Yeso',
+                    'Metal Ferroso',
+                    'Metal Galvanizado / Aluminio',
+                    'Madera',
+                    'Pintura Existente',
+                    'Ladrillo / Mampostería',
+                    'Estuco / Graniplast'
+                  ].map((surf) => {
+                    const currentList = formData.superficie
+                      ? formData.superficie.split(',').map((s) => s.trim()).filter(Boolean)
+                      : [];
+                    const isSelected = currentList.includes(surf);
+                    return (
+                      <button
+                        key={surf}
+                        type="button"
+                        onClick={() => {
+                          const next = isSelected
+                            ? currentList.filter((s) => s !== surf)
+                            : [...currentList, surf];
+                          handleInputChange('superficie', next.join(', '));
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-blue-300'
+                        }`}
+                      >
+                        {isSelected ? `✓ ${surf}` : surf}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <div>

@@ -16,6 +16,7 @@ import {
   X
 } from 'lucide-react';
 import { ProjectFormData } from '../types/form';
+import { validatePhotoWithAI } from '../utils/photoAiValidator';
 
 export interface ImageDiagnosisResult {
   imageName: string;
@@ -191,62 +192,68 @@ export function ImageDiagnosisWidget({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const preview = URL.createObjectURL(file);
+    setIsScanning(true);
+    setApplied(false);
     setCustomImageName(file.name);
-    setCustomImagePreview(preview);
     setSelectedSample('');
 
-    // Dynamic diagnosis based on file name or simulated deep scan
-    const lowerName = file.name.toLowerCase();
-    const isNotSurface = lowerName.includes('perro') || lowerName.includes('gato') || lowerName.includes('dog') || lowerName.includes('cat') || lowerName.includes('carro') || lowerName.includes('auto') || lowerName.includes('vehiculo') || lowerName.includes('comida') || lowerName.includes('food') || lowerName.includes('selfie') || lowerName.includes('persona') || lowerName.includes('mascota') || lowerName.includes('flor') || lowerName.includes('paisaje') || lowerName.includes('doc');
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const dataUrl = ev.target?.result as string;
+      setCustomImagePreview(dataUrl);
 
-    const isExteriorOrFachada = lowerName.includes('fachada') || lowerName.includes('ext') || lowerName.includes('edificio');
-    const isCielo = lowerName.includes('cielo') || lowerName.includes('techo');
+      const aiRes = await validatePhotoWithAI({
+        photoName: file.name,
+        previewUrl: dataUrl,
+        isOfficialSample: false
+      });
 
-    const generatedDiagnosis: ImageDiagnosisResult = isNotSurface
-      ? {
+      if (!aiRes.valid) {
+        const rejectedDiag: ImageDiagnosisResult = {
           imageName: file.name,
-          previewUrl: preview,
+          previewUrl: dataUrl,
           esSuperficieValida: false,
           sustratoDetectado: 'Concreto / Revoque',
           ambienteDetectado: 'Interior Seco',
           condicionDetectada: 'Pintada en buen estado',
           tipoPinturaRecomendado: 'Tipo 1',
-          patologias: ['No se detectó ninguna superficie arquitectónica o sustrato a pintar'],
+          patologias: [`Objeto detectado: ${aiRes.detectedObject || 'No es superficie arquitectónica'}`],
           nivelSeveridad: 'Baja',
-          resumenDiagnostico: `La imagen "${file.name}" analizada NO corresponde a una pared, fachada, cielo raso ni sustrato arquitectónico.`,
+          resumenDiagnostico: `La imagen "${file.name}" (${aiRes.detectedObject}) fue RECHAZADA por la IA porque NO corresponde a una fachada, pared ni superficie para pintar.`,
           pasosPreparacion: [],
-          productoRecomendado: 'No aplicable',
-          mensajeNoSuperficie: `⚠️ Imagen no válida para dosificación de pintura: La inteligencia artificial ha procesado la fotografía "${file.name}" y determinó que NO corresponde a una pared, fachada o superficie constructiva. Se detectaron objetos no relacionados con recubrimientos (ej: seres vivos, vehículos, comida o elementos personales). Por favor sube una foto nítida de la pared o fachada para poder calcular el Tipo de Pintura (Tipo 1, 2 o 3), el número de manos necesarias y el porcentaje de merma/desperdicio.`
-        }
-      : {
-          imageName: file.name,
-          previewUrl: preview,
-          esSuperficieValida: true,
-          sustratoDetectado: isCielo ? 'Drywall / Yeso' : 'Concreto / Revoque',
-          ambienteDetectado: isExteriorOrFachada ? 'Exterior Intemperie' : isCielo ? 'Interior Húmedo (Baños/Cocinas)' : 'Interior Seco',
-          condicionDetectada: isExteriorOrFachada ? 'Fisuras leves y humedad' : 'Pintada en buen estado',
-          tipoPinturaRecomendado: isExteriorOrFachada ? 'Tipo 1' : isCielo ? 'Tipo 3' : 'Tipo 2',
-          patologias: isExteriorOrFachada
-            ? ['Microfisuras térmicas en fachada', 'Filtración pluvial leve', 'Alcalinidad de revoque']
-            : ['Desgaste por uso superficial', 'Opacidad por antigüedad'],
-          nivelSeveridad: isExteriorOrFachada ? 'Media' : 'Baja',
-          resumenDiagnostico: `Análisis visual por IA completado para "${file.name}". Se identificó sustrato arquitectónico válido ${
-            isExteriorOrFachada ? 'de concreto exterior con necesidad de elasticidad' : 'interior estándar'
-          }. Clasificación técnica obligatoria: ${isExteriorOrFachada ? 'Tipo 1' : isCielo ? 'Tipo 3' : 'Tipo 2'}.`,
-          pasosPreparacion: [
-            '1. Limpieza y desengrase de la superficie.',
-            '2. Acondicionamiento con sellador antialcalino o imprimante según sustrato.',
-            `3. Aplicación de 2 a 3 manos de Pintura ${isExteriorOrFachada ? 'Tipo 1' : isCielo ? 'Tipo 3' : 'Tipo 2'}.`
-          ],
-          productoRecomendado: isExteriorOrFachada
-            ? 'Colorlink Koraza Pro Fachadas 100% Acrílica (Tipo 1)'
-            : isCielo
-            ? 'Colorlink Económica Cielorrasos & Fondeo (Tipo 3)'
-            : 'Colorlink Viniltex Muros Interiores Lavable (Tipo 2)'
+          productoRecomendado: 'No aplicable (Foto rechazada)',
+          mensajeNoSuperficie: `⚠️ Imagen rechazada por Visión Artificial: La IA detectó "${aiRes.detectedObject}". ${
+            aiRes.rejectionReason ||
+            'Solo se aceptan fotografías de fachadas, paredes, muros, cielorrasos o cosas para pintar, no fotos de personas, mascotas, vehículos ni objetos aleatorios.'
+          }`
         };
+        setActiveDiagnosis(rejectedDiag);
+        setIsScanning(false);
+        return;
+      }
 
-    runDiagnosisSimulation(generatedDiagnosis);
+      const validDiag: ImageDiagnosisResult = {
+        imageName: file.name,
+        previewUrl: dataUrl,
+        esSuperficieValida: true,
+        sustratoDetectado: (aiRes.sustrato as any) || 'Concreto / Revoque',
+        ambienteDetectado: aiRes.ambienteDetectado || 'Exterior Intemperie',
+        condicionDetectada: aiRes.condicionDetectada || 'Fisuras leves y humedad',
+        tipoPinturaRecomendado: aiRes.tipoPinturaRecomendado || 'Tipo 1',
+        patologias: [aiRes.condicion || 'Superficie arquitectónica verificada para recubrimiento'],
+        nivelSeveridad: 'Media',
+        resumenDiagnostico: `Superficie aprobada por IA (${aiRes.detectedObject}): ${aiRes.condicion}.`,
+        pasosPreparacion: [
+          '1. Limpieza de polvo, grasa y partículas sueltas de la superficie.',
+          '2. Imprimación con sellador técnico según el sustrato detectado.',
+          `3. Aplicación de 2 a 3 manos de Pintura ${aiRes.tipoPinturaRecomendado || 'Tipo 1'} según Norma NTC 1335.`
+        ],
+        productoRecomendado: aiRes.recomendacion || 'Colorlink Pro Fachadas & Muros NTC 1335'
+      };
+      setActiveDiagnosis(validDiag);
+      setIsScanning(false);
+    };
+    reader.readAsDataURL(file);
   };
 
   const runDiagnosisSimulation = (targetDiagnosis: ImageDiagnosisResult) => {

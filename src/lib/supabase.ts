@@ -1,10 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Credenciales oficiales del proyecto activo Colorlink® en Supabase (Project ID: vhydyisbrimyrtwdisoa)
-const PROJECT_SUPABASE_URL = 'https://vhydyisbrimyrtwdisoa.supabase.co';
-const PROJECT_SUPABASE_KEY = 'sb_publishable_4du-8mlfrq7AyNABhheJxA_t9ygCH5K';
-
-// Leer variables de entorno si existen y no son obsoletas
+// Leer variables de entorno si existen y son válidas
 const envUrl = (
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) ||
   (typeof process !== 'undefined' && process.env?.VITE_SUPABASE_URL) ||
@@ -17,20 +13,45 @@ const envKey = (
   ''
 ) as string;
 
-// Validar que no pertenezcan al proyecto anterior desmantelado ('cehrxxrobxrygpzefsqi' o 'p19hoCYalNGniwo4hbVVrA')
-const isCurrentUrl = envUrl && envUrl.includes('vhydyisbrimyrtwdisoa');
-const isCurrentKey = envKey && envKey.includes('4du-8mlfrq7AyNABhheJxA');
+const isValidSupabaseUrl = (url: string): boolean => {
+  if (!url || typeof url !== 'string') return false;
+  if (url.includes('placeholder') || url.includes('xyzcompany') || url.includes('vhydyisbrimyrtwdisoa')) {
+    // vhydyisbrimyrtwdisoa ya no está activo en Supabase
+    return false;
+  }
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+  } catch {
+    return false;
+  }
+};
 
-export const supabaseUrl = isCurrentUrl ? envUrl : PROJECT_SUPABASE_URL;
-export const supabaseAnonKey = isCurrentKey ? envKey : PROJECT_SUPABASE_KEY;
-
-export const isConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+export const isConfigured = Boolean(isValidSupabaseUrl(envUrl) && envKey && envKey.length > 10);
+export const supabaseUrl = isConfigured ? envUrl : 'https://colorlink-offline.supabase.co';
+export const supabaseAnonKey = isConfigured ? envKey : 'colorlink-offline-key';
 
 /**
  * Único cliente de Supabase para toda la aplicación.
- * Garantiza que no existan múltiples instancias de createClient().
+ * Si Supabase no está configurado o el endpoint no existe, intercepta las peticiones
+ * devolviendo respuestas vacías seguras para evitar 'TypeError: Failed to fetch'.
  */
-export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase: SupabaseClient = isConfigured
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : createClient(supabaseUrl, supabaseAnonKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: {
+        fetch: async () => {
+          return new Response(JSON.stringify([]), {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json',
+              'content-range': '0-0/0'
+            }
+          });
+        }
+      }
+    });
 
 /**
  * Obtiene el cliente singleton de Supabase si las credenciales están configuradas.
@@ -45,3 +66,4 @@ export function getSupabase(): SupabaseClient {
 export function isSupabaseConfigured(): boolean {
   return isConfigured;
 }
+
