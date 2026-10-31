@@ -1,5 +1,6 @@
 import emailjs from '@emailjs/browser';
 import { ProjectFormData, TechnicalCalculationResult } from '../types/form';
+import { sendRealOrderEmail } from '../lib/emailService';
 
 // Credenciales oficiales de EmailJS para Colorlink®
 const SERVICE_ID = (
@@ -222,7 +223,6 @@ export async function sendConfirmationEmail(
 
   // Enviar prioritariamente vía backend Express /api/send-email con HTML ultra colorido
   try {
-    const { sendRealOrderEmail } = await import('../lib/emailService');
     const res = await sendRealOrderEmail({
       to: recipientEmail,
       subject,

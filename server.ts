@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
 import { GoogleGenAI, Type } from '@google/genai';
@@ -7,7 +8,7 @@ import { GoogleGenAI, Type } from '@google/genai';
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 function getAiClient(): GoogleGenAI | null {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -1177,9 +1178,13 @@ app.post(['/api/send-email', '/send-email'], async (req, res) => {
   }
 });
 
-// Iniciar servidor con middleware de Vite (import dinámico para no empaquetar vite en Serverless / Vercel)
+// Iniciar servidor con middleware de Vite en desarrollo o estáticos en producción
 async function startServer() {
-  if (process.env.NODE_ENV !== 'production') {
+  const distPath = path.join(process.cwd(), 'dist');
+  const hasDist = fs.existsSync(path.join(distPath, 'index.html'));
+  const isProduction = process.env.NODE_ENV === 'production' || (hasDist && process.env.NODE_ENV !== 'development');
+
+  if (!isProduction) {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: {
@@ -1190,15 +1195,17 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
+      if (req.path.startsWith('/api/') || req.path === '/api') {
+        return res.status(404).json({ error: 'Endpoint no encontrado' });
+      }
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
 
   const server = app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[SERVER] Colorlink Backend & Vite corriendo en http://0.0.0.0:${PORT}`);
+    console.log(`[SERVER] Colorlink Backend corriendo en http://0.0.0.0:${PORT} (Modo: ${isProduction ? 'Producción' : 'Desarrollo'})`);
   });
 
   const handleShutdown = () => {

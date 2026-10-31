@@ -1,7 +1,7 @@
 import emailjs from '@emailjs/browser';
 import { formatCOP } from '../utils/calculator';
 import { ProjectFormData } from '../types/form';
-import { hasEmailBeenSent, recordEmailSent } from '../utils/emailService';
+import { hasEmailBeenSent, recordEmailSent, enqueueEmailJsSend, isMockDemoEmail } from '../utils/emailService';
 
 // ============================================================================
 // PALETA OFICIAL DE MARCA COLORLINK (5 COLORES VIVOS DEFINIDOS)
@@ -337,7 +337,6 @@ export async function sendRealOrderEmail(params: SendEmailParams): Promise<Email
   // 2. Envío directo al buzón del cliente con EmailJS (si el backend no tenía SMTP/Resend real)
   if (!realBackendDelivered) {
     try {
-      const { enqueueEmailJsSend, isMockDemoEmail } = await import('../utils/emailService');
       if (!isMockDemoEmail(recipientEmail)) {
         const serviceId = (
           (typeof import.meta !== 'undefined' && import.meta.env?.VITE_EMAILJS_SERVICE_ID) ||
