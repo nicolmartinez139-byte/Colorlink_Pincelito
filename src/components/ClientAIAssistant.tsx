@@ -43,14 +43,17 @@ interface ClientAIAssistantProps {
 }
 
 /**
- * Limpia cualquier expresión LaTeX ($m^2$, \text{}, \times, \%) o separadores Markdown (###, ---)
- * y renderiza las negritas (**texto**) limpiamente sin caracteres extraños.
+ * Limpia cualquier expresión LaTeX accidental conservando signos de moneda colombiana ($250.000 COP)
+ * y renderiza el texto con formato legible y fluido.
  */
 function sanitizeChatMessageText(raw: string): string {
   if (!raw) return '';
   return raw
+    // Limpiar bloques $$ ... $$ de ecuaciones LaTeX
     .replace(/\$\$([\s\S]*?)\$\$/g, '$1')
-    .replace(/\$([^$]+)\$/g, '$1')
+    // Limpiar $inline$ de LaTeX matemático sin borrar signos de peso ($250.000)
+    .replace(/\$([a-zA-Z\\][^$]*?)\$/g, '$1')
+    // Reemplazos de comandos LaTeX
     .replace(/\\text\{([^}]*)\}/g, '$1')
     .replace(/\\textbf\{([^}]*)\}/g, '$1')
     .replace(/\\mathrm\{([^}]*)\}/g, '$1')
@@ -63,25 +66,25 @@ function sanitizeChatMessageText(raw: string): string {
     .replace(/m\^3/g, 'm³')
     .replace(/\^2/g, '²')
     .replace(/\^3/g, '³')
-    .replace(/\\[a-zA-Z]+/g, '')
-    .replace(/\$/g, '')
+    .replace(/\\(quad|displaystyle|qquad|left|right|big|Big)/g, '')
+    // Eliminar separadores y cabeceras Markdown crudas
     .replace(/^---+$/gm, '')
     .replace(/^#{1,6}\s*/gm, '')
-    .replace(/^\s*\*\s+/gm, '• ')
-    .replace(/\*([^*\n]+)\*/g, '$1')
+    // Estandarizar viñetas con punto limpio
+    .replace(/^\s*[\*\-]\s+/gm, '• ')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
 
 function renderFormattedChatText(rawText: string) {
-  // Primero convertir **texto** en marcador temporal antes de limpiar * simples
-  const withBoldTokens = (rawText || '').replace(/\*\*([^*]+)\*\*/g, '⟪BOLD:$1⟫');
-  const cleaned = sanitizeChatMessageText(withBoldTokens);
-  const parts = cleaned.split(/(⟪BOLD:[^⟫]+⟫)/g);
+  if (!rawText) return null;
+  const cleaned = sanitizeChatMessageText(rawText);
+  // Dividir por bloques **texto en negrita**
+  const parts = cleaned.split(/(\*\*[^*]+\*\*)/g);
 
   return parts.map((part, idx) => {
-    if (part.startsWith('⟪BOLD:') && part.endsWith('⟫')) {
-      const content = part.slice(6, -1);
+    if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
+      const content = part.slice(2, -2);
       return (
         <strong key={idx} className="font-bold">
           {content}
@@ -109,7 +112,7 @@ export function ClientAIAssistant({
         '📐 ¿Cómo calculo los m² de mi fachada o pared?',
         '💧 Mi pared tiene humedad y pequeñas fisuras',
         '👤 Hablar con un asesor humano',
-        '🏢 Cargar datos de Constructora Horizonte'
+        '🏢 Cargar ejemplo técnico (Fachada 85 m²)'
       ]
     }
   ]);
@@ -420,23 +423,30 @@ export function ClientAIAssistant({
       return;
     }
 
-    // 1. Caso especial: Constructora Horizonte
-    if (lower.includes('horizonte') || lower.includes('caso')) {
+    // 1. Caso especial: Cargar ejemplo técnico (sin sobreescribir identidad del cliente autenticado)
+    if (lower.includes('horizonte') || lower.includes('caso') || lower.includes('ejemplo técnico')) {
       setTimeout(() => {
+        const hasExistingClient = Boolean(currentFormData.emailResponsable || currentFormData.nitDocumento);
         setMessages((prev) => [
           ...prev,
           {
             id: Date.now().toString(),
             sender: 'pincelito',
-            text: '¡Listo! He cargado el caso oficial de **Constructora Horizonte S.A.S.** en Medellín:\n\n• **Proyecto:** Fachada edificio de 5 pisos\n• **Área:** 85.00 m²\n• **Superficie:** Concreto exterior con fisuras y humedad\n• **Pintura recomendada:** Pintura Tipo 1 Exterior de Alta Resistencia (Gris Cemento Mate)\n• **Flete:** Medellín (Entrega en Furgón Colorlink #08)\n\n¿Deseas aplicar estos datos a tu formulario?',
+            text: hasExistingClient
+              ? `¡Listo! He cargado los parámetros técnicos del caso de ejemplo para tu obra:\n\n• **Proyecto:** Fachada edificio de 5 pisos\n• **Área:** 85.00 m²\n• **Superficie:** Concreto exterior con fisuras y humedad\n• **Pintura recomendada:** Pintura Tipo 1 Exterior de Alta Resistencia (Gris Cemento Mate)\n• **Protección de Datos:** Se conservan tus datos personales y empresariales actuales.\n\n¿Deseas aplicar estas especificaciones técnicas a tu formulario?`
+              : '¡Listo! He cargado el caso oficial de demostración técnica en Medellín:\n\n• **Proyecto:** Fachada edificio de 5 pisos\n• **Área:** 85.00 m²\n• **Superficie:** Concreto exterior con fisuras y humedad\n• **Pintura recomendada:** Pintura Tipo 1 Exterior de Alta Resistencia (Gris Cemento Mate)\n• **Flete:** Medellín\n\n¿Deseas aplicar estos datos a tu formulario?',
             timestamp: 'Ahora',
-            actionLabel: 'Aplicar datos de Constructora Horizonte',
+            actionLabel: 'Aplicar especificaciones técnicas (85 m²)',
             actionPayload: {
-              cliente: CASE_STUDY_PRESET.cliente || 'Constructora Horizonte S.A.S.',
-              nitDocumento: CASE_STUDY_PRESET.nitDocumento || '900854219',
-              responsable: CASE_STUDY_PRESET.responsable || 'Arq. Valentina Gómez',
-              emailResponsable: CASE_STUDY_PRESET.emailResponsable || 'vgomez@constructorahorizonte.com.co',
-              telefonoResponsable: CASE_STUDY_PRESET.telefonoResponsable || '+57 312 845 6721',
+              ...(hasExistingClient
+                ? {}
+                : {
+                    cliente: CASE_STUDY_PRESET.cliente || 'Constructora Horizonte S.A.S.',
+                    nitDocumento: CASE_STUDY_PRESET.nitDocumento || '900854219',
+                    responsable: CASE_STUDY_PRESET.responsable || 'Arq. Valentina Gómez',
+                    emailResponsable: CASE_STUDY_PRESET.emailResponsable || 'vgomez@constructorahorizonte.com.co',
+                    telefonoResponsable: CASE_STUDY_PRESET.telefonoResponsable || '+57 312 845 6721',
+                  }),
               ciudad: 'Medellín',
               tipoObra: 'Fachada Edificio',
               areaM2: 85,
@@ -489,6 +499,7 @@ export function ClientAIAssistant({
           query,
           formData: currentFormData,
           isAdvisorMode: false,
+          history: messages.slice(-5).map((m) => ({ sender: m.sender, text: m.text })),
           clientContext: {
             nombre: currentFormData.responsable || currentFormData.cliente,
             cliente: currentFormData.cliente,
@@ -517,6 +528,7 @@ export function ClientAIAssistant({
             timestamp: 'Ahora',
             options: [
               '📐 ¿Cómo calculo los m² de mi fachada o pared?',
+              '🎨 ¿Qué diferencia hay entre Tipo 1, 2 y 3?',
               '👤 Hablar con un asesor humano',
               '🏢 Cargar datos de Constructora Horizonte'
             ]
@@ -526,17 +538,44 @@ export function ClientAIAssistant({
         throw new Error('Sin respuesta');
       }
     } catch (err) {
-      // Fallback amigable
+      // Fallback inteligente multi-intención
+      const qLower = (query || '').toLowerCase().trim();
+      let fallbackText = '';
+
+      if (
+        qLower === 'hola' ||
+        qLower.startsWith('hola') ||
+        qLower.includes('buenos dias') ||
+        qLower.includes('buenos días') ||
+        qLower.includes('buenas tardes') ||
+        qLower.includes('saludos')
+      ) {
+        fallbackText = `¡Hola! 🐧🎨 Soy **Pincelito**, tu asistente oficial de pinturas Colorlink.\n\nEstoy aquí para resolver cualquier duda que tengas sobre:\n• Tipos de pintura (Tipo 1 Exterior, Tipo 2 Interior, Tipo 3 Cielos).\n• Rendimiento por metro cuadrado y dosificación de cuñetes.\n• Carta de colores y tintometría computarizada.\n• Diagnóstico y corrección de humedades o fisuras.\n\n¿En qué te puedo colaborar hoy?`;
+      } else if (qLower.includes('tipo 1') || qLower.includes('tipo 2') || qLower.includes('tipo 3') || qLower.includes('diferencia')) {
+        fallbackText = `🎨 **Diferencias Técnicas según Norma NTC 1335:**\n\n• **Tipo 1:** Máxima resistencia a intemperie (+400 ciclos de lavado). Ideal para fachadas, exteriores y zonas de alto tráfico.\n• **Tipo 2:** Interior lavable (+100 ciclos de lavado). Excelente acabado mate o satinado para salas, alcobas y oficinas.\n• **Tipo 3:** Económica para cielorrasos o primeras manos (bajo frote).`;
+      } else if (qLower.includes('precio') || qLower.includes('cuanto vale') || qLower.includes('costo') || qLower.includes('cuñete')) {
+        fallbackText = `💰 **Precios y Presentaciones Oficiales:**\n\n• **Cuñete (5 Galones / 18.9 L):** Desde $240.000 COP para Tipo 1 y $190.000 COP para Tipo 2.\n• **Galón (3.785 L):** Desde $55.000 a $75.000 COP según formulación.\n• Puedes ingresar el área de tu pared en el cotizador para obtener el presupuesto exacto con flete incluido.`;
+      } else if (qLower.includes('secado') || qLower.includes('secar') || qLower.includes('tiempo')) {
+        fallbackText = `⏱️ **Tiempos de Secado Recomendados:**\n\n• **Al tacto:** 30 a 60 minutos.\n• **Repinte (segunda mano):** 2 a 4 horas.\n• **Curado total / Lavabilidad:** 24 a 48 horas.`;
+      } else if (qLower.includes('color') || qLower.includes('colores') || qLower.includes('acabado') || qLower.includes('mate')) {
+        fallbackText = `🌈 **Carta de Colores & Tintometría Computarizada:**\n\n• Disponemos de más de **2,000 tonos formulados** en acabados **Mate** y **Satinado**.\n• Colores populares: Blanco Puro, Gris Cemento, Marfil Cálido, Arena Caribe y Gris Grafito.`;
+      } else if (qLower.includes('humedad') || qLower.includes('salitre') || qLower.includes('fisura')) {
+        fallbackText = `💧 **Protocolo Técnico contra Humedad:**\n\n1. Raspar pintura suelta y limpiar sales.\n2. Dejar secar el muro (<12% de humedad).\n3. Aplicar 1 mano de **Sellamur Hidrófugo**.\n4. Aplicar 2 manos de **Pintura Acrílica Tipo 1**.`;
+      } else {
+        fallbackText = `🐧 **Respuesta Técnica de Pincelito:**\n\nCon respecto a tu consulta sobre **"${query}"**:\n\n• En **Colorlink®** todas nuestras pinturas cumplen con las normas técnicas **NTC 1335 y NTC 5828** con pigmentos resistentes a la intemperie y cero VOC ecológico.\n• Para despachos en **${currentFormData.ciudad || 'Colombia'}**, contamos con furgones urbanos con entrega en 24h a 48h hábiles.\n• ¿Deseas que te ayude a calcular los metros cuadrados o prefieres hablar con un asesor técnico?`;
+      }
+
       setMessages((prev) => [
         ...prev,
         {
           id: Date.now().toString(),
           sender: 'pincelito',
-          text: `Con respecto a tu consulta sobre **"${query}"**:\n\n• En **Colorlink®** todas nuestras pinturas cumplen con las normas técnicas **NTC 1335 y NTC 5828** con pigmentos resistentes a intemperie y cero VOC.\n• Para despachos en **${currentFormData.ciudad || 'Colombia'}**, contamos con flota propia de furgones urbanos con entrega en 24h a 48h.\n• ¿Deseas que te ayude a calcular los metros cuadrados o prefieres hablar con un asesor humano?`,
+          text: fallbackText,
           timestamp: 'Ahora',
           options: [
-            '👤 Hablar con un asesor humano',
-            '📐 Calcular metros cuadrados'
+            '📐 ¿Cómo calculo los m² de mi fachada o pared?',
+            '🎨 ¿Qué diferencia hay entre Tipo 1, 2 y 3?',
+            '👤 Hablar con un asesor humano'
           ]
         }
       ]);
@@ -556,7 +595,7 @@ export function ClientAIAssistant({
   }
 
   return (
-    <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 w-[95vw] sm:w-[440px] max-h-[85vh] h-[640px] flex flex-col bg-white rounded-3xl shadow-2xl border border-sky-200 overflow-hidden animate-fadeIn">
+    <div className="fixed inset-x-2 bottom-2 sm:inset-x-auto sm:right-6 sm:bottom-6 z-50 w-auto sm:w-[440px] max-h-[92vh] sm:max-h-[85vh] h-[86vh] sm:h-[640px] flex flex-col bg-white rounded-3xl shadow-2xl border border-sky-200 overflow-hidden animate-fadeIn">
       {/* HEADER DE PINCELITO */}
       <div className="bg-gradient-to-r from-sky-500 via-sky-600 to-blue-700 text-white p-4 sm:p-5 flex items-center justify-between shadow-md relative shrink-0">
         <div className="flex items-center gap-3">

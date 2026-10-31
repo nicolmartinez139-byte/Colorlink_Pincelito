@@ -27,19 +27,19 @@ function getAiClient(): GoogleGenAI | null {
   }
 }
 
-// Función para limpiar cualquier rastro de LaTeX ($...$, \text{}, \times, m^2) o Markdown crudo
+// Función para limpiar cualquier rastro de LaTeX ($...$, \text{}, \times, m^2) o Markdown crudo conservando moneda ($250.000 COP)
 function cleanChatText(text: string): string {
   if (!text) return '';
   return text
     // Eliminar bloques $$ ... $$ conservando el contenido limpio
     .replace(/\$\$([\s\S]*?)\$\$/g, '$1')
-    // Eliminar bloques inline $ ... $ conservando el contenido
-    .replace(/\$([^$]+)\$/g, '$1')
-    // Reemplazar \text{...} por su contenido
+    // Eliminar bloques inline $ ... $ de LaTeX matemático sin borrar signos de peso ($250.000)
+    .replace(/\$([a-zA-Z\\][^$]*?)\$/g, '$1')
+    // Reemplazar comandos LaTeX específicos
     .replace(/\\text\{([^}]*)\}/g, '$1')
     .replace(/\\textbf\{([^}]*)\}/g, '$1')
     .replace(/\\mathrm\{([^}]*)\}/g, '$1')
-    // Símbolos matemáticos LaTeX comunes
+    // Símbolos matemáticos
     .replace(/\\times/g, '×')
     .replace(/\\cdot/g, '·')
     .replace(/\\div/g, '÷')
@@ -49,14 +49,12 @@ function cleanChatText(text: string): string {
     .replace(/m\^3/g, 'm³')
     .replace(/\^2/g, '²')
     .replace(/\^3/g, '³')
-    // Limpiar barras invertidas residuales de comandos LaTeX y signos $ sueltos
-    .replace(/\\[a-zA-Z]+/g, '')
-    .replace(/\$/g, '')
+    .replace(/\\(quad|displaystyle|qquad|left|right|big|Big)/g, '')
     // Limpiar separadores --- y encabezados ###
     .replace(/^---+$/gm, '')
     .replace(/^#{1,6}\s*/gm, '')
     // Convertir listas con * al inicio de línea en viñetas limpias •
-    .replace(/^\s*\*\s+/gm, '• ')
+    .replace(/^\s*[\*\-]\s+/gm, '• ')
     // Eliminar exceso de saltos de línea
     .replace(/\n{3,}/g, '\n\n')
     .trim();
@@ -277,8 +275,8 @@ Responde ÚNICAMENTE un objeto JSON válido con la siguiente estructura (sin mar
 
     const aiClient = getAiClient();
     if (aiClient) {
-      // Intentar primero con gemini-3.8-flash, o gemini-3.1-flash-lite si la cuota de flash está copada
-      const candidateModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
+      // Intentar primero con gemini-3.8-flash para máxima precisión técnica y redacción natural
+      const candidateModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
       for (const modelName of candidateModels) {
         try {
           const aiResponse = await aiClient.models.generateContent({
@@ -468,87 +466,90 @@ IMPORTANTE: Si el sujeto principal de la foto es una persona, selfie, mascota, c
 
     const aiClient = getAiClient();
     if (aiClient) {
-      try {
-        const textPrompt = `${systemPrompt}\n\nNombre del archivo: "${photoName || 'foto_subida.jpg'}". Contexto del formulario: ${JSON.stringify(currentContext || {})}`;
-        const contentsPayload = inlineDataPart
-          ? { parts: [inlineDataPart, { text: textPrompt }] }
-          : textPrompt;
+      const visionModels = ['gemini-3.1-flash-lite', 'gemini-3.8-flash'];
+      for (const modelName of visionModels) {
+        try {
+          const textPrompt = `${systemPrompt}\n\nNombre del archivo: "${photoName || 'foto_subida.jpg'}". Contexto del formulario: ${JSON.stringify(currentContext || {})}`;
+          const contentsPayload = inlineDataPart
+            ? { parts: [inlineDataPart, { text: textPrompt }] }
+            : textPrompt;
 
-        const aiResponse = await aiClient.models.generateContent({
-          model: 'gemini-3.8-flash',
-          contents: contentsPayload,
-          config: {
-            temperature: 0.1,
-            responseMimeType: 'application/json',
-            responseSchema: {
-              type: Type.OBJECT,
-              properties: {
-                valid: {
-                  type: Type.BOOLEAN,
-                  description: 'true SOLO si la imagen muestra una fachada, pared, muro, techo, piso o superficie/objeto arquitectónico para pintar. false si es cualquier otra cosa (persona, selfie, mascota, carro, comida, captura de pantalla, meme, objeto cotidiano).'
+          const aiResponse = await aiClient.models.generateContent({
+            model: modelName,
+            contents: contentsPayload,
+            config: {
+              temperature: 0.1,
+              responseMimeType: 'application/json',
+              responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                  valid: {
+                    type: Type.BOOLEAN,
+                    description: 'true SOLO si la imagen muestra una fachada, pared, muro, techo, piso o superficie/objeto arquitectónico para pintar. false si es cualquier otra cosa (persona, selfie, mascota, carro, comida, captura de pantalla, meme, objeto cotidiano).'
+                  },
+                  detectedObject: {
+                    type: Type.STRING,
+                    description: 'Lo que realmente se ve en la imagen en español (ej. "Fachada de concreto", "Pared interior en estuco", o si es inválida: "Persona / Selfie", "Mascota (Perro/Gato)", "Automóvil", "Captura de pantalla", "Comida", "Objeto personal").'
+                  },
+                  statusText: {
+                    type: Type.STRING,
+                    description: 'Si valid es true: "Revisada y Aprobada por IA Colorlink". Si valid es false: "Rechazada por IA • No es fachada, pared ni superficie para pintar".'
+                  },
+                  rejectionReason: {
+                    type: Type.STRING,
+                    description: 'Si valid es false, explica claramente por qué se rechazó (ej. "La imagen muestra [lo detectado] y no corresponde a una fachada, pared ni superficie arquitectónica para pintar."). Si valid es true, devuelve "".'
+                  },
+                  sustrato: {
+                    type: Type.STRING,
+                    description: 'Si valid es true, sustrato detectado ("Concreto / Revoque", "Drywall / Yeso", "Metal Ferroso", "Madera", "Pintura Existente", "Ladrillo / Mampostería"). Si valid es false: "No aplica (Imagen rechazada)".'
+                  },
+                  ambienteDetectado: {
+                    type: Type.STRING,
+                    description: 'Si valid es true: "Exterior Intemperie", "Interior Seco" o "Interior Húmedo (Baños/Cocinas)".'
+                  },
+                  condicionDetectada: {
+                    type: Type.STRING,
+                    description: 'Si valid es true: "Fisuras leves y humedad", "Descascaramiento severo", "Nueva sin pintar" o "Pintada en buen estado".'
+                  },
+                  tipoPinturaRecomendado: {
+                    type: Type.STRING,
+                    description: 'Si valid es true: "Tipo 1", "Tipo 2" o "Tipo 3".'
+                  },
+                  condicion: {
+                    type: Type.STRING,
+                    description: 'Estado observado en la superficie (si valid es true) o motivo de rechazo (si valid es false).'
+                  },
+                  recomendacion: {
+                    type: Type.STRING,
+                    description: 'Recomendación de pintura según NTC 1335 (si valid es true) o indicación de subir una foto real de fachada/pared (si valid es false).'
+                  },
+                  normaNTC: {
+                    type: Type.STRING,
+                    description: 'Si valid es true: "Norma Técnica Colombiana NTC 1335 Aprobada". Si valid es false: "No cumple requisito de evidencia arquitectónica".'
+                  }
                 },
-                detectedObject: {
-                  type: Type.STRING,
-                  description: 'Lo que realmente se ve en la imagen en español (ej. "Fachada de concreto", "Pared interior en estuco", o si es inválida: "Persona / Selfie", "Mascota (Perro/Gato)", "Automóvil", "Captura de pantalla", "Comida", "Objeto personal").'
-                },
-                statusText: {
-                  type: Type.STRING,
-                  description: 'Si valid es true: "Revisada y Aprobada por IA Colorlink". Si valid es false: "Rechazada por IA • No es fachada, pared ni superficie para pintar".'
-                },
-                rejectionReason: {
-                  type: Type.STRING,
-                  description: 'Si valid es false, explica claramente por qué se rechazó (ej. "La imagen muestra [lo detectado] y no corresponde a una fachada, pared ni superficie arquitectónica para pintar."). Si valid es true, devuelve "".'
-                },
-                sustrato: {
-                  type: Type.STRING,
-                  description: 'Si valid es true, sustrato detectado ("Concreto / Revoque", "Drywall / Yeso", "Metal Ferroso", "Madera", "Pintura Existente", "Ladrillo / Mampostería"). Si valid es false: "No aplica (Imagen rechazada)".'
-                },
-                ambienteDetectado: {
-                  type: Type.STRING,
-                  description: 'Si valid es true: "Exterior Intemperie", "Interior Seco" o "Interior Húmedo (Baños/Cocinas)".'
-                },
-                condicionDetectada: {
-                  type: Type.STRING,
-                  description: 'Si valid es true: "Fisuras leves y humedad", "Descascaramiento severo", "Nueva sin pintar" o "Pintada en buen estado".'
-                },
-                tipoPinturaRecomendado: {
-                  type: Type.STRING,
-                  description: 'Si valid es true: "Tipo 1", "Tipo 2" o "Tipo 3".'
-                },
-                condicion: {
-                  type: Type.STRING,
-                  description: 'Estado observado en la superficie (si valid es true) o motivo de rechazo (si valid es false).'
-                },
-                recomendacion: {
-                  type: Type.STRING,
-                  description: 'Recomendación de pintura según NTC 1335 (si valid es true) o indicación de subir una foto real de fachada/pared (si valid es false).'
-                },
-                normaNTC: {
-                  type: Type.STRING,
-                  description: 'Si valid es true: "Norma Técnica Colombiana NTC 1335 Aprobada". Si valid es false: "No cumple requisito de evidencia arquitectónica".'
-                }
-              },
-              required: [
-                'valid',
-                'detectedObject',
-                'statusText',
-                'rejectionReason',
-                'sustrato',
-                'condicion',
-                'recomendacion',
-                'normaNTC'
-              ]
+                required: [
+                  'valid',
+                  'detectedObject',
+                  'statusText',
+                  'rejectionReason',
+                  'sustrato',
+                  'condicion',
+                  'recomendacion',
+                  'normaNTC'
+                ]
+              }
             }
-          }
-        });
+          });
 
-        const rawText = aiResponse.text;
-        if (rawText) {
-          const parsed = JSON.parse(rawText);
-          return res.json({ success: true, diagnosis: parsed });
+          const rawText = aiResponse.text;
+          if (rawText) {
+            const parsed = JSON.parse(rawText);
+            return res.json({ success: true, diagnosis: parsed });
+          }
+        } catch (err: any) {
+          console.warn(`[AI PHOTO REVIEW] Error en llamada a Gemini Vision (${modelName}):`, err?.message || err);
         }
-      } catch (err: any) {
-        console.warn('[AI PHOTO REVIEW] Error en llamada a Gemini Vision:', err?.message || err);
       }
     }
 
@@ -622,73 +623,77 @@ app.post(['/api/pincelito-chat', '/pincelito-chat'], async (req, res) => {
     }
 
     const mergedData = { ...formData, ...clientContext };
-    const clientName = mergedData.responsable || mergedData.cliente || 'Cliente';
-    const company = mergedData.cliente || mergedData.empresa || 'Empresa';
+    const clientName = mergedData.responsable || mergedData.cliente || '';
+    const company = mergedData.cliente || mergedData.empresa || '';
     const city = mergedData.ciudad || 'Medellín';
-    const area = mergedData.areaM2 || 0;
-    const workType = mergedData.tipoObra || 'Obra arquitectónica';
+    const area = Number(mergedData.areaM2 || 0);
+    const workType = mergedData.tipoObra || '';
     const paintType = mergedData.tipoPintura || 'Pintura Tipo 1 Exterior NTC 1335';
     const brand = mergedData.marca || 'Colorlink® Pro';
-    const finishColor = mergedData.colorAcabado || 'Gris Cemento (Mate)';
-    const surface = mergedData.superficie || 'Concreto / Revoque';
-    const environment = mergedData.ambiente || 'Exterior Intemperie';
-    const condition = mergedData.condicion || 'Superficie estándar';
+    const finishColor = mergedData.colorAcabado || '';
+    const surface = mergedData.superficie || '';
+    const environment = mergedData.ambiente || '';
+    const condition = mergedData.condicion || '';
     const totalQuote = mergedData.totalCOP ? new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(mergedData.totalCOP) : '';
     const phone = mergedData.telefonoResponsable || mergedData.telefono || '';
 
     const systemPrompt = isAdvisorMode
       ? `Eres la Arq. Sofía Martínez 👩‍💼, Asesora Técnica Especialista de COLORLINK® Pinturas Colombia.
-Estás hablando directamente con el cliente en el chat corporativo de la plataforma.
+Estás hablando directamente con el cliente en el chat oficial de la empresa.
+Tu tono es profesional, cálido, experto y 100% natural colombiano. Respondes con total seguridad, empatía y claridad sobre especificaciones de pintura, preparación de superficies, normatividad NTC 1335 y logística de despacho.
 
-DATOS ESPECÍFICOS DEL CLIENTE (ÚSALOS SIEMPRE EN TU RESPUESTA DE MANERA NATURAL Y PERSONALIZADA):
-- Nombre del contacto: ${clientName}
-- Empresa / Proyecto: ${company}
-- Ciudad de la obra: ${city}
-- Tipo de obra: ${workType}
-- Área a pintar: ${area} m²
-- Pintura seleccionada: ${paintType} (${brand})
-- Color y acabado: ${finishColor}
-- Sustrato: ${surface}
-- Ambiente: ${environment}
-- Estado de la pared: ${condition}
-${totalQuote ? `- Cotización liquidada: ${totalQuote} COP` : ''}
-${phone ? `- Teléfono registrado: ${phone}` : ''}
+DATOS DEL CLIENTE EN SISTEMA:
+${clientName ? `• Cliente: ${clientName}` : ''}
+${company ? `• Empresa / Proyecto: ${company}` : ''}
+${city ? `• Ciudad: ${city}` : ''}
+${workType ? `• Obra: ${workType}` : ''}
+${area > 0 ? `• Área: ${area} m²` : ''}
+${paintType ? `• Pintura: ${paintType}` : ''}
+${finishColor ? `• Color: ${finishColor}` : ''}
+${surface ? `• Sustrato: ${surface}` : ''}
 
-REGLAS DE RESPUESTA DEL ASESOR:
-1. Dirígete siempre al cliente por su nombre (${clientName}) de forma cercana, profesional y empática.
-2. Haz referencia EXPLÍCITA a los datos de su proyecto (${workType} de ${area} m² en ${city}) y a la pintura elegida (${paintType} en ${finishColor}).
-3. Resuelve su duda puntual con criterio técnico arquitectónico (adherencia, sellador antialcalino, rendimiento de cuñetes, tiempos de secado de 2 a 4 horas entre manos, garantía de 5 a 7 años NTC 1335).
-4. Ofrece coordinar visita técnica presencial a la obra o ajustar el flete con nuestra flota de furgones Colorlink en ${city}.
-5. Si pregunta por stock o despacho, confirma que hay disponibilidad en el CEDI local de ${city} para despacho prioritario.
-6. Nunca des respuestas genéricas, frías o automáticas. Muestra conocimiento exacto de su cotización.
-7. PROHIBIDO usar sintaxis LaTeX: NUNCA uses signos de dólar ($ o $$), ni \\text{}, \\times, \\%, ni m^2. Escribe siempre m², ×, % y texto limpio en español.`
-      : `Eres Pincelito 🐧🎨, el asistente técnico oficial con inteligencia artificial de COLORLINK® Pinturas Colombia (marca aliada líder con certificación NTC 1335 y NTC 5828).
-Tu misión es resolver CUALQUIER pregunta técnica o comercial del cliente.
+PAUTAS DE RESPUESTA:
+1. Responde de forma directa, fluida y amigable a la consulta exacta del cliente.
+2. Si el cliente saluda, salúdalo con calidez y ponte a su servicio.
+3. Si pregunta sobre temas técnicos o de stock en ${city}, brinda una asesoría impecable.
+4. Usa viñetas (•) y negritas (**texto**) limpias. Precios siempre en formato colombiano ($ COP). Nunca uses sintaxis de LaTeX.`
+      : `Eres Pincelito 🐧🎨, el asistente técnico inteligente y oficial de COLORLINK® Pinturas Colombia (marca líder certificada con sellos NTC 1335 y NTC 5828).
+Tu personalidad es alegre, servicial, experta y muy profesional. Respondes en español colombiano de forma 100% natural, fluida y agradable.
 
-CONTEXTO COMPLETO DEL CLIENTE Y SU PROYECTO:
-- Cliente: ${clientName} (${company})
-- Ciudad: ${city}
-- Obra: ${workType} (${area} m²)
-- Sustrato: ${surface} (${environment}, ${condition})
-- Pintura: ${paintType} (${brand})
-- Color: ${finishColor}
-${totalQuote ? `- Cotización: ${totalQuote} COP` : ''}
-
-INSTRUCCIONES DE RESPUESTA:
-- Responde a CUALQUIER pregunta que el usuario haga con amabilidad, precisión técnica, tono profesional y empático.
-- Personaliza la respuesta mencionando los datos de su obra cuando sea pertinente.
-- Usa viñetas estructuradas con emojis acordes (•) cuando haya listas o pasos.
-- Si el usuario desea hablar con un asesor humano, indícale cordialmente que con gusto le comunicas con la Arq. Sofía Martínez y que sus datos ya están registrados.
-- PROHIBIDO usar sintaxis LaTeX: NUNCA uses signos de dólar ($ o $$), ni \\text{}, \\times, \\%, ni m^2. Escribe siempre en texto limpio y natural (por ejemplo: m², Ancho × Alto, 10 m, 5%, 100 m²). No uses ### ni ---.`;
+DIRECTRICES CLAVE:
+1. RESPONDE DIRECTAMENTE a lo que el usuario está preguntando, sin rodeos mecánicos ni respuestas robóticas.
+2. Si el usuario saluda ("hola", "buenas"), salúdalo con calidez ("¡Hola! Qué gusto saludarte 🐧🎨...") y pregúntale en qué puedes colaborarle hoy.
+3. Brinda información técnica precisa y comprensible:
+   • Tipo 1: Alta resistencia y lavabilidad (+400 ciclos), ideal para fachadas, exteriores y áreas de alto tráfico.
+   • Tipo 2: Interiores lavables (+100 ciclos), gran poder cubriente para salas, alcobas y oficinas.
+   • Tipo 3: Cielorrasos y primeras manos (bajo frote).
+   • Selladores antialcalinos e hidrófugos para proteger contra humedad, salitre o revoques nuevos.
+   • Rendimiento promedio: 20-25 m² por galón a 2 manos; 100-125 m² por cuñete (5 galones).
+   • Tiempos de secado: 30-60 min al tacto, 2-4 horas entre manos, curado total 24-48 horas.
+4. Precios orientativos: Cuñete Tipo 1 desde aprox. $240.000 COP, Tipo 2 desde aprox. $190.000 COP, Galón desde $55.000 COP.
+5. Si el usuario desea hablar con una persona, ofrécele amablemente comunicarlo con la Arq. Sofía Martínez.
+6. Formato limpio: Usa negritas (**términos clave**), viñetas limpias (•) y valores en $ COP y m². Cero LaTeX.`;
 
     const aiClient = getAiClient();
     if (aiClient) {
-      const candidateModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
+      const candidateModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
       for (const modelName of candidateModels) {
         try {
+          const conversationHistory = Array.isArray(history) && history.length > 0
+            ? history.slice(-4).map((h: any) => `${h.sender === 'user' ? 'Cliente' : 'Asistente'}: ${h.text || ''}`).join('\n')
+            : '';
+
+          const userPromptContent = conversationHistory
+            ? `Conversación previa:\n${conversationHistory}\n\nPregunta actual del usuario: "${query}"`
+            : query;
+
           const aiResponse = await aiClient.models.generateContent({
             model: modelName,
-            contents: `${systemPrompt}\n\nPregunta del usuario: "${query}"`,
+            contents: userPromptContent,
+            config: {
+              systemInstruction: systemPrompt,
+              temperature: 0.65
+            }
           });
 
           const replyText = aiResponse.text;
@@ -705,32 +710,174 @@ INSTRUCCIONES DE RESPUESTA:
       }
     }
 
-    // Motor de Respuesta Técnica Experta de Respaldo Altamente Personalizado
-    const qLower = query.toLowerCase();
+    // Motor de Inteligencia y Conocimiento Técnico Experto de Colorlink (Respaldo inteligente multi-intención)
+    const qLower = query.toLowerCase().trim();
     let expertReply = '';
 
+    const isGreeting =
+      qLower === 'hola' ||
+      qLower.startsWith('hola') ||
+      qLower.startsWith('buenas') ||
+      qLower.includes('buenos dias') ||
+      qLower.includes('buenos días') ||
+      qLower.includes('buenas tardes') ||
+      qLower.includes('buenas noches') ||
+      qLower.includes('saludos') ||
+      qLower === 'hey';
+
+    const isAboutPaintTypes =
+      qLower.includes('tipo 1') ||
+      qLower.includes('tipo 2') ||
+      qLower.includes('tipo 3') ||
+      qLower.includes('tipos de pintura') ||
+      qLower.includes('cual pintura') ||
+      qLower.includes('cuál pintura') ||
+      qLower.includes('que pintura') ||
+      qLower.includes('qué pintura') ||
+      qLower.includes('diferencia entre');
+
+    const isAboutColors =
+      qLower.includes('color') ||
+      qLower.includes('colores') ||
+      qLower.includes('paleta') ||
+      qLower.includes('carta') ||
+      qLower.includes('tono') ||
+      qLower.includes('acabado') ||
+      qLower.includes('mate') ||
+      qLower.includes('satinado') ||
+      qLower.includes('blanco') ||
+      qLower.includes('gris') ||
+      qLower.includes('tintometria') ||
+      qLower.includes('tintometría');
+
+    const isAboutPrices =
+      qLower.includes('precio') ||
+      qLower.includes('cuanto vale') ||
+      qLower.includes('cuánto vale') ||
+      qLower.includes('cuanto cuesta') ||
+      qLower.includes('cuánto cuesta') ||
+      qLower.includes('costo') ||
+      qLower.includes('valor') ||
+      qLower.includes('tarifa') ||
+      qLower.includes('presupuesto') ||
+      qLower.includes('descuento');
+
+    const isAboutTools =
+      qLower.includes('brocha') ||
+      qLower.includes('rodillo') ||
+      qLower.includes('herramienta') ||
+      qLower.includes('espatula') ||
+      qLower.includes('espátula') ||
+      qLower.includes('cinta') ||
+      qLower.includes('lija') ||
+      qLower.includes('bandeja');
+
+    const isAboutPreparation =
+      qLower.includes('como aplicar') ||
+      qLower.includes('cómo aplicar') ||
+      qLower.includes('preparar') ||
+      qLower.includes('preparacion') ||
+      qLower.includes('aplicacion') ||
+      qLower.includes('aplicación') ||
+      qLower.includes('manos') ||
+      qLower.includes('revoque') ||
+      qLower.includes('estuco');
+
+    const isAboutAdvisor =
+      qLower.includes('asesor') ||
+      qLower.includes('contacto') ||
+      qLower.includes('telefono') ||
+      qLower.includes('teléfono') ||
+      qLower.includes('humano') ||
+      qLower.includes('hablar') ||
+      qLower.includes('sofia') ||
+      qLower.includes('sofía');
+
+    const isAboutShipping =
+      qLower.includes('envio') ||
+      qLower.includes('envío') ||
+      qLower.includes('despacho') ||
+      qLower.includes('flete') ||
+      qLower.includes('entrega') ||
+      qLower.includes('tiempo de entrega') ||
+      qLower.includes('cedi') ||
+      qLower.includes('cobertura');
+
+    const isAboutWarranty =
+      qLower.includes('garantia') ||
+      qLower.includes('garantía') ||
+      qLower.includes('ntc') ||
+      qLower.includes('norma') ||
+      qLower.includes('certificacion') ||
+      qLower.includes('certificación') ||
+      qLower.includes('durabilidad');
+
+    const isAboutDrying =
+      qLower.includes('secado') ||
+      qLower.includes('secar') ||
+      qLower.includes('tiempo de secado') ||
+      qLower.includes('cuanto tarda');
+
+    const isAboutCoverage =
+      qLower.includes('rendimiento') ||
+      qLower.includes('cuanto rinde') ||
+      qLower.includes('cuánto rinde') ||
+      qLower.includes('galon') ||
+      qLower.includes('galón') ||
+      qLower.includes('cuñete') ||
+      qLower.includes('cunete') ||
+      qLower.includes('m2') ||
+      qLower.includes('metros cuadrados');
+
+    const isAboutHumidity =
+      qLower.includes('humedad') ||
+      qLower.includes('filtracion') ||
+      qLower.includes('filtración') ||
+      qLower.includes('salitre') ||
+      qLower.includes('hongo') ||
+      qLower.includes('moho') ||
+      qLower.includes('fisura') ||
+      qLower.includes('grieta') ||
+      qLower.includes('ampolla');
+
     if (isAdvisorMode) {
-      if (qLower.includes('stock') || qLower.includes('disponible') || qLower.includes('entrega') || qLower.includes('despacho')) {
-        expertReply = `Hola ${clientName}, acabo de verificar directamente en nuestro CEDI de ${city}: tenemos stock disponible de **${paintType}** para cubrir los **${area} m²** de tu proyecto en **${workType}**. Nuestro furgón Colorlink puede realizar la entrega con flete asegurado. ¿Deseas que coordinemos el despacho hoy mismo?`;
-      } else if (qLower.includes('visita') || qLower.includes('obra') || qLower.includes('revisar')) {
-        expertReply = `¡Por supuesto, ${clientName}! Para proyectos como tu ${workType} en ${city}, nuestro equipo de ingeniería realiza visitas técnicas sin costo adicional para verificar adherencia, humedad y alcalinidad del sustrato (${surface}) antes de aplicar la pintura. ¿Te contacto al ${phone || 'tu número registrado'} para agendarla?`;
-      } else if (qLower.includes('garantia') || qLower.includes('garantía') || qLower.includes('ntc')) {
-        expertReply = `${clientName}, la pintura **${paintType}** seleccionada para tu obra cuenta con garantía oficial certificada de **5 a 7 años** bajo las normas **NTC 1335 y NTC 5828**. Te adjuntamos la ficha técnica y certificado de laboratorio junto con el documento de despacho.`;
+      if (isGreeting) {
+        expertReply = `¡Hola ${clientName || 'estimado cliente'}! 👩‍💼 Te saluda la Arq. Sofía Martínez, especialista técnica de Colorlink Colombia.\n\nEstoy atenta para ayudarte con cualquier duda técnica de tu proyecto, cotización de cuñetes, especificación de pinturas bajo norma NTC o coordinación de despachos en ${city}. ¿En qué te puedo asesorar en este momento?`;
+      } else if (isAboutShipping || qLower.includes('stock')) {
+        expertReply = `Hola ${clientName || 'estimado cliente'}, he revisado la disponibilidad en nuestro CEDI de ${city}: tenemos stock de ${paintType} y furgones Colorlink programados con despacho prioritario en 24 a 48 horas. ¿Deseas que coordinemos la remisión oficial de entrega para tu obra?`;
+      } else if (isAboutWarranty) {
+        expertReply = `${clientName ? `${clientName}, t` : 'T'}e confirmo que todas nuestras formulaciones de ${paintType} cuentan con certificación oficial de calidad **NTC 1335** y garantía por escrito de **5 a 7 años** contra decoloración y desprendimiento prematuro. Te anexamos la ficha técnica con tu pedido.`;
       } else {
-        expertReply = `Hola ${clientName}, con respecto a tu consulta sobre "${query}": para tu obra de **${workType} (${area} m² en ${city})** con sustrato en **${surface}**, te confirmo que la especificación de **${paintType}** en acabado **${finishColor}** es técnicamente la ideal. Recomiendo aplicar una mano previa de sellador hidrófugo antialcalino para sellar la porosidad. ¿Deseas que ajustemos las cantidades o tienes alguna duda adicional?`;
+        expertReply = `Hola ${clientName || 'estimado cliente'}, con respecto a tu consulta sobre "${query}": te recomiendo verificar la adherencia del sustrato y aplicar una mano previa de sellador antialcalino para maximizar el anclaje de la pintura ${paintType} en ${finishColor || 'el acabado seleccionado'}. ¿Deseas que agendemos una visita técnica o tienes otra duda?`;
       }
     } else {
-      if (qLower.includes('secado') || qLower.includes('secar') || qLower.includes('tiempo')) {
-        expertReply = `⏱️ **Tiempos de Secado Recomendados para tu ${workType} (${paintType}):**\n\n• **Secado al tacto:** 30 a 60 minutos (en clima de ${city}).\n• **Segunda mano (repintabilidad):** 2 a 4 horas.\n• **Curado total y lavabilidad:** 24 a 48 horas para máxima resistencia a roce.\n\n*Consejo Pincelito:* En superficies de ${surface}, asegúrate de que no haya humedad residual antes de la primera mano.`;
-      } else if (qLower.includes('rendimiento') || qLower.includes('cuanto rinde') || qLower.includes('galon') || qLower.includes('cuñete')) {
-        const cunetesEst = Math.max(1, Math.ceil(area / 25));
-        expertReply = `📐 **Rendimiento Oficial para tus ${area} m² (${paintType}):**\n\n• **Por Galón (3.785 L):** Rinde entre **20 y 25 m² a 2 manos** sobre superficie sellada.\n• **Por Cuñete (5 Galones = 18.9 L):** Rinde entre **100 y 125 m² a 2 manos**.\n• Para los **${area} m²** de tu proyecto en **${city}**, se calculan aproximadamente **${cunetesEst} cuñetes** con 10% de desperdicio técnico incluido.`;
-      } else if (qLower.includes('humedad') || qLower.includes('filtracion') || qLower.includes('salitre') || qLower.includes('eflorescencia')) {
-        expertReply = `💧 **Protocolo Técnico contra Humedad en ${surface}:**\n\n1. **Limpieza profunda:** Retirar pintura suelta con espátula y cepillo de cerdas duras.\n2. **Neutralización:** Lavar con solución de agua y vinagre o desincrustante antialcalino si hay salitre blanco.\n3. **Barrera Hidrófuga:** Aplicar 1 mano de **Sellamur Hidrófugo Colorlink** (esperar 4 horas).\n4. **Acabado Elastomérico:** 2 manos de **${paintType}**, formulada con resinas acrílicas que no se ampollan.`;
-      } else if (qLower.includes('asesor') || qLower.includes('contacto') || qLower.includes('telefono') || qLower.includes('humano') || qLower.includes('hablar')) {
-        expertReply = `👤 **Atención Inmediata con la Arq. Sofía Martínez:**\n\n¡Por supuesto, ${clientName}! Te comunico de inmediato con nuestra asesora técnica especialista para tu proyecto en ${city}. Se registrarán tus datos para coordinar llamada o seguimiento por WhatsApp.`;
+      if (isGreeting) {
+        expertReply = `¡Hola! 🐧🎨 Soy **Pincelito**, tu asistente inteligente y consejero de pinturas Colorlink.\n\nEstoy aquí para resolver cualquier duda que tengas sobre:\n• Tipos de pintura (Tipo 1 Exterior, Tipo 2 Interior, Tipo 3 Cielos).\n• Rendimiento por metro cuadrado y cálculo de cuñetes.\n• Carta de colores computarizada y acabados mate/satinado.\n• Protocolos para corregir humedad, salitre o fisuras.\n• Herramientas profesionales (brochas y rodillos de microfibra).\n\n¿En qué te puedo colaborar el día de hoy?`;
+      } else if (isAboutPaintTypes) {
+        expertReply = `🎨 **Diferencias Técnicas entre Tipos de Pintura (Norma NTC 1335):**\n\n• **Tipo 1 (Exterior / Fachadas / Alto Tráfico):** Máxima resistencia a intemperie, sol y lluvia directa. Soporta más de **400 ciclos de lavado** sin desgaste. Formulada con resinas 100% acrílicas de alta elasticidad que no se ampollan.\n• **Tipo 2 (Interior Lavable):** Diseñada para muros interiores en salas, alcobas y oficinas. Soporta más de **100 ciclos de lavado**, con excelente poder cubriente y acabado terso.\n• **Tipo 3 (Cielorrasos / Bajo Frote):** Recomendada exclusivamente para techos o cielos falsos donde no hay roce ni contacto con humedad.`;
+      } else if (isAboutColors) {
+        expertReply = `🌈 **Carta de Colores & Tintometría Computarizada Colorlink:**\n\n• Contamos con más de **2,000 colores formulados** mediante dosificación giroscópica computarizada milimétrica.\n• **Acabados disponibles:** **Mate** (disimula imperfecciones del muro y no refleja destellos), **Satinado** (elegante brillo de seda, muy fácil de limpiar) y **Brillante**.\n• Los colores más solicitados para obra actual son: Blanco Puro, Gris Cemento, Marfil Cálido, Arena Caribe, Gris Grafito y Azul Cobalto.\n• Puedes elegir tu color directamente en el cotizador o escribir el código de tu agrado.`;
+      } else if (isAboutPrices) {
+        expertReply = `💰 **Precios y Formatos Oficiales Colorlink:**\n\n• **Cuñete (5 Galones = 18.9 L):** Es la presentación más económica por m². Tipo 1 desde aprox. $240.000 COP; Tipo 2 desde aprox. $190.000 COP.\n• **Galón (3.785 L):** Ideal para remates o áreas menores a 25 m². Desde $55.000 a $75.000 COP según especificación.\n• **Sellador Antialcalino / Hidrófugo:** Rinde 40 a 50 m² por galón.\n• En el cotizador puedes calcular el valor exacto de tu proyecto con flete incluido a ${city} y descuentos por volumen.`;
+      } else if (isAboutTools) {
+        expertReply = `🖌️ **Guía de Brochas y Rodillos Recomendados:**\n\n• **Rodillo Antigoteo de Microfibra (9"):** Perfecto para superficies lisas o estucadas. Deja un acabado parejo sin salpicaduras.\n• **Rodillo de Felpa Gruesa (3/4"):** Indispensable para revoques rústicos, ladrillo o texturas rugosas.\n• **Brochas Profesionales (2" a 4"):** Cerdas sintéticas suaves para recortar esquinas, marcos y uniones sin rayar la pared.\n• **Cinta de Enmascarar Azul:** Protege zócalos y marcos sin levantar la pintura al despegar.`;
+      } else if (isAboutPreparation) {
+        expertReply = `📋 **Paso a Paso Profesional para Aplicar Pintura:**\n\n1. **Preparación de Superficie:** La pared debe estar limpia, seca (humedad < 12%) y libre de polvo o grasa.\n2. **Lijado suave:** Si la pared ya tiene pintura previa brillante, líjala suavemente para abrir poro.\n3. **Sellador Imprimante:** Aplica 1 mano de sellador antialcalino si el revoque es nuevo o polvoso. Deja secar 3 a 4 horas.\n4. **Primera mano:** Aplica la pintura diluyendo máximo con 10% de agua limpia.\n5. **Segunda mano:** Aplica de 2 a 4 horas después en sentido cruzado para cobertura total.`;
+      } else if (isAboutDrying) {
+        expertReply = `⏱️ **Tiempos de Secado Oficiales (Norma NTC 1335):**\n\n• **Secado al tacto:** 30 a 60 minutos (a temperatura ambiente en ${city}).\n• **Segunda mano (Repinte):** 2 a 4 horas después de la primera mano.\n• **Secado total / Curado lavable:** 24 a 48 horas para alcanzar su máxima resistencia al lavado y roce.`;
+      } else if (isAboutCoverage) {
+        const estCun = area > 0 ? Math.max(1, Math.ceil(area / 25)) : 2;
+        expertReply = `📐 **Rendimiento Teórico y Práctico:**\n\n• **1 Galón (3.785 L):** Rinde de **20 a 25 m² a dos manos** sobre superficie debidamente sellada.\n• **1 Cuñete (5 Galones = 18.9 L):** Rinde de **100 a 125 m² a dos manos**.\n${area > 0 ? `• Para tus **${area} m²** registrados, se estiman aproximadamente **${estCun} cuñete(s)** con 10% de holgura por desperdicio.` : '• Puedes ingresar tus medidas en el cotizador para obtener la dosificación automática justa.'}`;
+      } else if (isAboutHumidity) {
+        expertReply = `💧 **Tratamiento Técnico contra Humedad y Salitre:**\n\n1. **Eliminar descascaramiento:** Raspar toda la pintura suelta y salitre con espátula de acero.\n2. **Neutralizar sales:** Lavar con una mezcla de agua y ácido muriático al 10% o vinagre blanco, y enjuagar con agua limpia.\n3. **Dejar secar 24 horas:** El muro debe tener menos del 12% de humedad interna.\n4. **Barrera Hidrófuga:** Aplicar 1 mano de **Sellamur Hidrófugo Colorlink**.\n5. **Pintura Acrílica Tipo 1:** Aplicar 2 manos de pintura elastomérica resistente a hongos y algas.`;
+      } else if (isAboutShipping) {
+        expertReply = `🚚 **Despachos y Cobertura Nacional Colorlink:**\n\n• Despachamos a **Medellín, Bogotá, Cali, Barranquilla, Bucaramanga, Cartagena, Envigado y Rionegro**.\n• Flota propia de camiones y furgones urbanos con seguimiento logístico.\n• **Tiempos de entrega:** En zonas metropolitanas de 24 a 48 horas hábiles.\n• Los pedidos incluyen remisión firmada y garantía oficial.`;
+      } else if (isAboutWarranty) {
+        expertReply = `🛡️ **Garantía y Sellos de Calidad:**\n\n• Nuestras pinturas están certificadas bajo las normas técnicas colombianas **NTC 1335** (Pinturas al agua tipo emulsión) y **NTC 5828** (Compuestos Orgánicos Volátiles - Cero VOC ecológico).\n• Otorgamos **garantía certificada de 5 a 7 años** para Pintura Tipo 1 en fachadas e intemperie.\n• Se entrega certificado de calidad con cada despacho.`;
+      } else if (isAboutAdvisor) {
+        expertReply = `👤 **Contacto con Asesor Técnico Especialista:**\n\nCon gusto te pongo en contacto con la **Arq. Sofía Martínez** 👩‍💼 de nuestro departamento técnico. Puedes consultar en el botón de Asesor en la plataforma para coordinar visitas técnicas a tu obra o resolver requerimientos especiales de formulación.`;
       } else {
-        expertReply = `🐧 **Respuesta Técnica Personalizada de Pincelito:**\n\nHola **${clientName}**, con respecto a tu consulta sobre **"${query}"** para tu obra en **${city} (${workType} de ${area} m²)**:\n\n• La formulación de **${paintType}** en acabado **${finishColor}** cumple estrictamente las normas **NTC 1335 y NTC 5828** para garantizar máxima cobertura y cero desprendimientos.\n• Disponemos de despacho prioritario desde nuestro CEDI local hacia tu dirección.\n• ¿Deseas que te comunique con la Arq. Sofía Martínez o necesitas calcular más materiales?`;
+        expertReply = `🐧 **Respuesta Técnica de Pincelito:**\n\nCon respecto a tu consulta sobre **"${query}"**:\n\n• En **Colorlink®** todas nuestras formulaciones cumplen estrictamente las normas **NTC 1335 y NTC 5828**, garantizando máxima adherencia, poder cubriente y durabilidad en interiores y exteriores.\n• Si deseas formular un color a la medida, calcular cuántos cuñetes necesitas o coordinar entrega en **${city}**, con gusto te asesoro paso a paso.\n\n¿Deseas que calculemos los metros cuadrados de tu pared o requieres comunicarte con un asesor humano?`;
       }
     }
 

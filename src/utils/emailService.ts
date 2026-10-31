@@ -24,6 +24,39 @@ export function isEmailConfigured(): boolean {
   return Boolean(SERVICE_ID && TEMPLATE_ID && PUBLIC_KEY);
 }
 
+// ============================================================================
+// REGISTRO DE DEDUPLICACIÓN PERSISTENTE DE CORREOS
+// Evita que los correos se reenvíen repetidamente cada vez que el usuario
+// inicia sesión, recarga la página o se actualiza un estado ya notificado.
+// ============================================================================
+const SENT_EMAILS_CACHE_KEY = 'colorlink_sent_emails_cache_v1';
+
+export function hasEmailBeenSent(cacheKey: string): boolean {
+  try {
+    if (typeof localStorage === 'undefined') return false;
+    const raw = localStorage.getItem(SENT_EMAILS_CACHE_KEY);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.includes(cacheKey)) {
+      return true;
+    }
+  } catch {}
+  return false;
+}
+
+export function recordEmailSent(cacheKey: string): void {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    const raw = localStorage.getItem(SENT_EMAILS_CACHE_KEY);
+    const parsed: string[] = raw ? JSON.parse(raw) : [];
+    if (!parsed.includes(cacheKey)) {
+      parsed.push(cacheKey);
+      const trimmed = parsed.slice(-500);
+      localStorage.setItem(SENT_EMAILS_CACHE_KEY, JSON.stringify(trimmed));
+    }
+  } catch {}
+}
+
 function formatCOP(value: number): string {
   return new Intl.NumberFormat('es-CO', {
     style: 'currency',
@@ -178,6 +211,13 @@ export async function sendConfirmationEmail(
     return { success: false, message: 'Correo de destino inválido' };
   }
 
+  // Deduplicación estricta: evitar reenvíos al iniciar sesión o recargar
+  const dedupeKey = `confirm_${orderNumber}_${recipientEmail.toLowerCase()}`;
+  if (hasEmailBeenSent(dedupeKey)) {
+    console.log('[EmailService] Correo de confirmación ya enviado previamente:', dedupeKey);
+    return { success: true, message: `Correo de cotización #${orderNumber} ya enviado previamente a ${recipientEmail}` };
+  }
+
   const subject = `🎨 COLORLINK® • Cotización Oficial Aprobada #${orderNumber} (${formData.cliente})`;
 
   // Enviar prioritariamente vía backend Express /api/send-email con HTML ultra colorido
@@ -201,6 +241,7 @@ export async function sendConfirmationEmail(
       statusMessage: 'Cotización Oficial Emitida & Registrada'
     });
     if (res.success) {
+      recordEmailSent(dedupeKey);
       return { success: true, message: `Correo de cotización enviado a ${recipientEmail}` };
     }
   } catch (err: any) {
@@ -249,6 +290,7 @@ export async function sendConfirmationEmail(
 
   try {
     const res = await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams, { publicKey: PUBLIC_KEY });
+    recordEmailSent(dedupeKey);
     return { success: true, message: `Correo enviado a ${recipientEmail}` };
   } catch (err: any) {
     return { success: false, message: err?.text || err?.message || 'Error al enviar correo con EmailJS' };
@@ -257,7 +299,7 @@ export async function sendConfirmationEmail(
 
 /**
  * Envía el correo de bienvenida oficial de Colorlink® al registrarse un nuevo cliente.
- * Se envía EXCLUSIVAMENTE al registrarse una nueva cuenta.
+ * Se envía EXCLUSIVAMENTE al registrarse una nueva cuenta (una sola vez por correo).
  */
 export async function sendRegistrationWelcomeEmail(params: {
   email: string;
@@ -269,6 +311,13 @@ export async function sendRegistrationWelcomeEmail(params: {
   const recipientEmail = params.email?.trim();
   if (!recipientEmail || !recipientEmail.includes('@')) {
     return { success: false, message: 'Correo de destino inválido' };
+  }
+
+  // Deduplicación estricta de correo de bienvenida: nunca enviar dos veces
+  const dedupeKey = `welcome_${recipientEmail.toLowerCase()}`;
+  if (hasEmailBeenSent(dedupeKey)) {
+    console.log('[EmailService] Correo de bienvenida ya enviado previamente:', dedupeKey);
+    return { success: true, message: `Bienvenida ya enviada previamente a ${recipientEmail}` };
   }
 
   const nombreCliente = params.nombre?.trim() || 'Cliente';
@@ -307,6 +356,7 @@ export async function sendRegistrationWelcomeEmail(params: {
     const data = await res.json();
     if (data.success && data.provider !== 'ethereal_sandbox' && data.provider !== 'ethereal_test') {
       console.log('[WELCOME EMAIL SUCCESS] Correo de bienvenida entregado vía backend:', recipientEmail);
+      recordEmailSent(dedupeKey);
       backendDelivered = true;
       return { success: true, message: `Bienvenida enviada a ${recipientEmail}` };
     }
@@ -375,12 +425,14 @@ export async function sendRegistrationWelcomeEmail(params: {
 
       await emailjs.send(SERVICE_ID, welcomeTemplateId, templateParams, { publicKey: PUBLIC_KEY });
       console.log('[EmailJS] Correo de bienvenida enviado exitosamente a:', recipientEmail);
+      recordEmailSent(dedupeKey);
       return { success: true, message: `Bienvenida enviada a ${recipientEmail}` };
     } catch (e: any) {
       console.warn('[EmailJS Welcome]', e);
     }
   }
 
+  recordEmailSent(dedupeKey);
   return { success: true, message: `Bienvenida registrada para ${recipientEmail}` };
 }
 
@@ -450,6 +502,13 @@ export async function sendOrderStatusUpdateEmail(params: {
   // No gastar cuota de EmailJS en los pedidos de muestra pre-cargados para no bloquear el correo real del cliente
   if (isMockDemoEmail(recipientEmail)) {
     return { success: true, message: `Notificación interna registrada para ${recipientEmail}` };
+  }
+
+  // Deduplicación estricta de actualización de estado: evitar reenvíos al iniciar sesión o recargar
+  const dedupeKey = `status_${params.orderId}_${params.status}_${recipientEmail.toLowerCase()}`;
+  if (hasEmailBeenSent(dedupeKey)) {
+    console.log('[EmailService] Notificación de estado ya enviada previamente:', dedupeKey);
+    return { success: true, message: `Notificación de etapa "${params.statusLabel}" ya enviada previamente a ${recipientEmail}` };
   }
 
   const appOrigin = typeof window !== 'undefined' && window.location?.origin
@@ -668,12 +727,15 @@ export async function sendOrderStatusUpdateEmail(params: {
       const res = await enqueueEmailJsSend(SERVICE_ID, TEMPLATE_ID, templateParams, PUBLIC_KEY);
       console.log('[EmailJS] ✓ Correo de cambio de etapa enviado:', res);
       emailJsDelivered = true;
+      recordEmailSent(dedupeKey);
+      // Retornar inmediatamente para evitar duplicar el correo con el backend Express
+      return { success: true, message: `Correo de etapa "${params.statusLabel}" enviado a ${recipientEmail}` };
     } catch (err: any) {
       console.warn('[EmailJS] Falló EmailJS, intentando con backend /api/send-email:', err);
     }
   }
 
-  // 2. Envío o registro simultáneo mediante backend Express /api/send-email
+  // 2. Envío de respaldo mediante backend Express /api/send-email SÓLO si EmailJS no fue entregado
   try {
     const response = await fetch('/api/send-email', {
       method: 'POST',
@@ -687,16 +749,15 @@ export async function sendOrderStatusUpdateEmail(params: {
     });
 
     const data = await response.json();
-    if (data.success || emailJsDelivered) {
+    if (data.success) {
+      recordEmailSent(dedupeKey);
       return { success: true, message: `Correo de etapa "${params.statusLabel}" enviado a ${recipientEmail}` };
     }
   } catch (backendErr: any) {
-    if (emailJsDelivered) {
-      return { success: true, message: `Correo de etapa "${params.statusLabel}" enviado a ${recipientEmail}` };
-    }
     console.warn('[BACKEND EMAIL ERROR]', backendErr);
   }
 
+  recordEmailSent(dedupeKey);
   return { success: true, message: `Notificación registrada para ${recipientEmail}` };
 }
 

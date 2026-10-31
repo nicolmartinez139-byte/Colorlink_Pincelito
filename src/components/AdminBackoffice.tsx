@@ -63,6 +63,8 @@ import cityCartagena from '../assets/images/city_cartagena_1790524611637.jpg';
 import cityBucaramanga from '../assets/images/city_bucaramanga_1790524624162.jpg';
 import cityEnvigado from '../assets/images/city_envigado_1790524807986.jpg';
 import cityRionegro from '../assets/images/city_rionegro_1790524818359.jpg';
+import factoryCediImg from '../assets/images/colorlink_factory_cedi_1793208138242.jpg';
+import tintometryLabImg from '../assets/images/tintometry_color_lab_1793208137962.jpg';
 
 export const CITY_IMAGES: Record<string, string> = {
   'Medellín': cityMedellin,
@@ -1216,70 +1218,147 @@ export function AdminBackoffice({
     };
   };
 
-  useEffect(() => {
-    const storedClientOrders = getSavedClientOrdersFromStorage();
-    const fromStorage: OrderItem[] = storedClientOrders.map((s) => ({
-      id: s.orderNumber || s.id || `ORD-${Date.now().toString().slice(-4)}`,
-      cliente: s.detalle?.obra || s.cliente || 'Cliente Colorlink',
-      nit: s.nit || 'S/N',
-      responsable: s.responsable || 'Responsable de Obra',
-      telefono: '+57 300 000 0000',
-      email: s.email || 'contacto@colorlink.com.co',
-      ciudad: s.detalle?.ciudad || s.ciudad || 'Medellín',
-      areaM2: Number(s.detalle?.areaM2 ?? s.areaM2 ?? 50),
-      tipoPintura: s.detalle?.tipoPintura || s.tipoPintura || 'Pintura Tipo 1 Exterior',
-      color: s.detalle?.color || s.color || 'Color Específico',
-      totalCOP: Number(s.total ?? s.totalCOP ?? 1500000),
-      status: s.estado || s.status || 'pendiente',
-      vehiculoAsignado: s.vehiculo,
-      placa: s.placa,
-      conductor: s.conductor,
-      notificaciones: []
-    }));
-
-    const fromSubmitted: OrderItem[] = (submittedProjects || []).map((p) => {
-      const savedMatch = storedClientOrders.find((s) => s.orderNumber === p.id || s.id === p.id);
-      return {
-        id: p.id,
-        cliente: p.formData?.cliente || 'Cliente Colorlink',
-        nit: p.formData?.nitDocumento || 'S/N',
-        responsable: p.formData?.responsable || 'Responsable de Obra',
-        telefono: p.formData?.telefonoResponsable || '+57 300 000 0000',
-        email: p.formData?.emailResponsable || 'contacto@colorlink.com.co',
-        ciudad: p.formData?.ciudad || 'Medellín',
-        areaM2: p.formData?.areaM2 || 50,
-        tipoPintura: p.formData?.tipoPintura || 'Pintura Tipo 1 Exterior',
-        color: p.formData?.colorAcabado || 'Color Específico',
-        totalCOP: p.totalCOP || 1500000,
-        status: savedMatch?.estado || savedMatch?.status || 'pendiente',
-        vehiculoAsignado: savedMatch?.vehiculo,
-        placa: savedMatch?.placa,
-        conductor: savedMatch?.conductor,
+  // Función robusta para sincronizar pedidos de todas las fuentes: Servidor (/api/orders), Almacenamiento Local y Sesión
+  const syncAllOrders = async () => {
+    try {
+      const storedClientOrders = getSavedClientOrdersFromStorage();
+      const fromStorage: OrderItem[] = storedClientOrders.map((s) => ({
+        id: s.orderNumber || s.id || `ORD-${Date.now().toString().slice(-4)}`,
+        cliente: s.cliente || s.detalle?.obra || 'Cliente Colorlink',
+        nit: s.nit || 'S/N',
+        responsable: s.responsable || 'Responsable de Obra',
+        telefono: (s as any).telefono || '+57 300 000 0000',
+        email: s.email || 'contacto@colorlink.com.co',
+        ciudad: s.ciudad || s.detalle?.ciudad || 'Medellín',
+        areaM2: Number(s.areaM2 ?? s.detalle?.areaM2 ?? 50),
+        tipoPintura: s.tipoPintura || s.detalle?.tipoPintura || 'Pintura Tipo 1 Exterior',
+        color: s.color || s.detalle?.color || 'Color Específico',
+        totalCOP: Number(s.totalCOP ?? s.total ?? 1500000),
+        status: (s.estado || s.status || 'pendiente') as any,
+        vehiculoAsignado: s.vehiculo,
+        placa: s.placa,
+        conductor: s.conductor,
         notificaciones: []
-      };
-    });
+      }));
 
-    const combinedClientOrders = [...fromSubmitted];
-    fromStorage.forEach((st) => {
-      if (!combinedClientOrders.some((c) => c.id === st.id)) {
-        combinedClientOrders.push(st);
-      }
-    });
-
-    if (combinedClientOrders.length > 0) {
-      setOrders((prev) => {
-        const existingIds = new Set(prev.map((o) => o.id));
-        const newOnes = combinedClientOrders.filter((o) => !existingIds.has(o.id));
-        if (newOnes.length === 0) return prev;
-        const autoProcessed = aiAutoPilotEnabled
-          ? newOnes.map((o) => generateAiAutoAssignment(o))
-          : newOnes;
-        return [...autoProcessed, ...prev];
+      const fromSubmitted: OrderItem[] = (submittedProjects || []).map((p) => {
+        const savedMatch = storedClientOrders.find((s) => s.orderNumber === p.id || s.id === p.id);
+        return {
+          id: p.id,
+          cliente: p.formData?.cliente || 'Cliente Colorlink',
+          nit: p.formData?.nitDocumento || 'S/N',
+          responsable: p.formData?.responsable || 'Responsable de Obra',
+          telefono: p.formData?.telefonoResponsable || '+57 300 000 0000',
+          email: p.formData?.emailResponsable || 'contacto@colorlink.com.co',
+          ciudad: p.formData?.ciudad || 'Medellín',
+          areaM2: Number(p.formData?.areaM2 || 50),
+          tipoPintura: p.formData?.tipoPintura || 'Pintura Tipo 1 Exterior',
+          color: p.formData?.colorAcabado || 'Color Específico',
+          totalCOP: Number(p.totalCOP || 1500000),
+          status: (savedMatch?.estado || savedMatch?.status || 'pendiente') as any,
+          vehiculoAsignado: savedMatch?.vehiculo,
+          placa: savedMatch?.placa,
+          conductor: savedMatch?.conductor,
+          notificaciones: []
+        };
       });
-      setSelectedOrderId((prevId) =>
-        prevId === 'PED-2026-081' ? combinedClientOrders[0].id : prevId
-      );
+
+      // Consultar directamente /api/orders para recibir pedidos enviados al backend
+      let fromServer: OrderItem[] = [];
+      try {
+        const res = await fetch('/api/orders');
+        if (res.ok) {
+          const json = await res.json();
+          if (json && Array.isArray(json.orders)) {
+            fromServer = json.orders.map((srv: any) => {
+              const fd = srv.formData || {};
+              return {
+                id: srv.orderNumber || srv.id,
+                cliente: srv.cliente || fd.cliente || srv.responsable || 'Cliente Colorlink',
+                nit: srv.nit || fd.nitDocumento || 'S/N',
+                responsable: srv.responsable || fd.responsable || 'Responsable de Obra',
+                telefono: fd.telefonoResponsable || srv.telefono || '+57 300 000 0000',
+                email: srv.email || fd.emailResponsable || 'contacto@colorlink.com.co',
+                ciudad: srv.ciudad || fd.ciudad || 'Medellín',
+                areaM2: Number(fd.areaM2 || srv.areaM2 || 50),
+                tipoPintura: fd.tipoPintura || srv.tipoPintura || 'Pintura Tipo 1 Exterior',
+                color: fd.colorAcabado || srv.color || 'Color Específico',
+                totalCOP: Number(srv.totalCOP || 0),
+                status: (srv.status || 'pendiente') as any,
+                vehiculoAsignado: srv.vehiculo,
+                placa: srv.placa,
+                conductor: srv.conductor,
+                notificaciones: srv.mensaje ? [{ tipo: 'email' as const, texto: srv.mensaje, fecha: 'Hoy' }] : []
+              };
+            });
+          }
+        }
+      } catch (e) {
+        // Continuar con almacenamiento local
+      }
+
+      // Consolidar todos los pedidos garantizando unicidad y sin perder ninguno
+      const incomingList = [...fromServer, ...fromSubmitted, ...fromStorage];
+      const uniqueIncoming: OrderItem[] = [];
+      const seenIds = new Set<string>();
+
+      for (const item of incomingList) {
+        if (!item.id || seenIds.has(item.id)) continue;
+        seenIds.add(item.id);
+        uniqueIncoming.push(item);
+      }
+
+      if (uniqueIncoming.length > 0) {
+        setOrders((prev) => {
+          const prevMap = new Map<string, OrderItem>(prev.map((o) => [o.id, o]));
+          const nextList = [...prev];
+
+          for (const inc of uniqueIncoming) {
+            const existing = prevMap.get(inc.id);
+            if (!existing) {
+              const processed = aiAutoPilotEnabled ? generateAiAutoAssignment(inc) : inc;
+              nextList.unshift(processed);
+              prevMap.set(inc.id, processed);
+            } else {
+              // Si ya existe, actualizar respetando la regla inviolable: si ya fue entregado, NUNCA retrocede
+              const finalStatus =
+                existing.status === 'entregado' && inc.status !== 'entregado'
+                  ? 'entregado'
+                  : inc.status || existing.status;
+
+              const merged: OrderItem = {
+                ...existing,
+                ...inc,
+                status: finalStatus,
+                vehiculoAsignado: inc.vehiculoAsignado || existing.vehiculoAsignado,
+                placa: inc.placa || existing.placa,
+                conductor: inc.conductor || existing.conductor
+              };
+              const idx = nextList.findIndex((o) => o.id === inc.id);
+              if (idx >= 0) nextList[idx] = merged;
+            }
+          }
+
+          return nextList;
+        });
+
+        setSelectedOrderId((prevId) => {
+          if (!prevId || prevId === 'PED-2026-081') {
+            return uniqueIncoming[0]?.id || prevId;
+          }
+          return prevId;
+        });
+      }
+    } catch (err) {
+      console.warn('[Sync Orders Error]', err);
     }
+  };
+
+  useEffect(() => {
+    syncAllOrders();
+    // Sondeo periódico cada 4 segundos para reflejar pedidos en tiempo real
+    const interval = setInterval(syncAllOrders, 4000);
+    return () => clearInterval(interval);
   }, [submittedProjects, aiAutoPilotEnabled]);
 
   // Ejecutar Auto-Asignación IA para un pedido individual
@@ -1319,118 +1398,8 @@ export function AdminBackoffice({
   // Requirement: 2s -> Tintometría | 20 min -> Despachando con mensaje | 20 min -> Entregado
   // =========================================================================
 
-  // 1. Temporizador de 2 segundos: Pedidos pendientes ingresan a Tintometría ('preparando')
-  useEffect(() => {
-    if (!autoLifecycleEnabled) return;
-    const pendingOrders = orders.filter((o) => o.status === 'pendiente');
-    if (pendingOrders.length === 0) return;
-
-    const timer = setTimeout(() => {
-      pendingOrders.forEach((o) => {
-        const autoAssigned = generateAiAutoAssignment(o);
-        const stateMsg = buildOrderStateMessage({
-          status: 'preparando',
-          orderId: o.id,
-          cliente: o.cliente,
-          responsable: o.responsable,
-          color: o.color,
-          tipoPintura: o.tipoPintura,
-          ciudad: o.ciudad,
-          totalCOP: o.totalCOP,
-          vehiculo: autoAssigned.vehiculoAsignado,
-          conductor: autoAssigned.conductor,
-          placa: autoAssigned.placa
-        });
-
-        saveClientOrderToHistory({
-          id: o.id,
-          orderNumber: o.id,
-          fecha: new Date().toISOString(),
-          cliente: o.cliente,
-          nit: o.nit,
-          responsable: o.responsable,
-          email: o.email,
-          ciudad: o.ciudad,
-          areaM2: o.areaM2,
-          tipoPintura: o.tipoPintura,
-          color: o.color,
-          totalCOP: o.totalCOP,
-          status: 'preparando',
-          vehiculo: autoAssigned.vehiculoAsignado,
-          conductor: autoAssigned.conductor,
-          placa: autoAssigned.placa,
-          mensaje: stateMsg.mensajeNotificacion
-        });
-
-        sendOrderStatusUpdateEmail({
-          orderId: o.id,
-          cliente: o.cliente,
-          responsable: o.responsable,
-          email: o.email,
-          status: 'preparando',
-          statusLabel: stateMsg.statusLabel,
-          mensaje: stateMsg.mensajeEmail,
-          vehiculo: autoAssigned.vehiculoAsignado,
-          conductor: autoAssigned.conductor,
-          placa: autoAssigned.placa,
-          ciudad: o.ciudad,
-          totalCOP: o.totalCOP
-        }).catch(() => {});
-
-        fetch('/api/orders', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            orderNumber: o.id,
-            cliente: o.cliente,
-            responsable: o.responsable,
-            email: o.email,
-            ciudad: o.ciudad,
-            status: 'preparando',
-            totalCOP: o.totalCOP,
-            mensaje: stateMsg.mensajeNotificacion
-          })
-        }).catch(() => {});
-      });
-
-      setOrders((prev) =>
-        prev.map((o) => {
-          if (o.status === 'pendiente') {
-            const autoAssigned = generateAiAutoAssignment(o);
-            const stateMsg = buildOrderStateMessage({
-              status: 'preparando',
-              orderId: o.id,
-              cliente: o.cliente,
-              responsable: o.responsable,
-              color: o.color,
-              tipoPintura: o.tipoPintura,
-              ciudad: o.ciudad,
-              totalCOP: o.totalCOP,
-              vehiculo: autoAssigned.vehiculoAsignado,
-              conductor: autoAssigned.conductor,
-              placa: autoAssigned.placa
-            });
-            return {
-              ...autoAssigned,
-              status: 'preparando',
-              notificaciones: [
-                {
-                  tipo: 'email',
-                  texto: stateMsg.mensajeNotificacion,
-                  fecha: 'Ahora mismo (En Tintometría)'
-                },
-                ...(o.notificaciones || [])
-              ]
-            };
-          }
-          return o;
-        })
-      );
-      showToast('🎨 [Estado: En Tintometría] Pedido(s) ingresaron al laboratorio con mensaje de dosificación.');
-    }, 2000);
-
-    return () => clearTimeout(timer);
-  }, [orders, autoLifecycleEnabled]);
+  // 1. Los pedidos 'pendiente' (Aceptados por el Cliente) deben ser auditados y aprobados por la IA antes de ingresar a Tintometría
+  // No se adelantan a ciegas: se aprueban mediante el Auto-Piloto IA o la Auditoría en vivo de Pincelito Inspector
 
   // 2. Función para avanzar el ciclo de etapas en todos los pedidos
   const advanceAllOrdersCycle = () => {
@@ -2127,178 +2096,240 @@ export function AdminBackoffice({
         </div>
       )}
 
-      {/* HEADER OPERATIVO CLARO Y PINTURESCO COLORLINK */}
-      <div className="bg-gradient-to-r from-white via-sky-50/60 to-blue-50/40 rounded-3xl p-6 sm:p-7 border border-sky-200/90 shadow-sm relative overflow-hidden">
-        {/* Decoración sutil de fondo */}
-        <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-br from-sky-400/10 via-blue-400/10 to-cyan-400/10 rounded-full blur-3xl pointer-events-none" />
+      {/* HEADER OPERATIVO CLARO Y PINTURESCO COLORLINK CON FOTO REAL DE CEDI & FÁBRICA */}
+      <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm relative overflow-hidden">
+        {/* Barra de colores vivos Colorlink */}
+        <div className="h-2 w-full bg-gradient-to-r from-[#FF5500] via-[#FF007A] via-[#0055FF] via-[#00D2FF] to-[#10E57A]" />
 
-        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
-          <div className="space-y-1.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="px-3 py-1 bg-sky-600 text-white text-xs font-bold rounded-full flex items-center gap-1.5 shadow-xs">
-                <ShieldCheck className="w-3.5 h-3.5 text-sky-200" />
-                Panel de Supervisión & Operaciones Colorlink®
-              </span>
-              <span className="px-3 py-1 bg-amber-100 text-amber-900 text-xs font-bold rounded-full border border-amber-200">
-                Supervisor: Ing. Carlos Mario Restrepo
+        <div className="p-6 sm:p-7 relative z-10">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+            {/* Columna Izquierda: Información Operativa & Título */}
+            <div className="lg:col-span-7 space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="px-3 py-1 bg-gradient-to-r from-sky-600 to-blue-600 text-white text-xs font-bold rounded-full flex items-center gap-1.5 shadow-xs">
+                  <ShieldCheck className="w-3.5 h-3.5 text-sky-200" />
+                  <span>Centro Nacional de Operaciones & Despachos Colorlink®</span>
+                </span>
+                <span className="px-3 py-1 bg-amber-50 text-amber-900 text-xs font-bold rounded-full border border-amber-200 flex items-center gap-1">
+                  <User className="w-3 h-3 text-amber-700" />
+                  <span>Supervisor: Ing. Carlos Mario Restrepo</span>
+                </span>
+                <span className="px-2.5 py-1 bg-emerald-50 text-emerald-800 text-[11px] font-black rounded-full border border-emerald-200 flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>En Línea</span>
+                </span>
+              </div>
+
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                  <span>Gestión de Pedidos & Logística Nacional</span>
+                  <span className="text-2xl">🐧</span>
+                </h1>
+                <p className="text-slate-600 text-xs sm:text-sm max-w-2xl mt-1 leading-relaxed">
+                  Supervisión y trazabilidad de pedidos en tiempo real, asignación autónoma de buses nodriza y rutas con IA, verificación de inventario y mensajería automática por correo electrónico.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={onBackToClientView}
+                  className="px-4 py-2.5 bg-gradient-to-r from-sky-600 to-blue-600 hover:brightness-110 text-white text-xs font-black rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                >
+                  <Eye className="w-4 h-4 text-sky-200" />
+                  <span>Ver Portal del Cliente</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onBackToClientView}
+                  className="px-3.5 py-2.5 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 text-xs font-bold rounded-xl transition-all border border-slate-200 flex items-center gap-1.5 cursor-pointer"
+                  title="Salir del Modo Administrador"
+                >
+                  <LogOut className="w-4 h-4 text-slate-500" />
+                  <span>Cerrar Sesión</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Columna Derecha: Tarjeta Fotográfica de Fábrica & CEDI Central */}
+            <div className="lg:col-span-5 rounded-2xl overflow-hidden border border-slate-200 shadow-sm relative group">
+              <div className="relative h-44 sm:h-48 w-full overflow-hidden bg-slate-900">
+                <img
+                  src={factoryCediImg}
+                  alt="Planta de Producción y CEDI Central Colorlink"
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/40 to-transparent" />
+                <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
+                  <span className="px-2.5 py-0.5 rounded-md bg-white/95 text-slate-900 text-[10px] font-black uppercase tracking-wider shadow-xs flex items-center gap-1">
+                    <Building2 className="w-3 h-3 text-[#FF5500]" />
+                    <span>Planta Central Medellín</span>
+                  </span>
+                </div>
+                <div className="absolute bottom-3 left-3.5 right-3.5 text-white">
+                  <h3 className="text-xs sm:text-sm font-black leading-snug text-white">
+                    Mega CEDI & Flota de Despacho Nacional
+                  </h3>
+                  <div className="flex items-center justify-between text-[11px] text-sky-200 font-bold mt-1">
+                    <span>✓ 8 Sedes Conectadas</span>
+                    <span className="font-mono text-white/90">Capacidad: 8.500 cuñ/mes</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* RESUMEN EJECUTIVO DE OPERACIONES (MÉTRICAS CLAVE EN MONOSPACE TABULAR NUMS) */}
+          <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3 pt-5 border-t border-slate-100">
+            <div className="p-3.5 rounded-2xl bg-slate-50/80 border border-slate-200/90 shadow-2xs">
+              <div className="flex items-center justify-between text-slate-400 mb-1">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  Facturación Acumulada
+                </span>
+                <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+              </div>
+              <strong className="text-lg sm:text-xl font-black text-slate-900 block font-mono tabular-nums">
+                {formatCOP(totalNacionalCOP)}
+              </strong>
+              <span className="text-[10px] text-emerald-700 font-bold block mt-0.5">
+                ✓ {orders.length} pedidos registrados
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-              <span>Gestión de Pedidos & Logística Colorlink</span>
-              <span className="text-2xl">🐧</span>
-            </h1>
-            <p className="text-slate-600 text-xs sm:text-sm max-w-2xl leading-relaxed">
-              Supervisión de pedidos en tiempo real, asignación autónoma de buses y rutas con IA, verificación de existencias y mensajería automática al cliente.
-            </p>
+
+            <div className="p-3.5 rounded-2xl bg-slate-50/80 border border-slate-200/90 shadow-2xs">
+              <div className="flex items-center justify-between text-slate-400 mb-1">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  Red de CEDIs
+                </span>
+                <MapPin className="w-3.5 h-3.5 text-sky-600" />
+              </div>
+              <strong className="text-lg sm:text-xl font-black text-slate-900 block font-mono tabular-nums">
+                {cityAnalytics.length} Sedes Nacionales
+              </strong>
+              <span className="text-[10px] text-sky-700 font-bold block mt-0.5 truncate">
+                {cityAnalytics[0]?.ciudad || 'Medellín'} (Sede Líder)
+              </span>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-slate-50/80 border border-slate-200/90 shadow-2xs">
+              <div className="flex items-center justify-between text-slate-400 mb-1">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  Base de Clientes
+                </span>
+                <Users className="w-3.5 h-3.5 text-purple-600" />
+              </div>
+              <strong className="text-lg sm:text-xl font-black text-slate-900 block font-mono tabular-nums">
+                {supabaseClients.length} Registrados
+              </strong>
+              <span className="text-[10px] text-purple-700 font-bold block mt-0.5">
+                Directorio en la nube
+              </span>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-slate-50/80 border border-slate-200/90 shadow-2xs">
+              <div className="flex items-center justify-between text-slate-400 mb-1">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  Auto-Piloto IA
+                </span>
+                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              </div>
+              <strong className="text-lg sm:text-xl font-black text-slate-900 block font-mono">
+                Pincelito IA
+              </strong>
+              <span className="text-[10px] text-emerald-700 font-bold block mt-0.5">
+                ● Auditoría & Despacho Activos
+              </span>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2.5 shrink-0">
+          {/* TABS PRINCIPALES DE GESTIÓN (SEGMENTED CONTROL CON CONTADORES) */}
+          <div className="mt-5 pt-4 border-t border-slate-100 grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2">
+            {/* Tab 1: Pedidos */}
             <button
               type="button"
-              onClick={onBackToClientView}
-              className="px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+              onClick={() => setActiveTab('pedidos')}
+              className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-between sm:justify-start gap-1.5 sm:gap-2 cursor-pointer ${
+                activeTab === 'pedidos'
+                  ? 'bg-gradient-to-r from-sky-600 to-blue-600 text-white shadow-md shadow-blue-500/20'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200/80'
+              }`}
             >
-              <Eye className="w-4 h-4 text-sky-200" />
-              <span>Ver Vista Cliente</span>
+              <div className="flex items-center gap-1.5 truncate">
+                <Truck className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                <span className="sm:hidden truncate">Pedidos</span>
+                <span className="hidden sm:inline">Supervisión de Pedidos & Despacho IA</span>
+              </div>
+              <span className={`px-1.5 sm:px-2 py-0.5 rounded-md text-[10px] font-mono font-black shrink-0 ${
+                activeTab === 'pedidos' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
+              }`}>
+                {orders.length}
+              </span>
             </button>
+
+            {/* Tab 2: Ciudades con fotos */}
             <button
               type="button"
-              onClick={onBackToClientView}
-              className="p-2.5 text-slate-500 hover:text-slate-800 bg-white hover:bg-slate-100 rounded-xl transition-all border border-slate-200 cursor-pointer"
-              title="Salir"
+              onClick={() => setActiveTab('ciudades')}
+              className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-between sm:justify-start gap-1.5 sm:gap-2 cursor-pointer ${
+                activeTab === 'ciudades'
+                  ? 'bg-gradient-to-r from-[#FF5500] to-[#FF8800] text-white shadow-md shadow-orange-500/20'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200/80'
+              }`}
             >
-              <LogOut className="w-4 h-4" />
+              <div className="flex items-center gap-1.5 truncate">
+                <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                <span className="sm:hidden truncate">Sedes</span>
+                <span className="hidden sm:inline">Sedes & Ventas por Ciudad</span>
+              </div>
+              <span className={`px-1.5 sm:px-2 py-0.5 rounded-md text-[10px] font-mono font-black shrink-0 ${
+                activeTab === 'ciudades' ? 'bg-white/20 text-white' : 'bg-orange-100 text-orange-900'
+              }`}>
+                {cityAnalytics.length}
+              </span>
+            </button>
+
+            {/* Tab 3: Clientes */}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('clientes');
+                fetchClientsFromSupabase();
+              }}
+              className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-between sm:justify-start gap-1.5 sm:gap-2 cursor-pointer ${
+                activeTab === 'clientes'
+                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-500/20'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200/80'
+              }`}
+            >
+              <div className="flex items-center gap-1.5 truncate">
+                <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                <span className="sm:hidden truncate">Clientes</span>
+                <span className="hidden sm:inline">Directorio de Clientes</span>
+              </div>
+              <span className={`px-1.5 sm:px-2 py-0.5 rounded-md text-[10px] font-mono font-black shrink-0 ${
+                activeTab === 'clientes' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-900'
+              }`}>
+                {supabaseClients.length}
+              </span>
+            </button>
+
+            {/* Tab 4: Inventario */}
+            <button
+              type="button"
+              onClick={() => setActiveTab('stock')}
+              className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-between sm:justify-start gap-1.5 sm:gap-2 cursor-pointer ${
+                activeTab === 'stock'
+                  ? 'bg-gradient-to-r from-[#FF007A] to-purple-600 text-white shadow-md shadow-pink-500/20'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200/80'
+              }`}
+            >
+              <div className="flex items-center gap-1.5 truncate">
+                <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                <span className="sm:hidden truncate">Inventario</span>
+                <span className="hidden sm:inline">Inventario & Fórmulas Tintométricas</span>
+              </div>
             </button>
           </div>
-        </div>
-
-        {/* RESUMEN EJECUTIVO DE OPERACIONES (MÉTRICAS CLAVE) */}
-        <div className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-3 pt-5 border-t border-slate-200/90">
-          <div className="p-3.5 rounded-2xl bg-white/90 border border-slate-200/80 shadow-2xs">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-              Facturación Acumulada
-            </span>
-            <strong className="text-base sm:text-lg font-black text-slate-900 block mt-0.5">
-              {formatCOP(totalNacionalCOP)}
-            </strong>
-            <span className="text-[10px] text-emerald-600 font-semibold block mt-0.5">
-              ✓ {orders.length} pedidos registrados
-            </span>
-          </div>
-
-          <div className="p-3.5 rounded-2xl bg-white/90 border border-slate-200/80 shadow-2xs">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-              Sedes & Cobertura
-            </span>
-            <strong className="text-base sm:text-lg font-black text-slate-900 block mt-0.5">
-              {cityAnalytics.length} Ciudades
-            </strong>
-            <span className="text-[10px] text-sky-600 font-semibold block mt-0.5">
-              {cityAnalytics[0]?.ciudad || 'Medellín'} (Líder en ventas)
-            </span>
-          </div>
-
-          <div className="p-3.5 rounded-2xl bg-white/90 border border-slate-200/80 shadow-2xs">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-              Directorio de Clientes
-            </span>
-            <strong className="text-base sm:text-lg font-black text-emerald-900 block mt-0.5">
-              {supabaseClients.length} Registros
-            </strong>
-            <span className="text-[10px] text-slate-500 font-medium block mt-0.5">
-              Base de datos en la nube
-            </span>
-          </div>
-
-          <div className="p-3.5 rounded-2xl bg-white/90 border border-slate-200/80 shadow-2xs">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-              Despacho Autónomo IA
-            </span>
-            <strong className="text-base sm:text-lg font-black text-slate-900 block mt-0.5 flex items-center gap-1.5">
-              <Sparkles className="w-4 h-4 text-amber-500" />
-              <span>Gemini 3.8 Flash</span>
-            </strong>
-            <span className="text-[10px] text-emerald-600 font-semibold block mt-0.5">
-              ✓ Despacho inteligente con IA en vivo
-            </span>
-          </div>
-        </div>
-
-        {/* TABS PRINCIPALES DE GESTIÓN */}
-        <div className="mt-5 pt-4 border-t border-slate-200/90 flex flex-wrap items-center gap-2">
-          {/* Tab 1: Pedidos */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('pedidos')}
-            className={`px-3.5 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'pedidos'
-                ? 'bg-gradient-to-r from-[#0055FF] to-[#00D2FF] text-white shadow-md shadow-blue-500/25 ring-2 ring-[#0055FF]/30'
-                : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
-            }`}
-          >
-            <Truck className="w-4 h-4" />
-            <span>Supervisión de Pedidos & Despacho IA</span>
-            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
-              activeTab === 'pedidos' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
-            }`}>
-              {orders.length}
-            </span>
-          </button>
-
-          {/* Tab 2: Ciudades con fotos */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('ciudades')}
-            className={`px-3.5 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'ciudades'
-                ? 'bg-gradient-to-r from-[#FF5500] to-[#FFD000] text-slate-950 shadow-md shadow-orange-500/25 ring-2 ring-[#FF5500]/30'
-                : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
-            }`}
-          >
-            <TrendingUp className="w-4 h-4 text-[#FF5500]" />
-            <span>Sedes & Ventas por Ciudad</span>
-            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
-              activeTab === 'ciudades' ? 'bg-slate-950/20 text-slate-950' : 'bg-sky-100 text-sky-800'
-            }`}>
-              {cityAnalytics.length} Sedes
-            </span>
-          </button>
-
-          {/* Tab 3: Clientes */}
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('clientes');
-              fetchClientsFromSupabase();
-            }}
-            className={`px-3.5 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'clientes'
-                ? 'bg-gradient-to-r from-[#10E57A] to-[#00D2FF] text-white shadow-md shadow-emerald-500/25 ring-2 ring-[#10E57A]/30'
-                : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
-            }`}
-          >
-            <Users className="w-4 h-4 text-emerald-500" />
-            <span>Clientes</span>
-            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
-              activeTab === 'clientes' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
-            }`}>
-              {supabaseClients.length}
-            </span>
-          </button>
-
-          {/* Tab 4: Inventario */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('stock')}
-            className={`px-3.5 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'stock'
-                ? 'bg-gradient-to-r from-[#FF007A] to-[#0055FF] text-white shadow-md shadow-pink-500/25 ring-2 ring-[#FF007A]/30'
-                : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
-            }`}
-          >
-            <Package className="w-4 h-4" />
-            <span>Inventario & Fórmulas</span>
-          </button>
         </div>
       </div>
 
@@ -2437,9 +2468,23 @@ export function AdminBackoffice({
                     Bandeja de Pedidos ({orders.length})
                   </h3>
                 </div>
-                <span className="text-[10px] bg-sky-50 text-sky-700 px-2 py-0.5 rounded-full font-bold border border-sky-200">
-                  En Vivo
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      syncAllOrders();
+                      showToast('✓ Bandeja sincronizada con el servidor y almacenamiento local.');
+                    }}
+                    className="px-2 py-0.5 rounded-lg bg-sky-100 hover:bg-sky-200 text-sky-800 text-[10px] font-bold transition-colors cursor-pointer flex items-center gap-1"
+                    title="Actualizar y sincronizar pedidos"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    <span>Actualizar</span>
+                  </button>
+                  <span className="text-[10px] bg-sky-50 text-sky-700 px-2 py-0.5 rounded-full font-bold border border-sky-200">
+                    En Vivo
+                  </span>
+                </div>
               </div>
 
               {/* Barra de Búsqueda Rápida */}
@@ -2495,8 +2540,8 @@ export function AdminBackoffice({
 
               {/* Lista Filtrada de Pedidos con Fotografía de Ciudad */}
               <div className="space-y-2.5 max-h-[580px] overflow-y-auto pr-1">
-                {orders
-                  .filter((ord) => {
+                {(() => {
+                  const filtered = orders.filter((ord) => {
                     const q = (orderSearchText || '').toLowerCase();
                     const matchesSearch =
                       (ord.id || '').toLowerCase().includes(q) ||
@@ -2506,8 +2551,30 @@ export function AdminBackoffice({
                     const matchesStatus =
                       orderStatusFilter === 'todos' || ord.status === orderStatusFilter;
                     return matchesSearch && matchesStatus;
-                  })
-                  .map((ord) => {
+                  });
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="p-6 text-center bg-slate-50 border border-dashed border-slate-300 rounded-2xl space-y-2.5 animate-fadeIn">
+                        <Inbox className="w-8 h-8 text-slate-400 mx-auto" />
+                        <p className="text-xs font-bold text-slate-700">
+                          No se encontraron pedidos con el filtro actual ({orderStatusFilter})
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOrderStatusFilter('todos');
+                            setOrderSearchText('');
+                          }}
+                          className="px-3 py-1.5 bg-sky-100 hover:bg-sky-200 text-sky-800 rounded-lg text-xs font-bold cursor-pointer transition-colors"
+                        >
+                          Mostrar todos los pedidos ({orders.length})
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  return filtered.map((ord) => {
                     const isSelected = ord.id === selectedOrderId;
                     return (
                       <div
@@ -2606,7 +2673,8 @@ export function AdminBackoffice({
                         </div>
                       </div>
                     );
-                  })}
+                  });
+                })()}
               </div>
             </div>
           </div>

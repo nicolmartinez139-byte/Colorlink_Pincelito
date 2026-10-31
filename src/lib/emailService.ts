@@ -1,6 +1,7 @@
 import emailjs from '@emailjs/browser';
 import { formatCOP } from '../utils/calculator';
 import { ProjectFormData } from '../types/form';
+import { hasEmailBeenSent, recordEmailSent } from '../utils/emailService';
 
 // ============================================================================
 // PALETA OFICIAL DE MARCA COLORLINK (5 COLORES VIVOS DEFINIDOS)
@@ -60,7 +61,15 @@ export async function sendRealOrderEmail(params: SendEmailParams): Promise<Email
 
   const recipientEmail = to || formData.emailResponsable;
 
-  // PLANTILLA HTML PROFESIONAL, ULTRA COLORIDA Y RESPONSIVA (INLINE CSS PARA GMAIL Y OUTLOOK)
+  const dedupeKey = `real_order_${orderId || 'CLK-2026'}_${(recipientEmail || '').trim().toLowerCase()}`;
+  if (hasEmailBeenSent(dedupeKey)) {
+    console.log('[sendRealOrderEmail] Correo ya enviado previamente:', dedupeKey);
+    return {
+      success: true,
+      provider: 'dedup_cache',
+      message: `Correo ya enviado previamente a ${recipientEmail}`
+    };
+  }
   const htmlContent = `
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="es">
@@ -394,6 +403,7 @@ export async function sendRealOrderEmail(params: SendEmailParams): Promise<Email
         };
 
         await enqueueEmailJsSend(serviceId, templateId, templateParams, publicKey);
+        recordEmailSent(dedupeKey);
         return {
           success: true,
           provider: 'EmailJS',
@@ -406,6 +416,7 @@ export async function sendRealOrderEmail(params: SendEmailParams): Promise<Email
     }
   }
 
+  recordEmailSent(dedupeKey);
   return {
     success: true,
     provider: realBackendDelivered ? 'colorlink_mailer' : 'colorlink_queue',

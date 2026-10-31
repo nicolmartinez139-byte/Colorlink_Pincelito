@@ -120,17 +120,26 @@ export type PaintTypeCategory =
   | 'Exterior Tipo 1'
   | 'Exterior Tipo 2'
   | 'Exterior Tipo 3'
+  | 'Exterior Elastomérica'
   | 'Interior Tipo 1'
   | 'Interior Tipo 2'
   | 'Interior Tipo 3'
+  | 'Interior Baños y Cocinas'
+  | 'Esmalte Sintético Brillante'
+  | 'Esmalte Satinado / Mate'
+  | 'Anticorrosivo Alquídico'
+  | 'Epóxica Altos Sólidos Pisos'
+  | 'Poliuretano Alifático'
+  | 'Tráfico y Canchas'
+  | 'Barniz y Laca Maderas'
   | 'Tipo 1'
   | 'Tipo 2'
   | 'Tipo 3';
 
 export interface PaintTypeProfile {
   tipo: PaintTypeCategory;
-  linea: 'Exterior' | 'Interior';
-  nivel: 'Tipo 1' | 'Tipo 2' | 'Tipo 3';
+  linea: 'Exterior' | 'Interior' | 'Esmaltes & Metales' | 'Industrial & Pisos' | 'Maderas & Especiales';
+  nivel: string;
   nombreComercial: string;
   normaNTC: string;
   resistenciaLavabilidad: string;
@@ -138,6 +147,7 @@ export interface PaintTypeProfile {
   usoRecomendado: string;
   precioGalon: number;
   precioCunete: number;
+  icono?: string;
 }
 
 export interface TechnicalCalculationResult {

@@ -37,14 +37,34 @@
   }
 }
 
+html {
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+}
+
 /* Fondo global con sutil ambientación colorida de marca */
 body {
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
   background-color: #f6f9fc;
   background-image: 
     radial-gradient(at 0% 0%, rgba(0, 210, 255, 0.12) 0px, transparent 50%),
     radial-gradient(at 100% 0%, rgba(255, 85, 0, 0.12) 0px, transparent 50%),
     radial-gradient(at 50% 100%, rgba(255, 0, 122, 0.08) 0px, transparent 50%);
   background-attachment: fixed;
+}
+
+/* Prevenir auto-zoom en iPhone / iOS Safari al tocar inputs */
+@media screen and (max-width: 767px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="password"],
+  input[type="number"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
 }
 
 @media print {

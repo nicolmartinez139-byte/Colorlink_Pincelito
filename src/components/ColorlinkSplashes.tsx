@@ -103,3 +103,21 @@ export function ColorlinkRainbowBar({ className = 'h-2' }: { className?: string 
     </div>
   );
 }
+
+/**
+ * ColorlinkConfettiDots Component
+ * Renders playful paint drops/dots in Colorlink signature colors
+ */
+export function ColorlinkConfettiDots({ className = '' }: { className?: string }) {
+  return (
+    <div className={`pointer-events-none select-none overflow-hidden ${className}`}>
+      <div className="absolute top-4 left-10 w-3 h-3 rounded-full bg-[#FF5500] opacity-40 blur-[0.5px]" />
+      <div className="absolute top-12 left-1/4 w-2 h-2 rounded-full bg-[#FFD000] opacity-50" />
+      <div className="absolute top-6 right-20 w-3.5 h-3.5 rounded-full bg-[#10E57A] opacity-40" />
+      <div className="absolute top-20 right-1/3 w-2.5 h-2.5 rounded-full bg-[#00D2FF] opacity-50" />
+      <div className="absolute bottom-8 left-16 w-3 h-3 rounded-full bg-[#0055FF] opacity-40" />
+      <div className="absolute bottom-12 right-12 w-3.5 h-3.5 rounded-full bg-[#FF007A] opacity-40" />
+      <div className="absolute bottom-4 left-1/2 w-2 h-2 rounded-full bg-[#FFD000] opacity-40" />
+    </div>
+  );
+}

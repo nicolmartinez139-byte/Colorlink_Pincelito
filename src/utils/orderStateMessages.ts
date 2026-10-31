@@ -135,11 +135,11 @@ export function buildOrderStateMessage(params: {
     case 'pendiente':
       return {
         status: 'pendiente',
-        statusLabel: 'Pedido Recibido • Por Aprobar',
-        tituloNotificacion: '📋 Pedido Registrado & En Espera de Tintometría',
-        mensajeNotificacion: `📋 [Pedido Registrado] Orden #${orderId} de "${cliente}" radicada exitosamente en el sistema. Se verificaron insumos para "${tipoPintura}" y base para color "${color}" en la bodega de ${ciudad}. El pedido ha sido programado para ingreso al laboratorio de tintometría.`,
-        mensajeEmail: `Estimado(a) ${responsable},\n\nLe confirmamos la recepción oficial de su pedido #${orderId} para el proyecto "${cliente}" en ${ciudad}.\n\n• Producto: ${tipoPintura}\n• Color Seleccionado: ${color}\n• Estado Actual: Pedido formalizado, programado para ingreso a máquina dosificadora.\n\nTotal liquidado: ${new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(totalCOP)}.`,
-        mensajeServidor: `Pedido #${orderId} de "${cliente}" recibido y registrado. En cola para dosificación de color.`,
+        statusLabel: 'Aceptado por Cliente • Pendiente Aprobación IA',
+        tituloNotificacion: '📋 Pedido Aceptado por Cliente • En Auditoría IA',
+        mensajeNotificacion: `📋 [Aceptado por Cliente] Orden #${orderId} de "${cliente}" aceptada formalmente. En proceso de auditoría inteligente por la IA de Colorlink® (Pincelito Inspector) para validar stock en CEDI ${ciudad}, formulación bajo norma NTC 1335 y asignación logística antes del paso a Tintometría.`,
+        mensajeEmail: `Estimado(a) ${responsable},\n\nLe confirmamos que su pedido #${orderId} para el proyecto "${cliente}" en ${ciudad} ha sido formalmente aceptado.\n\n• Producto: ${tipoPintura}\n• Color Seleccionado: ${color}\n• Estado Actual: Aceptado por el Cliente • En proceso de Auditoría y Validación por Inteligencia Artificial.\n\nUna vez la IA certifique la disponibilidad en CEDI y compatibilidad técnica, su orden pasará de inmediato al laboratorio de Tintometría.\n\nTotal liquidado: ${new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(totalCOP)}.`,
+        mensajeServidor: `Pedido #${orderId} de "${cliente}" aceptado por el cliente. En proceso de validación y aprobación por la IA.`,
         logistica,
         lote,
         remision,
@@ -149,11 +149,11 @@ export function buildOrderStateMessage(params: {
     case 'preparando':
       return {
         status: 'preparando',
-        statusLabel: 'En Tintometría • Dosificación Computarizada',
-        tituloNotificacion: '🎨 En Laboratorio de Tintometría • Dosificación de Color',
-        mensajeNotificacion: `🎨 [En Tintometría] ¡Tu pedido #${orderId} ingresó al laboratorio de tintometría computarizada Colorlink® en ${ciudad}! Se inició la dosificación micrométrica de pigmentos para el color "${color}" con base ${tipoPintura}. Mezclado giroscópico a 1.400 RPM para máxima dispersión (${lote}). Próximo paso: Despacho hacia tu obra.`,
-        mensajeEmail: `Estimado(a) ${responsable},\n\n¡Su pedido #${orderId} se encuentra en preparación activa en nuestro laboratorio de tintometría!\n\n• Formulación computarizada en proceso para: "${color}"\n• Base química: ${tipoPintura} (Norma Técnica NTC 1335)\n• Control de calidad: Espectrofotometría Delta-E < 0.5 (${lote})\n• Cantidad: ${cuñetes} cuñete(s)\n\nUna vez finalizada la formulación y el control de calidad, su pedido pasará a despacho hacia su obra.`,
-        mensajeServidor: `Pedido #${orderId} en tintometría: dosificación de pigmentos para "${color}" iniciada en laboratorio.`,
+        statusLabel: 'Aprobado por IA • En Tintometría',
+        tituloNotificacion: '🎨 Aprobado por la IA • En Laboratorio de Tintometría',
+        mensajeNotificacion: `🎨 [Aprobado por IA & En Tintometría] ¡Tu pedido #${orderId} fue auditado y aprobado al 100% por la IA e ingresó al laboratorio de tintometría computarizada Colorlink® en ${ciudad}! Se inició la dosificación micrométrica de pigmentos para el color "${color}" con base ${tipoPintura} bajo Norma NTC 1335 (${lote}). Próximo paso: Despacho hacia tu obra.`,
+        mensajeEmail: `Estimado(a) ${responsable},\n\n¡Excelentes noticias! Su pedido #${orderId} ha sido auditado y aprobado formalmente por la Inteligencia Artificial de Colorlink® y ya ingresó a preparación en nuestro laboratorio de tintometría.\n\n• Dictamen IA: APROBADO (Insumos y stock 100% verificados)\n• Formulación computarizada para: "${color}"\n• Base química: ${tipoPintura} (Norma Técnica Colombiana NTC 1335)\n• Control de calidad: Lote ${lote}\n• Cantidad: ${cuñetes} cuñete(s)\n\nSu pedido será formulado y mezclado para posterior despacho en flota Colorlink hacia su obra en ${ciudad}.`,
+        mensajeServidor: `Pedido #${orderId} auditado y aprobado por la IA. En laboratorio de tintometría para dosificación de "${color}".`,
         logistica,
         lote,
         remision,

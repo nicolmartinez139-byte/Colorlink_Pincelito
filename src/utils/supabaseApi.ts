@@ -572,6 +572,12 @@ export async function fetchClientOrders(userNit?: string, userEmail?: string): P
   const nitLimpio = (userNit || '').replace(/[.\-\s]/g, '');
   const emailLimpio = (userEmail || '').trim().toLowerCase();
 
+  // Protección de Datos (Ley 1581 / Habeas Data):
+  // Si no hay un identificador de cliente válido (NIT o Email), jamás devolver pedidos de otros clientes.
+  if (!nitLimpio && !emailLimpio) {
+    return [];
+  }
+
   const mergedMap = new Map<string, ClientOrderItem>();
 
   const upsertIntoMap = (item: ClientOrderItem, preferIncomingState = false) => {
@@ -600,25 +606,17 @@ export async function fetchClientOrders(userNit?: string, userEmail?: string): P
   };
 
   // 1. Cargar pedidos guardados localmente en el historial persistente del navegador
+  // FILTRADO ESTRICTO: Solo incluir registros que coincidan positivamente con este cliente
   const localHistory = getSavedClientOrdersFromStorage();
   for (const loc of localHistory) {
     const locNit = (loc.nit || '').replace(/[.\-\s]/g, '');
     const locEmail = (loc.email || '').trim().toLowerCase();
-    const matchesClient =
-      (!nitLimpio && !emailLimpio) ||
+    const matchesClient = Boolean(
       (nitLimpio && locNit && (locNit === nitLimpio || nitMatches(nitLimpio, locNit))) ||
-      (emailLimpio && locEmail && locEmail === emailLimpio) ||
-      (!locNit && !locEmail);
+      (emailLimpio && locEmail && locEmail === emailLimpio)
+    );
 
     if (matchesClient) {
-      upsertIntoMap(loc);
-    }
-  }
-
-  // Si no se encontró coincidencia por NIT/Email estricto pero hay pedidos guardados en el almacenamiento de este cliente,
-  // preservarlos para que nunca se pierdan los pedidos anteriores (incluso los ya entregados)
-  if (mergedMap.size === 0 && localHistory.length > 0) {
-    for (const loc of localHistory) {
       upsertIntoMap(loc);
     }
   }
@@ -632,10 +630,10 @@ export async function fetchClientOrders(userNit?: string, userEmail?: string): P
         for (const srv of apiData.orders) {
           const srvNit = String(srv.nit || srv.formData?.nitDocumento || '').replace(/[.\-\s]/g, '');
           const srvEmail = String(srv.email || srv.formData?.emailResponsable || '').trim().toLowerCase();
-          const matchesSrv =
-            (!nitLimpio && !emailLimpio) ||
-            (nitLimpio && srvNit && srvNit === nitLimpio) ||
-            (emailLimpio && srvEmail && srvEmail === emailLimpio);
+          const matchesSrv = Boolean(
+            (nitLimpio && srvNit && (srvNit === nitLimpio || nitMatches(nitLimpio, srvNit))) ||
+            (emailLimpio && srvEmail && srvEmail === emailLimpio)
+          );
 
           if (matchesSrv) {
             const ordNum = srv.orderNumber || srv.id;

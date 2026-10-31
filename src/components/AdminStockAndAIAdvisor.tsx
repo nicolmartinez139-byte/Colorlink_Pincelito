@@ -27,6 +27,7 @@ import {
   updateToolStockInSupabase,
   seedToolsInventoryToSupabase
 } from '../utils/supabaseApi';
+import tintometryLabImg from '../assets/images/tintometry_color_lab_1793208137962.jpg';
 
 export interface PigmentItem {
   id: string;
@@ -608,22 +609,25 @@ export function AdminStockAndAIAdvisor({
 
       {/* 3. SIMULADOR DE FÓRMULAS DE COLOR (CÓMO SE MEZCLAN LOS PRIMARIOS + BLANCO Y NEGRO) */}
       <div className="bg-white text-slate-800 rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-sm space-y-6">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5">
+          <div className="space-y-1">
             <div className="flex items-center gap-2">
               <span className="px-2.5 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-black rounded-md">
                 LABORATORIO QUÍMICO
+              </span>
+              <span className="px-2.5 py-0.5 bg-sky-100 text-sky-800 border border-sky-300 text-[10px] font-black rounded-md">
+                DISPENSADOR ROBÓTICO 24 CANALES
               </span>
               <h3 className="text-lg sm:text-xl font-black text-slate-900">
                 Simulador de Tintometría: Mezcla de Primarios + Blanco & Negro
               </h3>
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              Visualiza cómo se dosifica cada mililitro de colorante líquido en la máquina dispensadora para formular el color exacto.
+              Visualiza cómo se dosifica cada mililitro de colorante líquido en la máquina dispensadora automatizada para formular el tono exacto.
             </p>
           </div>
 
-          <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-2xl border border-slate-200">
+          <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-2xl border border-slate-200 shrink-0">
             <span className="text-xs text-slate-600 pl-2 font-medium">Cantidad de Galones a Tinturar:</span>
             <input
               type="number"
@@ -633,6 +637,39 @@ export function AdminStockAndAIAdvisor({
               onChange={(e) => setGalonesToMix(Math.max(1, parseInt(e.target.value) || 1))}
               className="w-16 px-2 py-1 bg-white text-slate-900 font-mono font-bold text-center rounded-xl border border-slate-300 text-xs"
             />
+          </div>
+        </div>
+
+        {/* Tarjeta Visual del Laboratorio de Tintometría */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-200/80 items-center">
+          <div className="md:col-span-4 h-36 rounded-xl overflow-hidden relative shadow-xs">
+            <img
+              src={tintometryLabImg}
+              alt="Laboratorio de Tintometría Computarizada Colorlink"
+              className="w-full h-full object-cover"
+            />
+            <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/70 text-white font-mono text-[9px]">
+              Lab Central • Carrusel 24 Válvulas
+            </span>
+          </div>
+          <div className="md:col-span-8 space-y-1.5 text-xs text-slate-600">
+            <strong className="text-slate-900 font-bold block text-sm">
+              Dispensador Computarizado de Alta Precisión (Tolerancia &plusmn; 0.05 ml)
+            </strong>
+            <p className="text-xs leading-relaxed">
+              El sistema dosifica bases portadoras y colorantes puros bajo curva espectrofotométrica. Cada fórmula calculada aquí se envía directamente al carrusel para alistamiento del pedido en planta.
+            </p>
+            <div className="flex flex-wrap gap-2 pt-1 text-[11px] font-bold">
+              <span className="px-2 py-0.5 bg-white rounded-md border border-slate-200 text-slate-700">
+                ✓ Repetibilidad &Delta;E &lt; 0.5
+              </span>
+              <span className="px-2 py-0.5 bg-white rounded-md border border-slate-200 text-slate-700">
+                ✓ Tiempo Promedio: 2 min 40 seg
+              </span>
+              <span className="px-2 py-0.5 bg-white rounded-md border border-slate-200 text-slate-700">
+                ✓ Libre de Compuestos Orgánicos Volátiles (Cero VOC)
+              </span>
+            </div>
           </div>
         </div>
 

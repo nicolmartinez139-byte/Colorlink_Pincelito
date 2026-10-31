@@ -120,8 +120,9 @@ export function getPaintTypePrice(tipo: PaintTypeCategory, brandName?: string): 
   };
 }
 
-// Clasificación Oficial según Norma Técnica Colombiana (NTC 1335 / NTC 5828) para Pinturas Arquitectónicas al Agua
+// Clasificación Oficial según Norma Técnica Colombiana (NTC 1335 / NTC 5828) para Pinturas Arquitectónicas, Esmaltes e Industriales
 export const PAINT_TYPE_PROFILES: Record<PaintTypeCategory, PaintTypeProfile> = {
+  // --- 🌤️ LÍNEA EXTERIOR & FACHADAS ---
   'Exterior Tipo 1': {
     tipo: 'Exterior Tipo 1',
     linea: 'Exterior',
@@ -132,7 +133,8 @@ export const PAINT_TYPE_PROFILES: Record<PaintTypeCategory, PaintTypeProfile> = 
     durabilidadAnos: '5 a 7 Años Certificados',
     usoRecomendado: 'Fachadas exteriores de edificios, casas y muros perimetrales expuestos',
     precioGalon: 89500,
-    precioCunete: 398000
+    precioCunete: 398000,
+    icono: '🌤️'
   },
   'Exterior Tipo 2': {
     tipo: 'Exterior Tipo 2',
@@ -144,7 +146,21 @@ export const PAINT_TYPE_PROFILES: Record<PaintTypeCategory, PaintTypeProfile> = 
     durabilidadAnos: '3 a 4 Años',
     usoRecomendado: 'Muros exteriores protegidos, aleros, terrazas techadas y cerramientos',
     precioGalon: 74000,
-    precioCunete: 315000
+    precioCunete: 315000,
+    icono: '⛅'
+  },
+  'Exterior Elastomérica': {
+    tipo: 'Exterior Elastomérica',
+    linea: 'Exterior',
+    nivel: 'Alta Elasticidad',
+    nombreComercial: 'Colorlink Membrana Elastomérica Impermeabilizante Fachadas',
+    normaNTC: 'NTC 5828 (Elongación >300% / Puenteo de microfisuras hasta 1.2mm)',
+    resistenciaLavabilidad: 'Impermeabilización total impermeable al agua de lluvia y vapor transpirable',
+    durabilidadAnos: '7 a 10 Años',
+    usoRecomendado: 'Fachadas con fisuras térmicas, culatas expuestas y muros con filtración',
+    precioGalon: 98000,
+    precioCunete: 445000,
+    icono: '🛡️'
   },
   'Exterior Tipo 3': {
     tipo: 'Exterior Tipo 3',
@@ -156,8 +172,11 @@ export const PAINT_TYPE_PROFILES: Record<PaintTypeCategory, PaintTypeProfile> = 
     durabilidadAnos: '1 Año acabado / Fondeo permanente',
     usoRecomendado: 'Primera mano en revoque exterior nuevo o cerramientos de obra',
     precioGalon: 52000,
-    precioCunete: 215000
+    precioCunete: 215000,
+    icono: '🧱'
   },
+
+  // --- 🏠 LÍNEA INTERIOR & CIELORRASOS ---
   'Interior Tipo 1': {
     tipo: 'Interior Tipo 1',
     linea: 'Interior',
@@ -168,7 +187,8 @@ export const PAINT_TYPE_PROFILES: Record<PaintTypeCategory, PaintTypeProfile> = 
     durabilidadAnos: '4 a 5 Años',
     usoRecomendado: 'Muros interiores de alto tráfico: salas, comedores, pasillos, cocinas, consultorios',
     precioGalon: 78000,
-    precioCunete: 320000
+    precioCunete: 320000,
+    icono: '🏠'
   },
   'Interior Tipo 2': {
     tipo: 'Interior Tipo 2',
@@ -180,7 +200,8 @@ export const PAINT_TYPE_PROFILES: Record<PaintTypeCategory, PaintTypeProfile> = 
     durabilidadAnos: '3 a 4 Años',
     usoRecomendado: 'Muros interiores de tráfico medio/bajo: habitaciones, alcobas, estudios',
     precioGalon: 62000,
-    precioCunete: 260000
+    precioCunete: 260000,
+    icono: '🛏️'
   },
   'Interior Tipo 3': {
     tipo: 'Interior Tipo 3',
@@ -192,9 +213,121 @@ export const PAINT_TYPE_PROFILES: Record<PaintTypeCategory, PaintTypeProfile> = 
     durabilidadAnos: '1 a 2 Años',
     usoRecomendado: 'Cielorrasos, techos, placas de yeso/drywall o primera mano económica',
     precioGalon: 45000,
-    precioCunete: 185000
+    precioCunete: 185000,
+    icono: '🪧'
   },
-  // Mapeos de compatibilidad
+  'Interior Baños y Cocinas': {
+    tipo: 'Interior Baños y Cocinas',
+    linea: 'Interior',
+    nivel: 'Antihongos & Humedad',
+    nombreComercial: 'Colorlink Baños y Cocinas Antihongos con Microbicida Activo',
+    normaNTC: 'NTC 1335 / ASTM D3273 (Cero desarrollo fúngico en vapores continuos)',
+    resistenciaLavabilidad: 'Película impermeable resistente a vapor caliente, condensación y grasas',
+    durabilidadAnos: '4 a 6 Años',
+    usoRecomendado: 'Baños, cocinas, zonas de ropas, lavanderías y saunas residenciales',
+    precioGalon: 86000,
+    precioCunete: 360000,
+    icono: '🚿'
+  },
+
+  // --- 🔩 LÍNEA ESMALTES & METALES ---
+  'Esmalte Sintético Brillante': {
+    tipo: 'Esmalte Sintético Brillante',
+    linea: 'Esmaltes & Metales',
+    nivel: 'Alquídico Premium',
+    nombreComercial: 'Colorlink Esmalte Sintético Brillante Pintulux Ultra',
+    normaNTC: 'NTC 1283 (Esmaltes Alquídicos de Secado Rápido)',
+    resistenciaLavabilidad: 'Brillo espejo, alta dureza y máxima resistencia al frote y rayado',
+    durabilidadAnos: '5 a 7 Años',
+    usoRecomendado: 'Puertas metálicas, portones, rejas, pasamanos, tuberías y carpintería metálica',
+    precioGalon: 94000,
+    precioCunete: 410000,
+    icono: '✨'
+  },
+  'Esmalte Satinado / Mate': {
+    tipo: 'Esmalte Satinado / Mate',
+    linea: 'Esmaltes & Metales',
+    nivel: 'Alquídico Satinado',
+    nombreComercial: 'Colorlink Esmalte Satinado Decorativo Maderas y Metales',
+    normaNTC: 'NTC 1283 (Acabado Satinado Terso de Alta Nivelación)',
+    resistenciaLavabilidad: 'Tersura sedosa, lavable, sin reflejos molestos en interiores y carpintería',
+    durabilidadAnos: '4 a 5 Años',
+    usoRecomendado: 'Muebles de madera, marcos de puertas, rodapiés y perfiles decorativos',
+    precioGalon: 92000,
+    precioCunete: 395000,
+    icono: '🎨'
+  },
+  'Anticorrosivo Alquídico': {
+    tipo: 'Anticorrosivo Alquídico',
+    linea: 'Esmaltes & Metales',
+    nivel: 'Fosfato de Zinc',
+    nombreComercial: 'Colorlink Anticorrosivo Estructural de Alto Desempeño',
+    normaNTC: 'NTC 1651 (Primer Anticorrosivo Inhibidor de Óxido)',
+    resistenciaLavabilidad: 'Inhibición galvánica contra oxidación y adherencia superior sobre acero',
+    durabilidadAnos: '5 a 8 Años en sistema',
+    usoRecomendado: 'Estructuras metálicas, vigas, perfiles de hierro y carrocerías',
+    precioGalon: 78000,
+    precioCunete: 345000,
+    icono: '🛡️'
+  },
+
+  // --- 🏭 LÍNEA INDUSTRIAL & PISOS ---
+  'Epóxica Altos Sólidos Pisos': {
+    tipo: 'Epóxica Altos Sólidos Pisos',
+    linea: 'Industrial & Pisos',
+    nivel: 'Bicomponente 100% Sólidos',
+    nombreComercial: 'Colorlink Pintucoat Epóxico Pisos & Grado Clínico Aséptico',
+    normaNTC: 'NTC 4060 (Recubrimientos Epóxicos para Concreto y Pisos Industriales)',
+    resistenciaLavabilidad: 'Inmune a tráfico pesado de montacargas, derrames químicos y desinfectantes',
+    durabilidadAnos: '8 a 10 Años',
+    usoRecomendado: 'Bodegas, quirófanos, plantas de alimentos, parqueaderos y talleres mecánicos',
+    precioGalon: 198000,
+    precioCunete: 890000,
+    icono: '🏭'
+  },
+  'Poliuretano Alifático': {
+    tipo: 'Poliuretano Alifático',
+    linea: 'Industrial & Pisos',
+    nivel: 'Poliuretano 2K UV',
+    nombreComercial: 'Colorlink Poliuretano Alifático Alta Resistencia UV & Química',
+    normaNTC: 'ASTM D4541 / NTC 4060 (Retención de brillo y resistencia a la intemperie)',
+    resistenciaLavabilidad: 'Máxima resistencia química, no amarillea con el sol y resiste solventes',
+    durabilidadAnos: '7 a 10 Años',
+    usoRecomendado: 'Pisos expuestos al sol, tanques exteriores, helipuertos y canchas techadas',
+    precioGalon: 235000,
+    precioCunete: 980000,
+    icono: '☀️'
+  },
+  'Tráfico y Canchas': {
+    tipo: 'Tráfico y Canchas',
+    linea: 'Industrial & Pisos',
+    nivel: 'Acrílica Tráfico',
+    nombreComercial: 'Colorlink Pintura Tráfico Pesado & Canchas Deportivas',
+    normaNTC: 'NTC 1360 (Pinturas de Demarcación y Tráfico Vial)',
+    resistenciaLavabilidad: 'Secado en 15 minutos, alta fricción antideslizante y resistencia a llantas',
+    durabilidadAnos: '2 a 3 Años en tráfico continuo',
+    usoRecomendado: 'Parqueaderos, pasos peatonales, canchas de microfútbol, tenis y ciclorrutas',
+    precioGalon: 88000,
+    precioCunete: 385000,
+    icono: '🏀'
+  },
+
+  // --- 🪵 LÍNEA MADERAS & ESPECIALES ---
+  'Barniz y Laca Maderas': {
+    tipo: 'Barniz y Laca Maderas',
+    linea: 'Maderas & Especiales',
+    nivel: 'Poliuretano Filtro UV',
+    nombreComercial: 'Colorlink Barniz Marino y Poliuretano Maderas Finas',
+    normaNTC: 'NTC 1148 (Barnices Transparentes con Filtro Solar para Maderas)',
+    resistenciaLavabilidad: 'Resina flexible hidrófuga que protege contra humedad, hongos y decoloración solar',
+    durabilidadAnos: '3 a 5 Años',
+    usoRecomendado: 'Decks exteriores, pérgolas, puertas de madera maciza, balcones y ventanas',
+    precioGalon: 96000,
+    precioCunete: 420000,
+    icono: '🪵'
+  },
+
+  // --- MAPEOS DE COMPATIBILIDAD ---
   'Tipo 1': {
     tipo: 'Tipo 1',
     linea: 'Exterior',
@@ -205,7 +338,8 @@ export const PAINT_TYPE_PROFILES: Record<PaintTypeCategory, PaintTypeProfile> = 
     durabilidadAnos: '5 a 7 Años Certificados',
     usoRecomendado: 'Fachadas exteriores, muros exteriores, patios, zonas húmedas o alto tráfico',
     precioGalon: 89500,
-    precioCunete: 398000
+    precioCunete: 398000,
+    icono: '🌤️'
   },
   'Tipo 2': {
     tipo: 'Tipo 2',
@@ -217,7 +351,8 @@ export const PAINT_TYPE_PROFILES: Record<PaintTypeCategory, PaintTypeProfile> = 
     durabilidadAnos: '3 a 4 Años',
     usoRecomendado: 'Muros interiores residenciales, oficinas, pasillos secos, alcobas',
     precioGalon: 62000,
-    precioCunete: 260000
+    precioCunete: 260000,
+    icono: '🏠'
   },
   'Tipo 3': {
     tipo: 'Tipo 3',
@@ -229,7 +364,8 @@ export const PAINT_TYPE_PROFILES: Record<PaintTypeCategory, PaintTypeProfile> = 
     durabilidadAnos: '1 a 2 Años',
     usoRecomendado: 'Cielorrasos, sótanos secos, primera mano de fondeo o bodegas provisionales',
     precioGalon: 45000,
-    precioCunete: 185000
+    precioCunete: 185000,
+    icono: '🪧'
   }
 };
 
@@ -354,16 +490,51 @@ export function calculateTechnicalRequirements(formData: Partial<ProjectFormData
   };
 
   let productoRecomendado = `${selectedBrand} • ${tipoPinturaDetalle.nombreComercial.replace(/^Colorlink\s+/, '')}`;
-  let tipoSolucion = tipoPintura.includes('Exterior')
-    ? 'Sistema Impermeable y Acrílico para Fachadas & Exteriores'
-    : tipoPintura.includes('Tipo 3')
-    ? 'Pintura Económica para Cielorrasos, Techos & Fondeo'
-    : 'Recubrimiento Vinil Acrílico Lavable para Muros Interiores';
+  let tipoSolucion = tipoPinturaDetalle.resistenciaLavabilidad;
+  if (tipoPintura.includes('Epóxica')) {
+    tipoSolucion = 'Sistema Epóxico Bicomponente de Altos Sólidos para Pisos & Grado Clínico';
+  } else if (tipoPintura.includes('Poliuretano')) {
+    tipoSolucion = 'Sistema Poliuretano Alifático 2K Máxima Resistencia UV & Química';
+  } else if (tipoPintura.includes('Esmalte') || tipoPintura.includes('Anticorrosivo')) {
+    tipoSolucion = 'Sistema Alquídico Anticorrosivo y Decorativo para Metales y Maderas';
+  } else if (tipoPintura.includes('Tráfico')) {
+    tipoSolucion = 'Pintura Acrílica de Alta Fricción para Demarcación Vial y Canchas Deportivas';
+  } else if (tipoPintura.includes('Barniz')) {
+    tipoSolucion = 'Barniz Poliuretano con Filtro Solar para Maderas Nobles';
+  } else if (tipoPintura.includes('Baños')) {
+    tipoSolucion = 'Pintura Especial Antihongos con Microbicida de Vapor';
+  } else if (tipoPintura.includes('Elastomérica')) {
+    tipoSolucion = 'Membrana Elastomérica Impermeabilizante Anti-filtraciones';
+  } else if (tipoPintura.includes('Exterior')) {
+    tipoSolucion = 'Sistema Impermeable y Acrílico para Fachadas & Exteriores';
+  } else if (tipoPintura.includes('Tipo 3')) {
+    tipoSolucion = 'Pintura Económica para Cielorrasos, Techos & Fondeo';
+  } else {
+    tipoSolucion = 'Recubrimiento Vinil Acrílico Lavable para Muros Interiores';
+  }
 
   let selladorImprimanteRequerido = 'Sellador Antialcalino Base Solvente / Acrílico';
   let manosSugeridas = 2;
   let rendimientoTeoricoM2Galon = 25;
-  if (tipoPintura.includes('Tipo 1')) {
+  if (tipoPintura.includes('Epóxica')) {
+    rendimientoTeoricoM2Galon = 16;
+    selladorImprimanteRequerido = 'Primer Epóxico de Penetración';
+  } else if (tipoPintura.includes('Poliuretano')) {
+    rendimientoTeoricoM2Galon = 18;
+    selladorImprimanteRequerido = 'Sellador Epóxico / Poliuretánico';
+  } else if (tipoPintura.includes('Esmalte') || tipoPintura.includes('Anticorrosivo')) {
+    rendimientoTeoricoM2Galon = 26;
+    selladorImprimanteRequerido = 'Anticorrosivo Fosfato de Zinc / Wash Primer';
+  } else if (tipoPintura.includes('Tráfico')) {
+    rendimientoTeoricoM2Galon = 20;
+    selladorImprimanteRequerido = 'Imprimante Asfáltico / Acrílico';
+  } else if (tipoPintura.includes('Barniz')) {
+    rendimientoTeoricoM2Galon = 28;
+    selladorImprimanteRequerido = 'Sellador para Madera / Fondo Poliuretano';
+  } else if (tipoPintura.includes('Elastomérica')) {
+    rendimientoTeoricoM2Galon = 18;
+    selladorImprimanteRequerido = 'Sellador Elastomérico de Adherencia';
+  } else if (tipoPintura.includes('Tipo 1')) {
     rendimientoTeoricoM2Galon = 22;
   } else if (tipoPintura.includes('Tipo 2')) {
     rendimientoTeoricoM2Galon = 28;

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, Lock, Mail, Building, User, Phone, Check, ArrowRight, ShieldCheck, MessageCircle, Sparkles, UserCheck, KeyRound, RefreshCw, CheckCircle2, ArrowLeft } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail, Building, User, Phone, Check, ArrowRight, ShieldCheck, MessageCircle, Sparkles, UserCheck, KeyRound, RefreshCw, CheckCircle2, ArrowLeft, X } from 'lucide-react';
 import { ColorlinkPenguin } from './ColorlinkPenguin';
 import { UserProfile } from '../types/form';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
@@ -10,6 +10,11 @@ interface ColorlinkLoginLandingProps {
   onLoginSuccess: (user: UserProfile, isSimulation?: boolean) => void;
   onOpenAdminModal: () => void;
   onOpenAdvisorModal: () => void;
+  onExploreDemo?: () => void;
+  initialMode?: 'login' | 'register';
+  onClose?: () => void;
+  customMessage?: string;
+  isModal?: boolean;
 }
 
 interface StoredAccount {
@@ -84,9 +89,17 @@ function saveStoredAccount(account: StoredAccount) {
 export function ColorlinkLoginLanding({
   onLoginSuccess,
   onOpenAdminModal,
-  onOpenAdvisorModal
+  onOpenAdvisorModal,
+  onExploreDemo,
+  initialMode,
+  onClose,
+  customMessage,
+  isModal
 }: ColorlinkLoginLandingProps) {
-  const [mode, setMode] = useState<'login' | 'register' | 'forgot_email' | 'forgot_verify' | 'forgot_reset'>('login');
+  const isModalMode = isModal ?? Boolean(onClose);
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot_email' | 'forgot_verify' | 'forgot_reset'>(
+    initialMode || 'login'
+  );
   
   // Login fields
   const [username, setUsername] = useState('');
@@ -467,13 +480,13 @@ export function ColorlinkLoginLanding({
 
       const userProfile: UserProfile = {
         id: clienteId,
-        empresa: newClient.nombre_razon_social || regEmpresa || '',
-        nit: newClient.nit_documento || nitLimpio || '',
-        responsable: newClient.responsable || regResponsable || cleanRegEmail.split('@')[0],
-        email: newClient.email_responsable || cleanRegEmail,
-        telefono: newClient.telefono_responsable || regTelefono || '',
+        empresa: regEmpresa || 'Cliente Registrado',
+        nit: nitLimpio || '',
+        responsable: regResponsable || cleanRegEmail.split('@')[0],
+        email: cleanRegEmail,
+        telefono: regTelefono || '',
         ciudad: 'Medellín',
-        createdAt: newClient.created_at || new Date().toISOString()
+        createdAt: clientCreatedAt
       };
 
       // Ingreso directo e inmediato al cotizador sin pantallas intermedias ni interrupciones
@@ -487,9 +500,11 @@ export function ColorlinkLoginLanding({
   };
 
   return (
-    <div className="relative min-h-screen w-full flex flex-col items-center justify-center p-4 sm:p-6 overflow-x-hidden bg-gradient-to-br from-slate-100 via-sky-50 to-blue-50">
-      {/* IMAGEN Y MANCHAS DE PINTURA ARTÍSTICAS DE FONDO */}
-      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none select-none">
+    <div className={isModalMode ? "relative w-full flex flex-col items-center justify-center p-0" : "relative min-h-screen w-full flex flex-col items-center justify-center p-4 sm:p-6 overflow-x-hidden bg-gradient-to-br from-slate-100 via-sky-50 to-blue-50"}>
+      {!isModalMode && (
+        <>
+          {/* IMAGEN Y MANCHAS DE PINTURA ARTÍSTICAS DE FONDO */}
+          <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none select-none">
         {/* Imagen de fondo generada con manchas y salpicaduras de pintura multicolor */}
         <img
           src={paintSplatterBg}
@@ -594,11 +609,23 @@ export function ColorlinkLoginLanding({
             <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
             Pinturas & Tintometría
           </span>
+          </div>
         </div>
-      </div>
+      </>
+    )}
 
       {/* TARJETA FLOTANTE BLANCA CON ESQUINAS REDONDEADAS (Estilo Imagen 1) */}
-      <div className="relative z-10 w-full max-w-[430px] bg-white rounded-[36px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.35)] px-6 sm:px-9 pb-8 pt-14 sm:pt-16 border border-white/80 transition-all mt-4">
+      <div className={`relative z-10 w-full max-w-[430px] bg-white rounded-[32px] sm:rounded-[36px] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.35)] px-6 sm:px-9 pb-8 pt-14 sm:pt-16 border border-white/80 transition-all ${isModalMode ? 'mt-12 sm:mt-14 mb-4' : 'mt-4'}`}>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute top-4 right-4 z-30 p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
+            title="Cerrar y seguir explorando el cotizador"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
         {/* Barra superior de 5 colores vivos de marca con esquinas redondeadas coincidentes */}
         <div className="absolute top-0 left-0 right-0 h-2.5 flex rounded-t-[36px] overflow-hidden">
           <div className="flex-1 bg-[#FF5500]" />
@@ -621,6 +648,12 @@ export function ColorlinkLoginLanding({
 
         {/* TÍTULO PRINCIPAL CON DEGRADADO VIBRANTE COLORIDO */}
         <div className="text-center mb-6">
+          {customMessage && (
+            <div className="mb-4 p-3 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl flex items-start gap-2.5 text-xs text-amber-900 text-left animate-fadeIn">
+              <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <span className="font-semibold leading-relaxed">{customMessage}</span>
+            </div>
+          )}
           <h1 className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-[#FF5500] via-[#0055FF] to-[#00D2FF] bg-clip-text text-transparent tracking-tight">
             {mode === 'login'
               ? 'Inicia sesión ahora'
@@ -736,6 +769,20 @@ export function ColorlinkLoginLanding({
                 <span>¿Eres Asesor Comercial? Ingresa aquí</span>
               </button>
             </div>
+
+            {/* BOTÓN PARA EXPLORAR / VER DEMOSTRACIÓN PREVIA DEL COTIZADOR ANTES DE REGISTRARSE */}
+            {onExploreDemo && (
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={onExploreDemo}
+                  className="w-full py-2.5 px-4 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:brightness-110 text-white font-black text-xs rounded-full transition-all shadow-[0_4px_14px_rgba(16,185,129,0.35)] flex items-center justify-center gap-2 cursor-pointer active:scale-98"
+                >
+                  <Eye className="w-4 h-4 text-emerald-100" />
+                  <span>👁️ Ver Demostración / Explorar Cotizador</span>
+                </button>
+              </div>
+            )}
 
             {/* ENLACES INFERIORES VIBRANTES */}
             <div className="flex items-center justify-between text-xs font-bold pt-2 px-1">
@@ -1134,10 +1181,91 @@ export function ColorlinkLoginLanding({
         />
       </div>
 
+      {!isModalMode && (
+        <>
+          {/* VISUALIZACIÓN PREVIA DE LO QUE HAY ANTES DE REGISTRARSE */}
+      <div className="relative z-10 mt-8 w-full max-w-2xl px-4 animate-fadeIn">
+        <div className="bg-white/95 backdrop-blur-md rounded-3xl p-5 sm:p-6 shadow-xl border border-sky-100 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+            <div>
+              <span className="text-[10px] uppercase font-black tracking-wider text-sky-600 bg-sky-50 px-2.5 py-1 rounded-full border border-sky-200">
+                Visualización Previa del Sistema
+              </span>
+              <h2 className="text-base sm:text-lg font-black text-slate-800 mt-1">
+                Conoce lo que incluye Colorlink® antes de registrarte
+              </h2>
+            </div>
+            {onExploreDemo && (
+              <button
+                type="button"
+                onClick={onExploreDemo}
+                className="self-start sm:self-center px-4 py-2 bg-gradient-to-r from-sky-500 via-sky-600 to-blue-600 hover:brightness-110 text-white text-xs font-black rounded-xl shadow-md flex items-center gap-2 cursor-pointer transition-all active:scale-95"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>Explorar Cotizador en Vivo</span>
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
+            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 hover:bg-sky-50/50 transition-colors">
+              <div className="flex items-center gap-2 font-black text-xs text-slate-800 mb-1">
+                <span className="text-base">📐</span>
+                <span>Cotizador Inteligente de Metraje</span>
+              </div>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Ingresa las medidas de tu pared o fachada y calcula la dosificación exacta de cuñetes (5 gal) y galones con 10% de holgura técnica.
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 hover:bg-sky-50/50 transition-colors">
+              <div className="flex items-center gap-2 font-black text-xs text-slate-800 mb-1">
+                <span className="text-base">🎨</span>
+                <span>Laboratorio de Tintometría</span>
+              </div>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Más de 2,000 colores formulados en acabados Mate y Satinado bajo Norma Técnica NTC 1335 y NTC 5828 (Cero VOC).
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 hover:bg-sky-50/50 transition-colors">
+              <div className="flex items-center gap-2 font-black text-xs text-slate-800 mb-1">
+                <span className="text-base">🐧</span>
+                <span>Pincelito con Visión Artificial</span>
+              </div>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Sube fotos de tus paredes para recibir diagnósticos de humedad, sustratos y recomendaciones técnicas en tiempo real.
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 hover:bg-sky-50/50 transition-colors">
+              <div className="flex items-center gap-2 font-black text-xs text-slate-800 mb-1">
+                <span className="text-base">🚚</span>
+                <span>Logística & Furgones de Despacho</span>
+              </div>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Entrega programada con remisión oficial en Medellín, Bogotá, Cali, Barranquilla, Bucaramanga, Cartagena, Envigado y Rionegro.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* PIE DE PÁGINA CON ACCESO ASESOR Y ADMINISTRADOR */}
-      <div className="relative z-10 mt-6 flex flex-wrap items-center justify-between gap-2 w-full max-w-[430px] px-2 text-[11px] text-slate-500 font-medium">
-        <span>© 2026 COLORLINK</span>
+      <div className="relative z-10 mt-6 flex flex-wrap items-center justify-between gap-2 w-full max-w-2xl px-4 text-[11px] text-slate-500 font-medium">
+        <span>© 2026 COLORLINK Pinturas & Tintometría</span>
         <div className="flex items-center gap-2">
+          {onExploreDemo && (
+            <button
+              type="button"
+              onClick={onExploreDemo}
+              className="flex items-center gap-1.5 text-emerald-700 hover:text-emerald-900 bg-white/90 hover:bg-white px-2.5 py-1.5 rounded-xl border border-emerald-300 shadow-2xs backdrop-blur-xs transition-colors cursor-pointer font-bold"
+              title="Ver demostración del cotizador"
+            >
+              <Eye className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Demostración</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={onOpenAdvisorModal}
@@ -1158,6 +1286,8 @@ export function ColorlinkLoginLanding({
           </button>
         </div>
       </div>
+    </>
+  )}
     </div>
   );
 }
