@@ -60,6 +60,12 @@ export interface ProjectFormData {
   ambiente: 'Exterior Intemperie' | 'Interior Seco' | 'Interior Húmedo (Baños/Cocinas)' | 'Industrial Severo / Químico' | 'Tráfico Peatonal / Vehicular';
   condicion: 'Nueva sin pintar' | 'Pintada en buen estado' | 'Fisuras leves y humedad' | 'Descascaramiento severo' | 'Oxidación superficial' | 'Contaminación / Grasa';
   colorAcabado: string;
+  // Soporte para combinación arquitectónica de 2 colores
+  dosColoresHabilitado?: boolean;
+  colorSecundario?: string;
+  proporcionColorSecundario?: number; // % para color secundario (ej: 30)
+  // Control realista de manos de pintura
+  manosPersonalizadas?: number; // 1, 2, 3 o 4 manos
   marcaPintura?: string;
   tipoPintura?: PaintTypeCategory;
   metodoPago?: 'bancolombia' | 'pse' | 'nequi' | 'contraentrega' | 'credito' | 'tarjeta';
@@ -170,6 +176,27 @@ export interface TechnicalCalculationResult {
   requiereVisitaEspecialista: boolean;
   alertaPatologia: string | null;
   presupuesto: BudgetBreakdown;
+  manosRecomendadasPorNorma?: number;
+  esManosPersonalizadas?: boolean;
+  desgloseDosColores?: {
+    habilitado: boolean;
+    colorPrincipal: {
+      nombre: string;
+      porcentaje: number;
+      areaM2: number;
+      galones: number;
+      cunetes: number;
+      galonesSueltos: number;
+    };
+    colorSecundario: {
+      nombre: string;
+      porcentaje: number;
+      areaM2: number;
+      galones: number;
+      cunetes: number;
+      galonesSueltos: number;
+    };
+  };
 }
 
 export interface UserProfile {

@@ -276,8 +276,16 @@ Responde ÚNICAMENTE un objeto JSON válido con la siguiente estructura (sin mar
 
     const aiClient = getAiClient();
     if (aiClient) {
-      // Intentar primero con gemini-3.8-flash para máxima precisión técnica y redacción natural
-      const candidateModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+      // Priorizar modelos con alta disponibilidad inmediata confirmada
+      const candidateModels = [
+        'gemini-3.5-flash',
+        'gemini-3.6-flash',
+        'gemini-3.5-flash-lite',
+        'gemini-flash-lite-latest',
+        'gemini-3-flash-preview',
+        'gemini-3.8-flash',
+        'gemini-3.1-flash-lite'
+      ];
       for (const modelName of candidateModels) {
         try {
           const aiResponse = await aiClient.models.generateContent({
@@ -467,7 +475,14 @@ IMPORTANTE: Si el sujeto principal de la foto es una persona, selfie, mascota, c
 
     const aiClient = getAiClient();
     if (aiClient) {
-      const visionModels = ['gemini-3.1-flash-lite', 'gemini-3.8-flash'];
+      const visionModels = [
+        'gemini-3.5-flash',
+        'gemini-3.5-flash-lite',
+        'gemini-3.6-flash',
+        'gemini-3-flash-preview',
+        'gemini-3.8-flash',
+        'gemini-3.1-flash-lite'
+      ];
       for (const modelName of visionModels) {
         try {
           const textPrompt = `${systemPrompt}\n\nNombre del archivo: "${photoName || 'foto_subida.jpg'}". Contexto del formulario: ${JSON.stringify(currentContext || {})}`;
@@ -662,22 +677,41 @@ PAUTAS DE RESPUESTA:
 Tu personalidad es alegre, servicial, experta y muy profesional. Respondes en español colombiano de forma 100% natural, fluida y agradable.
 
 DIRECTRICES CLAVE:
-1. RESPONDE DIRECTAMENTE a lo que el usuario está preguntando, sin rodeos mecánicos ni respuestas robóticas.
-2. Si el usuario saluda ("hola", "buenas"), salúdalo con calidez ("¡Hola! Qué gusto saludarte 🐧🎨...") y pregúntale en qué puedes colaborarle hoy.
-3. Brinda información técnica precisa y comprensible:
-   • Tipo 1: Alta resistencia y lavabilidad (+400 ciclos), ideal para fachadas, exteriores y áreas de alto tráfico.
-   • Tipo 2: Interiores lavables (+100 ciclos), gran poder cubriente para salas, alcobas y oficinas.
-   • Tipo 3: Cielorrasos y primeras manos (bajo frote).
-   • Selladores antialcalinos e hidrófugos para proteger contra humedad, salitre o revoques nuevos.
-   • Rendimiento promedio: 20-25 m² por galón a 2 manos; 100-125 m² por cuñete (5 galones).
-   • Tiempos de secado: 30-60 min al tacto, 2-4 horas entre manos, curado total 24-48 horas.
-4. Precios orientativos: Cuñete Tipo 1 desde aprox. $240.000 COP, Tipo 2 desde aprox. $190.000 COP, Galón desde $55.000 COP.
-5. Si el usuario desea hablar con una persona, ofrécele amablemente comunicarlo con la Arq. Sofía Martínez.
-6. Formato limpio: Usa negritas (**términos clave**), viñetas limpias (•) y valores en $ COP y m². Cero LaTeX.`;
+1. RESPONDE EXACTA Y DIRECTAMENTE a lo que el usuario está preguntando. No uses respuestas predeterminadas genéricas.
+2. Si el usuario pregunta por un tema específico (por ejemplo: qué pintura usar para un garaje, cómo tratar humedad, qué rodillo comprar, precios o colores), céntrate en responder ese tema puntual con información técnica aplicable y soluciones prácticas.
+3. Si el usuario saluda ("hola", "buenas"), salúdalo con calidez ("¡Hola! Qué gusto saludarte 🐧🎨...") y pregúntale en qué le puedes colaborar.
+4. Especificaciones clave Colorlink®:
+   • Fachadas: Tipo 1 Acrílica o Elastomérica (antifisuras e impermeabilizante con DFT >150 micras).
+   • Interiores: Tipo 1 Superlavable (>800 ciclos NTC 1335) o Tipo 2 Estándar.
+   • Baños/Cocinas: Antihongos Antibacterial resistente a condensación y vapor.
+   • Techos y Cielos: Tipo 3 Cielorrasos mate antireflejos.
+   • Pisos de alto tráfico / garajes: Pintura Epóxica bicomponente (A+B) o Poliuretano Alifático exterior.
+   • Metales: Esmaltes Alquídicos y Anticorrosivos fosfatizantes.
+   • Maderas: Barniz y Laca Poliuretano con filtro solar UV.
+   • NÚMERO DE MANOS REALISTA (Depende del producto y sustrato, NUNCA es 2 para todo):
+     - Barniz en maderas: Requiere 3 manos con lijado suave intermedio para sellar la veta.
+     - Membrana elastomérica: 2 a 3 manos generosas para lograr espesor impermeabilizante DFT >150-200µm.
+     - Cielorrasos / techos en buen estado: 1 mano con rodillo antigoteo es suficiente y óptima para no sobrecargar el yeso.
+     - Epóxica para pisos: 2 capas cruzadas bicomponente A+B sobre imprimante.
+     - Esmaltes metálicos: 1 mano de base anticorrosiva + 2 manos de acabado.
+     - Tráfico y canchas: 1 mano en repinte vial; 2 manos en asfalto nuevo.
+     - Muros Tipo 1 y 2: 1 a 2 manos en mantenimiento; 3 manos en sustratos vírgenes o cambio drástico de color oscuro a claro.
+   • COMBINACIÓN DE 2 COLORES Y SIMULADOR:
+     - Ahora la plataforma permite seleccionar 2 colores (Color Principal ~70% y Color de Acento / Molduras ~30%).
+     - Cuenta con un Simulador Arquitectónico en Vivo (Sala Contemporánea, Fachada Exterior y Dormitorio) para ver exactamente cómo lucen ambos colores juntos antes de comprar.
+5. Formato limpio: Negritas (**texto clave**), viñetas limpias (•), precios en $ COP y metrajes en m². Cero LaTeX.`;
 
     const aiClient = getAiClient();
     if (aiClient) {
-      const candidateModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+      const candidateModels = [
+        'gemini-3.5-flash',
+        'gemini-3.6-flash',
+        'gemini-3.5-flash-lite',
+        'gemini-flash-lite-latest',
+        'gemini-3-flash-preview',
+        'gemini-3.8-flash',
+        'gemini-3.1-flash-lite'
+      ];
       for (const modelName of candidateModels) {
         try {
           const conversationHistory = Array.isArray(history) && history.length > 0
@@ -773,6 +807,28 @@ DIRECTRICES CLAVE:
       qLower.includes('lija') ||
       qLower.includes('bandeja');
 
+    const isAboutCoats =
+      qLower.includes('manos') ||
+      qLower.includes('dos manos') ||
+      qLower.includes('2 manos') ||
+      qLower.includes('cuantas manos') ||
+      qLower.includes('cuántas manos') ||
+      qLower.includes('capas') ||
+      qLower.includes('número de manos') ||
+      qLower.includes('numero de manos');
+
+    const isAboutTwoColors =
+      qLower.includes('dos colores') ||
+      qLower.includes('2 colores') ||
+      qLower.includes('bicolor') ||
+      qLower.includes('combinar') ||
+      qLower.includes('combinación') ||
+      qLower.includes('combinacion') ||
+      qLower.includes('juntos') ||
+      qLower.includes('pared de acento') ||
+      qLower.includes('muro focal') ||
+      qLower.includes('moldura');
+
     const isAboutPreparation =
       qLower.includes('como aplicar') ||
       qLower.includes('cómo aplicar') ||
@@ -780,7 +836,6 @@ DIRECTRICES CLAVE:
       qLower.includes('preparacion') ||
       qLower.includes('aplicacion') ||
       qLower.includes('aplicación') ||
-      qLower.includes('manos') ||
       qLower.includes('revoque') ||
       qLower.includes('estuco');
 
@@ -860,6 +915,10 @@ DIRECTRICES CLAVE:
         expertReply = `🌈 **Carta de Colores & Tintometría Computarizada Colorlink:**\n\n• Contamos con más de **2,000 colores formulados** mediante dosificación giroscópica computarizada milimétrica.\n• **Acabados disponibles:** **Mate** (disimula imperfecciones del muro y no refleja destellos), **Satinado** (elegante brillo de seda, muy fácil de limpiar) y **Brillante**.\n• Los colores más solicitados para obra actual son: Blanco Puro, Gris Cemento, Marfil Cálido, Arena Caribe, Gris Grafito y Azul Cobalto.\n• Puedes elegir tu color directamente en el cotizador o escribir el código de tu agrado.`;
       } else if (isAboutPrices) {
         expertReply = `💰 **Precios y Formatos Oficiales Colorlink:**\n\n• **Cuñete (5 Galones = 18.9 L):** Es la presentación más económica por m². Tipo 1 desde aprox. $240.000 COP; Tipo 2 desde aprox. $190.000 COP.\n• **Galón (3.785 L):** Ideal para remates o áreas menores a 25 m². Desde $55.000 a $75.000 COP según especificación.\n• **Sellador Antialcalino / Hidrófugo:** Rinde 40 a 50 m² por galón.\n• En el cotizador puedes calcular el valor exacto de tu proyecto con flete incluido a ${city} y descuentos por volumen.`;
+      } else if (isAboutCoats) {
+        expertReply = `🎯 **¿Por qué el número de manos depende del tipo de pintura y sustrato?**\n\nEn la realidad técnica de obra, **NO siempre se aplican 2 manos**. El número real varía según la física del recubrimiento, la porosidad del sustrato y el estado de la pared:\n\n• **1 Mano (Mantenimiento y Cielorrasos):** En techos y cielorrasos con pintura blanca existente en buen estado (Pintura Tipo 3) o repintes de color similar, 1 sola mano con rodillo antigoteo es suficiente y recomendada para no sobrecargar el peso de la placa de yeso/drywall.\n• **2 Manos (Estándar Oficial NTC 1335):** Para repintes estándar en muros interiores o fachadas. La 1ª mano uniforma el fondo y la 2ª mano desarrolla el poder cubriente (>96%) y la textura superlavable.\n• **3 Manos (Maderas, Elastoméricas y Patologías):**\n  - **Maderas (Barniz / Laca):** Requieren 3 manos con lijado suave intermedio (grano 320) para sellar poro y dar protección UV hidrorrepelente.\n  - **Fachadas Elastoméricas:** Requieren 3 manos para lograr espesor de película seca DFT >150-200 micras que garantiza elongación elástica del 300% antifisuras.\n  - **Muros Vírgenes o Cambio Drástico de Color:** De tonos oscuros a claros se requieren 3 manos para evitar traslúcidos.\n• **Pisos Epóxicos (A+B):** 2 capas cruzadas bicomponente sobre imprimante para soportar llantas calientes y montacargas.\n\n💡 En el **Paso 2** de nuestro cotizador Colorlink ahora cuentas con el **Selector Técnico de Manos (1, 2, 3 o 4)** donde el sistema te explica la justificación y te permite personalizarla con cálculo de galones en vivo.`;
+      } else if (isAboutTwoColors) {
+        expertReply = `🎨 **Combinación de 2 Colores & Simulador Arquitectónico en Vivo:**\n\n¡Excelente requerimiento de diseño arquitectónico! En el **Paso 2** de la plataforma ahora puedes activar la opción **"Combinación de 2 Colores"**:\n\n• **Color Principal (~70% del Área):** Para muros predominantes, zonas amplias o cuerpo principal de fachada.\n• **Color Secundario / Acento (~30% del Área):** Para pared focal de impacto, molduras, nichos, marcos de ventanas, puertas o voladizos.\n• **Simulador Arquitectónico en Vivo:** Incluye 3 escenas fotorrealistas (**Sala de Estar Contemporánea, Fachada Exterior de Edificio y Dormitorio de Diseño**) con luces y sombras reales para ver exactamente cómo interactúan ambos tonos juntos.\n• **Dúos Armónicos:** Puedes elegir combinaciones recomendadas en 1 clic (ej: *Nórdico Grafito & Blanco, Cálido Mediterráneo & Terracota, Azul Costero & Lino*, etc.) o formular tonos personalizados con cuentagotas.\n• **Desglose de Envases:** El sistema calcula los galones y cuñetes para cada color para que Tintometría los dosifique de forma exacta.`;
       } else if (isAboutTools) {
         expertReply = `🖌️ **Guía de Brochas y Rodillos Recomendados:**\n\n• **Rodillo Antigoteo de Microfibra (9"):** Perfecto para superficies lisas o estucadas. Deja un acabado parejo sin salpicaduras.\n• **Rodillo de Felpa Gruesa (3/4"):** Indispensable para revoques rústicos, ladrillo o texturas rugosas.\n• **Brochas Profesionales (2" a 4"):** Cerdas sintéticas suaves para recortar esquinas, marcos y uniones sin rayar la pared.\n• **Cinta de Enmascarar Azul:** Protege zócalos y marcos sin levantar la pintura al despegar.`;
       } else if (isAboutPreparation) {

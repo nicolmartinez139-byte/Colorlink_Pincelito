@@ -316,8 +316,14 @@ export function createColorlinkPDFDoc(
     currentY + 14.2,
     { maxWidth: maxTextWidth }
   );
+  const coatsInfo = technicalCalc.esManosPersonalizadas
+    ? `${technicalCalc.manosSugeridas} manos (Personalizado por cliente)`
+    : `${technicalCalc.manosSugeridas} manos (${technicalCalc.manosSugeridas === 1 ? '1 mano suficiente' : 'Norma NTC'})`;
+  const colorSpec = formData.dosColoresHabilitado
+    ? `Dúo 2 Colores (${100 - (formData.proporcionColorSecundario || 30)}% Base / ${formData.proporcionColorSecundario || 30}% Acento)`
+    : `Color: ${formData.colorAcabado || 'Estándar'}`;
   doc.text(
-    `Rendimiento Teórico: ${technicalCalc.rendimientoTeoricoM2Galon} m²/galón • Aplicación: ${technicalCalc.manosSugeridas} manos sugeridas`,
+    `Rendimiento: ${technicalCalc.rendimientoTeoricoM2Galon} m²/gal • ${coatsInfo} • ${colorSpec}`,
     margin + 4,
     currentY + 18.4,
     { maxWidth: maxTextWidth }

@@ -452,6 +452,107 @@ export function formatCOP(amount: number): string {
   }).format(amount);
 }
 
+export function getRealisticCoatsRecommendation(
+  tipoPintura: string = '',
+  superficie: string = '',
+  condicion: string = '',
+  tipoObra: string = ''
+): { manos: number; motivo: string; norma: string } {
+  const tp = tipoPintura.toLowerCase();
+  const cond = condicion.toLowerCase();
+  const sup = superficie.toLowerCase();
+  const obra = tipoObra.toLowerCase();
+
+  // 1. Barniz y Laca Maderas
+  if (tp.includes('barniz') || tp.includes('madera') || sup.includes('madera')) {
+    return {
+      manos: 3,
+      motivo: '3 manos requeridas para madera (NTC 1148): 1ª mano diluida para impregnación profunda en veta, 2ª mano de cuerpo con lijado suave intermedio (grano 320), y 3ª mano de sellado hidrorrepelente con filtro solar UV.',
+      norma: 'Norma NTC 1148'
+    };
+  }
+
+  // 2. Exterior Elastomérica Impermeabilizante
+  if (tp.includes('elastomérica') || tp.includes('elastomerica')) {
+    const manos = (cond.includes('fisuras') || cond.includes('descascaramiento') || cond.includes('nueva')) ? 3 : 2;
+    return {
+      manos,
+      motivo: `${manos} manos requeridas para membrana elastomérica: Necesarias para lograr un espesor de película seca mínimo (DFT >150-200 micras) que garantice elongación elástica del 300% para puentear microfisuras y crear barrera 100% impermeable en fachadas.`,
+      norma: 'NTC 1335 / ASTM D6904'
+    };
+  }
+
+  // 3. Tráfico y Canchas Deportivas
+  if (tp.includes('tráfico') || tp.includes('trafico') || tp.includes('canchas')) {
+    const esRepinte = cond.includes('buen estado') || cond.includes('existente');
+    return {
+      manos: esRepinte ? 1 : 2,
+      motivo: esRepinte
+        ? '1 mano de alto espesor (repinte vial): Rinde la reflectividad y contraste óptimos sin saturar la capa asfáltica previa.'
+        : '2 manos cruzadas: 1ª mano de anclaje y penetración en el poro del pavimento y 2ª mano de rodamiento de alta fricción con microesferas antideslizantes.',
+      norma: 'NTC 1360 / ASTM D711'
+    };
+  }
+
+  // 4. Interior Tipo 3 (Cielorrasos, Techos, Placas de Drywall, Fondeo)
+  if (tp.includes('tipo 3') || obra.includes('cielorraso') || sup.includes('drywall')) {
+    const esMantenimiento = cond.includes('buen estado') || cond.includes('pintada');
+    return {
+      manos: esMantenimiento ? 1 : 2,
+      motivo: esMantenimiento
+        ? '1 mano recomendada: En techos y cielorrasos con pintura existente en buen estado, 1 sola mano con rodillo antigoteo refresca y cubre perfectamente sin sobrecargar de peso la estructura de yeso.'
+        : '2 manos requeridas: En drywall nuevo o fondeo, la 1ª mano satura el yeso y la 2ª mano unifica la textura mate antireflejo.',
+      norma: 'NTC 1335'
+    };
+  }
+
+  // 5. Esmaltes & Anticorrosivos sobre Metales
+  if (tp.includes('esmalte') || tp.includes('anticorrosivo') || sup.includes('metal')) {
+    const esMantenimiento = cond.includes('buen estado');
+    return {
+      manos: esMantenimiento ? 1 : 2,
+      motivo: '2 manos de acabado esmalte sobre 1 mano de base anticorrosiva: Generan una película lisa y nivelada con brillo duradero que aísla el metal del oxígeno y la humedad ambiental.',
+      norma: 'NTC 1651 / NTC 1283'
+    };
+  }
+
+  // 6. Epóxica Altos Sólidos Pisos & Poliuretano
+  if (tp.includes('epóxica') || tp.includes('epoxica') || tp.includes('poliuretano') || tp.includes('pisos')) {
+    const esSevero = cond.includes('grasa') || cond.includes('descascaramiento');
+    return {
+      manos: esSevero ? 3 : 2,
+      motivo: esSevero
+        ? '3 capas bicomponente A+B: Imprimación profunda + 2 capas de acabado de alto espesor para sellar poros contaminados y resistir tráfico de montacargas pesados.'
+        : '2 capas cruzadas bicomponente A+B sobre imprimante: Proporcionan una película vitrificada de 8 a 12 mils resistente a abrasión, llantas calientes y derrames químicos según NTC 4060.',
+      norma: 'NTC 4060 / ASTM D4060'
+    };
+  }
+
+  // 7. Interior Baños y Cocinas (Antihongos)
+  if (tp.includes('baños') || tp.includes('cocinas')) {
+    return {
+      manos: 2,
+      motivo: '2 manos densas requeridas: Indispensables para formar una película continua con microbicida activo que repela la condensación de vapor de agua y evite la proliferación de moho.',
+      norma: 'NTC 1335 / ASTM D3273'
+    };
+  }
+
+  // 8. Pintura Tipo 1 y Tipo 2 (General Muros & Fachadas)
+  if (cond.includes('fisuras') || cond.includes('descascaramiento') || cond.includes('nueva')) {
+    return {
+      manos: 3,
+      motivo: '3 manos técnicas requeridas por condición de la superficie: 1ª mano de imprimación/sellado para regularizar la absorción desigual, 2ª mano de cubrimiento estructural y 3ª mano de acabado final superlavable.',
+      norma: 'NTC 1335'
+    };
+  }
+
+  return {
+    manos: 2,
+    motivo: '2 manos recomendadas (Norma NTC 1335): 1ª mano de fondo y nivelación cromática, 2ª mano de poder cubriente (>96%), textura uniforme y máxima lavabilidad.',
+    norma: 'NTC 1335'
+  };
+}
+
 export function calculateTechnicalRequirements(formData: Partial<ProjectFormData>): TechnicalCalculationResult {
   const area = formData.areaM2 || 0;
   const superficie = formData.superficie || 'Concreto / Revoque';
@@ -459,6 +560,7 @@ export function calculateTechnicalRequirements(formData: Partial<ProjectFormData
   const condicion = formData.condicion || 'Nueva sin pintar';
   const ciudad = formData.ciudad || 'Medellín';
   const clienteNombre = formData.cliente || '';
+  const tipoObra = formData.tipoObra || '';
 
   // Determinar Tipo de Pintura (Norma NTC 1335 / NTC 5828)
   let tipoPintura: PaintTypeCategory = formData.tipoPintura || 'Exterior Tipo 1';
@@ -514,7 +616,12 @@ export function calculateTechnicalRequirements(formData: Partial<ProjectFormData
   }
 
   let selladorImprimanteRequerido = 'Sellador Antialcalino Base Solvente / Acrílico';
-  let manosSugeridas = 2;
+  const coatRec = getRealisticCoatsRecommendation(tipoPintura, superficie, condicion, tipoObra);
+  const manosRecomendadasPorNorma = coatRec.manos;
+  const esManosPersonalizadas = Boolean(formData.manosPersonalizadas && formData.manosPersonalizadas >= 1 && formData.manosPersonalizadas <= 4 && formData.manosPersonalizadas !== manosRecomendadasPorNorma);
+  let manosSugeridas = (formData.manosPersonalizadas && formData.manosPersonalizadas >= 1 && formData.manosPersonalizadas <= 4)
+    ? formData.manosPersonalizadas
+    : manosRecomendadasPorNorma;
   let rendimientoTeoricoM2Galon = 25;
   if (tipoPintura.includes('Epóxica')) {
     rendimientoTeoricoM2Galon = 16;
@@ -640,9 +747,9 @@ export function calculateTechnicalRequirements(formData: Partial<ProjectFormData
   const galonesNetosSinDesperdicio = Math.round(galonesNetos * 10) / 10;
   const galonesDesperdicio = Math.max(0.1, Math.round((galonesConDesperdicio - galonesNetosSinDesperdicio) * 10) / 10);
 
-  const explicacionManos = manosSugeridas >= 3
-    ? `3 manos requeridas: Refuerzo técnico por condición de superficie (${condicion}). Mano 1 de sellado penetrante, Manos 2 y 3 de película protectora.`
-    : `2 manos requeridas: Especificación técnica estándar NTC 1335. Mano 1 de anclaje y fondo, Mano 2 de acabado, nivelación y color definitivo.`;
+  const explicacionManos = esManosPersonalizadas
+    ? `Ajuste manual del cliente: ${manosSugeridas} mano(s) seleccionada(s). (La norma técnica recomienda ${manosRecomendadasPorNorma} manos: ${coatRec.motivo})`
+    : coatRec.motivo;
 
   const explicacionDesperdicio = `Margen técnico del 10% (+${galonesDesperdicio} galones): Absorbe rugosidad del sustrato (${superficie}), recortes de esquinas y mermas en rodillo/brocha para evitar faltantes en obra.`;
   
@@ -650,6 +757,40 @@ export function calculateTechnicalRequirements(formData: Partial<ProjectFormData
   const totalGalonesEnteros = Math.ceil(galonesConDesperdicio);
   const cuñetesRequeridos = Math.floor(totalGalonesEnteros / 5);
   const galonesSueltosRequeridos = totalGalonesEnteros % 5;
+
+  // Desglose volumétrico cuando se seleccionan 2 colores
+  const ratioSecundario = (typeof formData.proporcionColorSecundario === 'number' && formData.proporcionColorSecundario > 0 && formData.proporcionColorSecundario < 100)
+    ? formData.proporcionColorSecundario
+    : 30;
+  const ratioPrincipal = 100 - ratioSecundario;
+  const areaPrincipal = Math.round((area * ratioPrincipal / 100) * 10) / 10;
+  const areaSecundario = Math.round((area * ratioSecundario / 100) * 10) / 10;
+  const galonesColor1 = Math.max(1, Math.round((galonesConDesperdicio * ratioPrincipal / 100) * 10) / 10);
+  const galonesColor2 = Math.max(1, Math.round((galonesConDesperdicio * ratioSecundario / 100) * 10) / 10);
+  const cunetesColor1 = Math.floor(Math.ceil(galonesColor1) / 5);
+  const galonesSueltosColor1 = Math.ceil(galonesColor1) % 5;
+  const cunetesColor2 = Math.floor(Math.ceil(galonesColor2) / 5);
+  const galonesSueltosColor2 = Math.ceil(galonesColor2) % 5;
+
+  const desgloseDosColores = formData.dosColoresHabilitado ? {
+    habilitado: true,
+    colorPrincipal: {
+      nombre: formData.colorAcabado || 'Color Principal',
+      porcentaje: ratioPrincipal,
+      areaM2: areaPrincipal,
+      galones: galonesColor1,
+      cunetes: cunetesColor1,
+      galonesSueltos: galonesSueltosColor1
+    },
+    colorSecundario: {
+      nombre: formData.colorSecundario || 'Color Secundario / Acento',
+      porcentaje: ratioSecundario,
+      areaM2: areaSecundario,
+      galones: galonesColor2,
+      cunetes: cunetesColor2,
+      galonesSueltos: galonesSueltosColor2
+    }
+  } : undefined;
 
   // --- CÁLCULO DE PRESUPUESTO COMERCIAL EN COP ---
   // Determinar precios unitarios de pintura principal
@@ -670,6 +811,9 @@ export function calculateTechnicalRequirements(formData: Partial<ProjectFormData
     : tipoPinturaDetalle.precioGalon;
 
   const items: BudgetItem[] = [];
+  const descColor = formData.dosColoresHabilitado
+    ? `Dúo Bicolor Arquitectónico: [Principal ${ratioPrincipal}%: ${formData.colorAcabado || 'Color 1'}] + [Acento ${ratioSecundario}%: ${formData.colorSecundario || 'Color 2'}]`
+    : `Acabado ${formData.colorAcabado || 'Gris'}`;
 
   // 1. Producto Principal: Cuñetes
   if (cuñetesRequeridos > 0) {
@@ -680,7 +824,7 @@ export function calculateTechnicalRequirements(formData: Partial<ProjectFormData
       quantity: cuñetesRequeridos,
       unitPrice: precioCuneteUnitario,
       totalPrice: cuñetesRequeridos * precioCuneteUnitario,
-      description: `Pintura ${tipoPintura} marca ${selectedBrand} (${tipoPinturaDetalle.normaNTC}). Acabado ${formData.colorAcabado || 'Gris'} para ${area} m² a ${manosSugeridas} manos.`
+      description: `Pintura ${tipoPintura} marca ${selectedBrand} (${tipoPinturaDetalle.normaNTC}). ${descColor} para ${area} m² a ${manosSugeridas} manos.`
     });
   }
 
@@ -693,7 +837,7 @@ export function calculateTechnicalRequirements(formData: Partial<ProjectFormData
       quantity: galonesSueltosRequeridos,
       unitPrice: precioGalonUnitario,
       totalPrice: galonesSueltosRequeridos * precioGalonUnitario,
-      description: `Fracción pintura ${tipoPintura} marca ${selectedBrand} para ajuste volumétrico exacto (${galonesSueltosRequeridos} gal).`
+      description: `Fracción pintura ${tipoPintura} marca ${selectedBrand} para ajuste volumétrico exacto (${galonesSueltosRequeridos} gal). ${descColor}.`
     });
   }
 
@@ -797,7 +941,10 @@ export function calculateTechnicalRequirements(formData: Partial<ProjectFormData
     tiempoEstimadoSecado: '2 a 4 horas entre manos (Secado total: 24 horas)',
     requiereVisitaEspecialista,
     alertaPatologia,
-    presupuesto
+    presupuesto,
+    manosRecomendadasPorNorma,
+    esManosPersonalizadas,
+    desgloseDosColores
   };
 }
 

@@ -267,7 +267,11 @@ export function ClientEmailPreviewModal({
                   <tr className="bg-white">
                     <td className="py-2.5 px-3 font-bold text-slate-900">{formData.tipoPintura || 'Pintura Tipo 1'}</td>
                     <td className="py-2.5 px-3 font-black text-center text-emerald-600 text-sm">Acabado</td>
-                    <td className="py-2.5 px-3 text-slate-600">Color: {formData.colorAcabado || 'Gris'} • Sustrato: {formData.superficie}</td>
+                    <td className="py-2.5 px-3 text-slate-600">
+                      {formData.dosColoresHabilitado
+                        ? `Dúo 2 Colores: [Base ${100 - (formData.proporcionColorSecundario || 30)}%: ${formData.colorAcabado || 'Color 1'}] + [Acento ${formData.proporcionColorSecundario || 30}%: ${formData.colorSecundario || 'Color 2'}] • Sustrato: ${formData.superficie}`
+                        : `Color: ${formData.colorAcabado || 'Gris'} • Sustrato: ${formData.superficie}`}
+                    </td>
                   </tr>
                 </tbody>
               </table>

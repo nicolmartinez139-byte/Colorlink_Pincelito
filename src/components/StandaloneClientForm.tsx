@@ -4,6 +4,8 @@ import { CASE_STUDY_PRESET } from '../data/dictionaryData';
 import { calculateTechnicalRequirements, formatCOP, AVAILABLE_PAINT_BRANDS, getPaintTypePrice, PAINT_TYPE_PROFILES } from '../utils/calculator';
 import { generateColorlinkPDF, printColorlinkPDF } from '../utils/generateColorlinkPDF';
 import { ColorFinishSelector } from './ColorFinishSelector';
+import { CoatRecommendationSelector } from './CoatRecommendationSelector';
+import { TwoColorArchitecturalVisualizer } from './TwoColorArchitecturalVisualizer';
 import { ColorlinkPenguin } from './ColorlinkPenguin';
 import { ColorlinkPaintSplashes, ColorlinkRainbowBar } from './ColorlinkSplashes';
 import { ColorlinkConfettiDots, ColorlinkDotsCompact } from './ColorlinkDots';
@@ -67,7 +69,8 @@ import {
   ZoomIn,
   Video,
   VideoOff,
-  Zap
+  Zap,
+  Info
 } from 'lucide-react';
 import { ClientEmailPreviewModal } from './ClientEmailPreviewModal';
 import { sendRealOrderEmail } from '../lib/emailService';
@@ -126,6 +129,10 @@ const SIMULATION_CASE_STUDY: ProjectFormData = {
   tipoPintura: 'Exterior Tipo 1',
   metodoPago: 'bancolombia',
   colorAcabado: 'Gris (Mate)',
+  dosColoresHabilitado: true,
+  colorSecundario: 'Blanco Nieve [RAL 9016]',
+  proporcionColorSecundario: 30,
+  manosPersonalizadas: undefined,
   herramientasSeleccionadas: [
     {
       id: 'brocha-pro-2',
@@ -183,6 +190,10 @@ const createCleanFormData = (user?: UserProfile | null): ProjectFormData => ({
   tipoPintura: '' as any,
   metodoPago: 'bancolombia',
   colorAcabado: '',
+  dosColoresHabilitado: false,
+  colorSecundario: '',
+  proporcionColorSecundario: 30,
+  manosPersonalizadas: undefined,
   herramientasSeleccionadas: [],
   descripcionLibre: '',
   fotos: [],
@@ -5065,12 +5076,38 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       {errors.tipoPintura && <p className="text-xs text-rose-600 mt-1">{errors.tipoPintura}</p>}
                     </div>
 
-                    {/* Selector Visual de Color & Tintometría */}
+                    {/* SELECTOR TÉCNICO DE NÚMERO DE MANOS DE PINTURA (DINÁMICO & REALISTA) */}
                     <div className="pt-4 border-t border-slate-100">
+                      <CoatRecommendationSelector
+                        tipoPintura={formData.tipoPintura}
+                        superficie={formData.superficie}
+                        condicion={formData.condicion}
+                        tipoObra={formData.tipoObra}
+                        value={formData.manosPersonalizadas}
+                        onChange={(manos) => handleInputChange('manosPersonalizadas', manos)}
+                        areaM2={formData.areaM2}
+                      />
+                    </div>
+
+                    {/* Selector Visual de Color & Tintometría */}
+                    <div className="pt-4 border-t border-slate-100 space-y-4">
                       <ColorFinishSelector
                         value={formData.colorAcabado}
                         onChange={(val) => handleInputChange('colorAcabado', val)}
                         error={errors.colorAcabado}
+                      />
+
+                      {/* SIMULADOR ARQUITECTÓNICO DE 2 COLORES EN VIVO */}
+                      <TwoColorArchitecturalVisualizer
+                        colorPrincipal={formData.colorAcabado || 'Blanco Nieve'}
+                        colorSecundario={formData.colorSecundario || 'Gris Grafito'}
+                        dosColoresHabilitado={Boolean(formData.dosColoresHabilitado)}
+                        proporcionSecundario={formData.proporcionColorSecundario || 30}
+                        onChangeColorPrincipal={(val) => handleInputChange('colorAcabado', val)}
+                        onChangeColorSecundario={(val) => handleInputChange('colorSecundario', val)}
+                        onChangeDosColores={(enabled) => handleInputChange('dosColoresHabilitado', enabled)}
+                        onChangeProporcion={(p) => handleInputChange('proporcionColorSecundario', p)}
+                        areaTotalM2={formData.areaM2}
                       />
                     </div>
 
@@ -5204,19 +5241,45 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         </div>
 
                         <div className="p-3.5 rounded-2xl bg-white border border-sky-200/80 shadow-2xs space-y-1 hover:border-sky-300 transition-all">
-                          <span className="text-[10px] uppercase font-bold text-slate-500 block">Herramientas Seleccionadas</span>
-                          {formData.herramientasSeleccionadas && formData.herramientasSeleccionadas.length > 0 ? (
-                            <strong className="text-sky-800 block text-xs font-black">
-                              {formData.herramientasSeleccionadas.reduce((acc, h) => acc + h.cantidad, 0)} accesorio(s) agregados
-                            </strong>
-                          ) : (
-                            <span className="text-slate-600 block text-xs font-medium">
-                              Brocha cerda pura o rodillo profesional
-                            </span>
-                          )}
-                          <span className="text-[10px] text-slate-600">
-                            Color: {formData.colorAcabado || 'Blanco Puro'}
+                          <span className="text-[10px] uppercase font-bold text-slate-500 block">
+                            {formData.dosColoresHabilitado ? 'Dúo Arquitectónico 2 Colores' : 'Color & Tintometría'}
                           </span>
+                          {formData.dosColoresHabilitado ? (
+                            <div className="space-y-0.5">
+                              <span className="text-xs font-black text-slate-900 block truncate">
+                                Base: {formData.colorAcabado || 'Color Principal'} ({100 - (formData.proporcionColorSecundario || 30)}%)
+                              </span>
+                              <span className="text-xs font-black text-purple-900 block truncate">
+                                Acento: {formData.colorSecundario || 'Acento'} ({formData.proporcionColorSecundario || 30}%)
+                              </span>
+                            </div>
+                          ) : (
+                            <strong className="text-slate-900 block text-xs font-black truncate">
+                              Color: {formData.colorAcabado || 'Blanco Puro'}
+                            </strong>
+                          )}
+                          <span className="text-[10px] text-emerald-700 font-bold block pt-0.5">
+                            {technicalCalc.manosSugeridas} {technicalCalc.manosSugeridas === 1 ? 'mano requerida' : 'manos requeridas'}
+                            {technicalCalc.esManosPersonalizadas ? ' (personalizada)' : ' (según norma técnica)'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Notificación con Justificación Técnica Oficial de Manos y Superficie */}
+                      <div className="p-3.5 rounded-2xl bg-blue-50/80 border border-blue-200 text-xs text-blue-950 flex items-start gap-2.5">
+                        <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                        <div className="space-y-0.5">
+                          <strong className="block text-blue-900">
+                            Fundamento Técnico de Aplicación ({technicalCalc.manosSugeridas} {technicalCalc.manosSugeridas === 1 ? 'Mano' : 'Manos'}):
+                          </strong>
+                          <p className="text-[11px] leading-relaxed text-slate-700">
+                            {technicalCalc.explicacionManos}
+                          </p>
+                          {formData.dosColoresHabilitado && (
+                            <p className="text-[10px] text-purple-800 font-bold pt-1">
+                              * Dosificación en Tintometría: Se dosificarán 2 códigos de color independientes ({100 - (formData.proporcionColorSecundario || 30)}% Base y {formData.proporcionColorSecundario || 30}% Acento/Molduras) garantizando la tonalidad exacta previsualizada en el simulador arquitectónico.
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>

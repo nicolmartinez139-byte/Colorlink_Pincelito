@@ -230,16 +230,15 @@ export function ClientAIAssistant({
 
     const lower = (query || '').toLowerCase();
 
-    // Detección universal: Si el usuario quiere hablar con un asesor
-    if (
-      lower.includes('asesor') ||
-      lower.includes('humano') ||
-      lower.includes('persona') ||
-      lower.includes('contacto') ||
-      lower.includes('llamar') ||
-      lower.includes('llamada') ||
-      lower.includes('agente')
-    ) {
+    // Detección estricta: Solo transferir si el usuario solicita explícitamente hablar con un asesor humano
+    const isExplicitAdvisorRequest =
+      lower === 'asesor' ||
+      lower === 'asesor humano' ||
+      lower === '👤 hablar con un asesor humano' ||
+      ((lower.includes('hablar') || lower.includes('comunicar') || lower.includes('conectar') || lower.includes('transferir')) &&
+        (lower.includes('asesor') || lower.includes('humano') || lower.includes('persona')));
+
+    if (isExplicitAdvisorRequest) {
       handleConnectAdvisor(query);
       return;
     }
@@ -423,8 +422,15 @@ export function ClientAIAssistant({
       return;
     }
 
-    // 1. Caso especial: Cargar ejemplo técnico (sin sobreescribir identidad del cliente autenticado)
-    if (lower.includes('horizonte') || lower.includes('caso') || lower.includes('ejemplo técnico')) {
+    // 1. Caso especial: Cargar ejemplo técnico únicamente si el usuario lo solicita explícitamente
+    const isExplicitDemoRequest =
+      lower.includes('constructora horizonte') ||
+      lower.includes('ejemplo técnico') ||
+      lower.includes('cargar ejemplo') ||
+      lower === '🏢 cargar ejemplo técnico (fachada 85 m²)' ||
+      lower === 'cargar datos de constructora horizonte';
+
+    if (isExplicitDemoRequest) {
       setTimeout(() => {
         const hasExistingClient = Boolean(currentFormData.emailResponsable || currentFormData.nitDocumento);
         setMessages((prev) => [
@@ -463,30 +469,6 @@ export function ClientAIAssistant({
         ]);
         setIsTyping(false);
       }, 600);
-      return;
-    }
-
-    // 2. Cálculo matemático de área si el usuario dio dimensiones
-    const mathMatch = lower.match(/(\d+(?:\.\d+)?)\s*(?:por|x|\*)\s*(\d+(?:\.\d+)?)/);
-    if (mathMatch) {
-      const width = parseFloat(mathMatch[1]);
-      const height = parseFloat(mathMatch[2]);
-      const total = Math.round(width * height * 100) / 100;
-      setTimeout(() => {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: Date.now().toString(),
-            sender: 'pincelito',
-            text: `Multiplicando **${width}m de ancho** por **${height}m de alto**, tu área total es de **${total} m²**.\n\nPara esa superficie te calcularemos la dosificación justa de cuñetes y galones con 10% de desperdicio técnico incluido.`,
-            timestamp: 'Ahora',
-            actionLabel: `Aplicar ${total} m² al Formulario`,
-            actionPayload: { areaM2: total },
-            options: ['Aplicar metraje al formulario', '👤 Hablar con un asesor']
-          }
-        ]);
-        setIsTyping(false);
-      }, 500);
       return;
     }
 
