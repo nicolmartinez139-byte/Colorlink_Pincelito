@@ -4636,9 +4636,16 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                           </span>
                         </div>
                       </div>
-                      <span className="text-[11px] font-bold text-amber-800 bg-amber-100/70 px-3 py-1 rounded-xl border border-amber-300/60">
-                        {technicalCalc.manosSugeridas} Manos Recomendadas
-                      </span>
+                      {formData.areaM2 > 0 ? (
+                        <div className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-xs font-bold">
+                          <Check className="w-3.5 h-3.5 text-blue-600" />
+                          <span>Área confirmada: {formData.areaM2} m²</span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-slate-400 font-medium shrink-0">
+                          Paso 1 de 4
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex justify-end pt-4 border-t border-slate-100">
@@ -5076,19 +5083,6 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       {errors.tipoPintura && <p className="text-xs text-rose-600 mt-1">{errors.tipoPintura}</p>}
                     </div>
 
-                    {/* SELECTOR TÉCNICO DE NÚMERO DE MANOS DE PINTURA (DINÁMICO & REALISTA) */}
-                    <div className="pt-4 border-t border-slate-100">
-                      <CoatRecommendationSelector
-                        tipoPintura={formData.tipoPintura}
-                        superficie={formData.superficie}
-                        condicion={formData.condicion}
-                        tipoObra={formData.tipoObra}
-                        value={formData.manosPersonalizadas}
-                        onChange={(manos) => handleInputChange('manosPersonalizadas', manos)}
-                        areaM2={formData.areaM2}
-                      />
-                    </div>
-
                     {/* Selector Visual de Color & Tintometría */}
                     <div className="pt-4 border-t border-slate-100 space-y-4">
                       <ColorFinishSelector
@@ -5108,6 +5102,23 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         onChangeDosColores={(enabled) => handleInputChange('dosColoresHabilitado', enabled)}
                         onChangeProporcion={(p) => handleInputChange('proporcionColorSecundario', p)}
                         areaTotalM2={formData.areaM2}
+                      />
+                    </div>
+
+                    {/* DICTAMEN DE LA IA DE MANOS DE PINTURA (EMITIDO TRAS ELEGIR MARCA, TIPO Y COLOR/ES) */}
+                    <div className="pt-4 border-t border-slate-100">
+                      <CoatRecommendationSelector
+                        tipoPintura={formData.tipoPintura}
+                        marcaPintura={formData.marcaPintura}
+                        colorAcabado={formData.colorAcabado}
+                        colorSecundario={formData.colorSecundario}
+                        dosColoresHabilitado={Boolean(formData.dosColoresHabilitado)}
+                        superficie={formData.superficie}
+                        condicion={formData.condicion}
+                        tipoObra={formData.tipoObra}
+                        value={formData.manosPersonalizadas}
+                        onChange={(manos) => handleInputChange('manosPersonalizadas', manos)}
+                        areaM2={formData.areaM2}
                       />
                     </div>
 

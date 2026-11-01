@@ -456,18 +456,29 @@ export function getRealisticCoatsRecommendation(
   tipoPintura: string = '',
   superficie: string = '',
   condicion: string = '',
-  tipoObra: string = ''
+  tipoObra: string = '',
+  marcaPintura: string = '',
+  colorAcabado: string = '',
+  colorSecundario: string = '',
+  dosColoresHabilitado: boolean = false
 ): { manos: number; motivo: string; norma: string } {
   const tp = tipoPintura.toLowerCase();
   const cond = condicion.toLowerCase();
   const sup = superficie.toLowerCase();
   const obra = tipoObra.toLowerCase();
+  const brand = marcaPintura ? marcaPintura.replace(/®/g, '').trim() : 'Pintuco';
+  const color1 = colorAcabado ? colorAcabado.toLowerCase() : '';
+  const color2 = colorSecundario ? colorSecundario.toLowerCase() : '';
+
+  // Detección de tonos oscuros o pigmentos de saturación profunda
+  const tonosIntensos = ['negro', 'grafito', 'gris oscuro', 'rojo', 'vinotinto', 'azul oscuro', 'azul rey', 'terracota', 'mostaza', 'verde militar', 'verde esmeralda', 'café', 'chocolate'];
+  const esColorIntenso = tonosIntensos.some(t => color1.includes(t) || (dosColoresHabilitado && color2.includes(t)));
 
   // 1. Barniz y Laca Maderas
   if (tp.includes('barniz') || tp.includes('madera') || sup.includes('madera')) {
     return {
       manos: 3,
-      motivo: '3 manos requeridas para madera (NTC 1148): 1ª mano diluida para impregnación profunda en veta, 2ª mano de cuerpo con lijado suave intermedio (grano 320), y 3ª mano de sellado hidrorrepelente con filtro solar UV.',
+      motivo: `3 manos requeridas para carpintería de madera (${brand}): 1ª mano diluida para impregnación profunda en veta, 2ª mano de cuerpo con lijado suave intermedio (grano 320), y 3ª mano de sellado hidrorrepelente con filtro solar UV.`,
       norma: 'Norma NTC 1148'
     };
   }
@@ -477,7 +488,7 @@ export function getRealisticCoatsRecommendation(
     const manos = (cond.includes('fisuras') || cond.includes('descascaramiento') || cond.includes('nueva')) ? 3 : 2;
     return {
       manos,
-      motivo: `${manos} manos requeridas para membrana elastomérica: Necesarias para lograr un espesor de película seca mínimo (DFT >150-200 micras) que garantice elongación elástica del 300% para puentear microfisuras y crear barrera 100% impermeable en fachadas.`,
+      motivo: `${manos} manos requeridas para membrana elastomérica ${brand}: Necesarias para lograr un espesor de película seca mínimo (DFT >150-200 micras) que garantice elongación elástica del 300% para puentear microfisuras y crear barrera 100% impermeable en fachadas.`,
       norma: 'NTC 1335 / ASTM D6904'
     };
   }
@@ -488,8 +499,8 @@ export function getRealisticCoatsRecommendation(
     return {
       manos: esRepinte ? 1 : 2,
       motivo: esRepinte
-        ? '1 mano de alto espesor (repinte vial): Rinde la reflectividad y contraste óptimos sin saturar la capa asfáltica previa.'
-        : '2 manos cruzadas: 1ª mano de anclaje y penetración en el poro del pavimento y 2ª mano de rodamiento de alta fricción con microesferas antideslizantes.',
+        ? `1 mano de alto espesor (repinte vial ${brand}): Rinde la reflectividad y contraste óptimos sin saturar la capa asfáltica previa.`
+        : `2 manos cruzadas (${brand}): 1ª mano de anclaje y penetración en el poro del pavimento y 2ª mano de rodamiento de alta fricción con microesferas antideslizantes.`,
       norma: 'NTC 1360 / ASTM D711'
     };
   }
@@ -500,8 +511,8 @@ export function getRealisticCoatsRecommendation(
     return {
       manos: esMantenimiento ? 1 : 2,
       motivo: esMantenimiento
-        ? '1 mano recomendada: En techos y cielorrasos con pintura existente en buen estado, 1 sola mano con rodillo antigoteo refresca y cubre perfectamente sin sobrecargar de peso la estructura de yeso.'
-        : '2 manos requeridas: En drywall nuevo o fondeo, la 1ª mano satura el yeso y la 2ª mano unifica la textura mate antireflejo.',
+        ? `1 mano recomendada: En techos y cielorrasos con pintura existente en buen estado en tono blanco/neutro, 1 sola mano con rodillo antigoteo refresca y cubre perfectamente sin sobrecargar de peso la estructura de yeso.`
+        : `2 manos requeridas: En drywall nuevo o fondeo con ${brand} Tipo 3, la 1ª mano satura el yeso y la 2ª mano unifica la textura mate antireflejo.`,
       norma: 'NTC 1335'
     };
   }
@@ -511,7 +522,7 @@ export function getRealisticCoatsRecommendation(
     const esMantenimiento = cond.includes('buen estado');
     return {
       manos: esMantenimiento ? 1 : 2,
-      motivo: '2 manos de acabado esmalte sobre 1 mano de base anticorrosiva: Generan una película lisa y nivelada con brillo duradero que aísla el metal del oxígeno y la humedad ambiental.',
+      motivo: `2 manos de acabado esmalte ${brand} sobre 1 mano de base anticorrosiva: Generan una película lisa y nivelada con brillo duradero que aísla el metal del oxígeno y la humedad ambiental.`,
       norma: 'NTC 1651 / NTC 1283'
     };
   }
@@ -522,8 +533,8 @@ export function getRealisticCoatsRecommendation(
     return {
       manos: esSevero ? 3 : 2,
       motivo: esSevero
-        ? '3 capas bicomponente A+B: Imprimación profunda + 2 capas de acabado de alto espesor para sellar poros contaminados y resistir tráfico de montacargas pesados.'
-        : '2 capas cruzadas bicomponente A+B sobre imprimante: Proporcionan una película vitrificada de 8 a 12 mils resistente a abrasión, llantas calientes y derrames químicos según NTC 4060.',
+        ? `3 capas bicomponente A+B ${brand}: Imprimación profunda + 2 capas de acabado de alto espesor para sellar poros contaminados y resistir tráfico de montacargas pesados.`
+        : `2 capas cruzadas bicomponente A+B sobre imprimante: Proporcionan una película vitrificada de 8 a 12 mils resistente a abrasión, llantas calientes y derrames químicos según NTC 4060.`,
       norma: 'NTC 4060 / ASTM D4060'
     };
   }
@@ -532,23 +543,32 @@ export function getRealisticCoatsRecommendation(
   if (tp.includes('baños') || tp.includes('cocinas')) {
     return {
       manos: 2,
-      motivo: '2 manos densas requeridas: Indispensables para formar una película continua con microbicida activo que repela la condensación de vapor de agua y evite la proliferación de moho.',
+      motivo: `2 manos densas requeridas (${brand}): Indispensables para formar una película continua con microbicida activo que repela la condensación de vapor de agua y evite la proliferación de moho.`,
       norma: 'NTC 1335 / ASTM D3273'
     };
   }
 
-  // 8. Pintura Tipo 1 y Tipo 2 (General Muros & Fachadas)
+  // 8. Esquema Bi-Color o Tonos Saturados Intensos
+  if (dosColoresHabilitado && esColorIntenso) {
+    return {
+      manos: 3,
+      motivo: `3 manos técnicas requeridas por esquema de doble color y saturación (${colorAcabado || 'Base'} + ${colorSecundario || 'Acento'} con ${brand}): El tono de contraste profundo requiere una 1ª mano de fondeo y 2 manos completas de acabado para eliminar traslapes y lograr un corte perimetral de alta nitidez sin sombras.`,
+      norma: 'NTC 1335'
+    };
+  }
+
+  // 9. Superficies con patologías o cambio drástico de color
   if (cond.includes('fisuras') || cond.includes('descascaramiento') || cond.includes('nueva')) {
     return {
       manos: 3,
-      motivo: '3 manos técnicas requeridas por condición de la superficie: 1ª mano de imprimación/sellado para regularizar la absorción desigual, 2ª mano de cubrimiento estructural y 3ª mano de acabado final superlavable.',
+      motivo: `3 manos técnicas requeridas por condición de la superficie (${condicion}) con ${brand}: 1ª mano de imprimación/sellado para regularizar la absorción desigual en ${superficie}, 2ª mano de cubrimiento estructural y 3ª mano de acabado final superlavable.`,
       norma: 'NTC 1335'
     };
   }
 
   return {
     manos: 2,
-    motivo: '2 manos recomendadas (Norma NTC 1335): 1ª mano de fondo y nivelación cromática, 2ª mano de poder cubriente (>96%), textura uniforme y máxima lavabilidad.',
+    motivo: `2 manos recomendadas (${brand} - Norma NTC 1335 para color ${colorAcabado || 'seleccionado'}): 1ª mano de anclaje y nivelación cromática sobre ${superficie}, y 2ª mano de poder cubriente (>96%), textura uniforme y máxima lavabilidad.`,
     norma: 'NTC 1335'
   };
 }
@@ -563,14 +583,24 @@ export function calculateTechnicalRequirements(formData: Partial<ProjectFormData
   const tipoObra = formData.tipoObra || '';
 
   // Determinar Tipo de Pintura (Norma NTC 1335 / NTC 5828)
-  let tipoPintura: PaintTypeCategory = formData.tipoPintura || 'Exterior Tipo 1';
+  let tipoPintura: PaintTypeCategory = formData.tipoPintura || 'Interior Tipo 1';
   if (!formData.tipoPintura) {
-    if (ambiente === 'Exterior Intemperie' || formData.tipoObra === 'Fachada Edificio') {
-      tipoPintura = 'Exterior Tipo 1';
+    if (formData.tipoObra === 'Pisos Industriales' || ambiente.includes('Pisos') || ambiente.includes('Tráfico')) {
+      tipoPintura = 'Epóxica Altos Sólidos Pisos';
+    } else if (formData.tipoObra === 'Estructura Metálica' || superficie.includes('Metal')) {
+      tipoPintura = 'Esmalte Sintético Brillante';
+    } else if (superficie.includes('Madera')) {
+      tipoPintura = 'Barniz y Laca Maderas';
     } else if (formData.tipoObra === 'Cielorrasos') {
       tipoPintura = 'Interior Tipo 3';
+    } else if (ambiente === 'Interior Húmedo (Baños/Cocinas)') {
+      tipoPintura = 'Interior Baños y Cocinas';
+    } else if (condicion === 'Fisuras leves y humedad' && (ambiente === 'Exterior Intemperie' || formData.tipoObra === 'Fachada Edificio')) {
+      tipoPintura = 'Exterior Elastomérica';
+    } else if (ambiente === 'Exterior Intemperie' || formData.tipoObra === 'Fachada Edificio') {
+      tipoPintura = 'Exterior Tipo 1';
     } else {
-      tipoPintura = 'Interior Tipo 2';
+      tipoPintura = 'Interior Tipo 1';
     }
   } else if (formData.tipoPintura === 'Tipo 1') {
     tipoPintura = (ambiente === 'Exterior Intemperie' || formData.tipoObra === 'Fachada Edificio') ? 'Exterior Tipo 1' : 'Interior Tipo 1';
@@ -616,7 +646,16 @@ export function calculateTechnicalRequirements(formData: Partial<ProjectFormData
   }
 
   let selladorImprimanteRequerido = 'Sellador Antialcalino Base Solvente / Acrílico';
-  const coatRec = getRealisticCoatsRecommendation(tipoPintura, superficie, condicion, tipoObra);
+  const coatRec = getRealisticCoatsRecommendation(
+    tipoPintura,
+    superficie,
+    condicion,
+    tipoObra,
+    selectedBrand,
+    formData.colorAcabado,
+    formData.colorSecundario,
+    Boolean(formData.dosColoresHabilitado)
+  );
   const manosRecomendadasPorNorma = coatRec.manos;
   const esManosPersonalizadas = Boolean(formData.manosPersonalizadas && formData.manosPersonalizadas >= 1 && formData.manosPersonalizadas <= 4 && formData.manosPersonalizadas !== manosRecomendadasPorNorma);
   let manosSugeridas = (formData.manosPersonalizadas && formData.manosPersonalizadas >= 1 && formData.manosPersonalizadas <= 4)
@@ -658,8 +697,12 @@ export function calculateTechnicalRequirements(formData: Partial<ProjectFormData
       tipoPintura,
       tipoPinturaDetalle,
       selladorImprimanteRequerido,
-      manosSugeridas: 2,
-      explicacionManos: '2 manos recomendadas bajo norma NTC 1335.',
+      manosSugeridas,
+      explicacionManos: esManosPersonalizadas
+        ? `Ajuste manual del cliente: ${manosSugeridas} mano(s) seleccionada(s). (La norma técnica recomienda ${manosRecomendadasPorNorma} manos: ${coatRec.motivo})`
+        : coatRec.motivo,
+      manosRecomendadasPorNorma,
+      esManosPersonalizadas,
       factorDesperdicioPorcentaje: 10,
       galonesNetosSinDesperdicio: 0,
       galonesDesperdicio: 0,
