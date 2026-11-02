@@ -444,12 +444,13 @@ export const REAL_PRICES_COP = {
   }
 };
 
-export function formatCOP(amount: number): string {
+export function formatCOP(amount?: number | null): string {
+  const num = typeof amount === 'number' && !isNaN(amount) ? amount : 0;
   return new Intl.NumberFormat('es-CO', {
     style: 'currency',
     currency: 'COP',
     maximumFractionDigits: 0
-  }).format(amount);
+  }).format(num);
 }
 
 export function getRealisticCoatsRecommendation(
@@ -462,13 +463,13 @@ export function getRealisticCoatsRecommendation(
   colorSecundario: string = '',
   dosColoresHabilitado: boolean = false
 ): { manos: number; motivo: string; norma: string } {
-  const tp = tipoPintura.toLowerCase();
-  const cond = condicion.toLowerCase();
-  const sup = superficie.toLowerCase();
-  const obra = tipoObra.toLowerCase();
-  const brand = marcaPintura ? marcaPintura.replace(/®/g, '').trim() : 'Pintuco';
-  const color1 = colorAcabado ? colorAcabado.toLowerCase() : '';
-  const color2 = colorSecundario ? colorSecundario.toLowerCase() : '';
+  const tp = (tipoPintura || '').toLowerCase();
+  const cond = (condicion || '').toLowerCase();
+  const sup = (superficie || '').toLowerCase();
+  const obra = (tipoObra || '').toLowerCase();
+  const brand = marcaPintura ? String(marcaPintura).replace(/®/g, '').trim() : 'Pintuco';
+  const color1 = colorAcabado ? String(colorAcabado).toLowerCase() : '';
+  const color2 = colorSecundario ? String(colorSecundario).toLowerCase() : '';
 
   // Detección de tonos oscuros o pigmentos de saturación profunda
   const tonosIntensos = ['negro', 'grafito', 'gris oscuro', 'rojo', 'vinotinto', 'azul oscuro', 'azul rey', 'terracota', 'mostaza', 'verde militar', 'verde esmeralda', 'café', 'chocolate'];

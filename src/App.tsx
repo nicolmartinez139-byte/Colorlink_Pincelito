@@ -435,6 +435,13 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => {
+                          if (activeClient) {
+                            try {
+                              const idPart = (activeClient.email || activeClient.nit || 'default').trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+                              localStorage.removeItem(`colorlink_client_progress_v1_${idPart}`);
+                              sessionStorage.removeItem(`colorlink_client_progress_v1_${idPart}`);
+                            } catch {}
+                          }
                           setActiveClient(null);
                           setShowCatalogWhileLoggedIn(false);
                         }}
@@ -551,6 +558,13 @@ export default function App() {
                     setActiveClient(user);
                   }}
                   onLogout={() => {
+                    if (activeClient) {
+                      try {
+                        const idPart = (activeClient.email || activeClient.nit || 'default').trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+                        localStorage.removeItem(`colorlink_client_progress_v1_${idPart}`);
+                        sessionStorage.removeItem(`colorlink_client_progress_v1_${idPart}`);
+                      } catch {}
+                    }
                     setActiveClient(null);
                     setIsSimulationMode(false);
                   }}

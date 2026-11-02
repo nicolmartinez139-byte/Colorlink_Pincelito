@@ -419,38 +419,27 @@ export function StandaloneClientForm({
   onRequestAuth,
   onUserLoggedIn
 }: StandaloneClientFormProps) {
-  const savedProgress = React.useMemo(() => {
-    try {
-      const raw = localStorage.getItem(getClientProgressKey(activeUser));
-      if (raw) return JSON.parse(raw);
-    } catch {}
-    return null;
-  }, [activeUser?.email, activeUser?.nit]);
-
   const [internalIsSim, setInternalIsSim] = useState<boolean>(isSimulation);
 
   const [formData, setFormData] = useState<ProjectFormData>(() => {
     if (isSimulation) return { ...SIMULATION_CASE_STUDY };
-    const clean = createCleanFormData(activeUser);
-    if (savedProgress?.formData && typeof savedProgress.formData === 'object') {
-      return {
-        ...clean,
-        ...savedProgress.formData,
-        // Protección de datos: La identidad del usuario autenticado prevalece siempre sobre datos guardados
-        cliente: activeUser?.empresa || savedProgress.formData.cliente || clean.cliente,
-        nitDocumento: activeUser?.nit || savedProgress.formData.nitDocumento || clean.nitDocumento,
-        responsable: activeUser?.responsable || savedProgress.formData.responsable || clean.responsable,
-        emailResponsable: activeUser?.email || savedProgress.formData.emailResponsable || clean.emailResponsable,
-        telefonoResponsable: activeUser?.telefono || savedProgress.formData.telefonoResponsable || clean.telefonoResponsable,
-        condicion: savedProgress.formData.condicion || 'Nueva sin pintar',
-        fotos: Array.isArray(savedProgress.formData.fotos) ? savedProgress.formData.fotos : [],
-        herramientasSeleccionadas: Array.isArray(savedProgress.formData.herramientasSeleccionadas)
-          ? savedProgress.formData.herramientasSeleccionadas
-          : []
-      };
-    }
-    return clean;
+    return createCleanFormData(activeUser);
   });
+
+  // Estado controlado de texto para el área (m²): cuenta todos los ceros y evita que se borren en teclados móviles
+  const [areaInputText, setAreaInputText] = useState<string>(() =>
+    formData.areaM2 > 0 ? String(formData.areaM2) : ''
+  );
+
+  useEffect(() => {
+    if (formData.areaM2 > 0) {
+      if (parseInt(areaInputText, 10) !== formData.areaM2) {
+        setAreaInputText(String(formData.areaM2));
+      }
+    } else if (formData.areaM2 === 0 && areaInputText !== '' && areaInputText !== '0') {
+      setAreaInputText('');
+    }
+  }, [formData.areaM2]);
 
   const technicalCalc = calculateTechnicalRequirements(formData);
   const presupuesto = technicalCalc.presupuesto;
@@ -518,16 +507,9 @@ export function StandaloneClientForm({
     }
   }, [formData.ambiente, formData.tipoObra, formData.superficie, formData.tipoPintura]);
 
-  const isPreviouslyPaidOrder = Boolean(savedProgress?.paymentConfirmed && savedProgress?.quotationDecision === 'accepted');
-
-  const [currentStep, setCurrentStep] = useState<number>(() => {
-    if (isPreviouslyPaidOrder) return 1;
-    return [1, 2, 3].includes(Number(savedProgress?.currentStep)) ? Number(savedProgress.currentStep) : 1;
-  });
-  const [isSubmitted, setIsSubmitted] = useState<boolean>(() => {
-    if (isPreviouslyPaidOrder) return false;
-    return Boolean(savedProgress?.isSubmitted);
-  });
+  // El proceso de pedido SIEMPRE inicia desde el Paso 1 (desde cero), sin reanudar pasos anteriores al salir
+  const [currentStep, setCurrentStep] = useState<number>(1);
+  const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [copiedQuote, setCopiedQuote] = useState<boolean>(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState<boolean>(false);
@@ -543,19 +525,9 @@ export function StandaloneClientForm({
   });
 
   // Flujo de Decisión del Cliente sobre la Cotización (Aceptar / Modificar / Rechazar)
-  const [quotationDecision, setQuotationDecision] = useState<'pending' | 'accepted' | 'rejected'>(() => {
-    if (isPreviouslyPaidOrder) return 'pending';
-    const dec = savedProgress?.quotationDecision;
-    return dec === 'accepted' || dec === 'rejected' ? dec : 'pending';
-  });
-  const [orderNumber, setOrderNumber] = useState<string | null>(() => {
-    if (isPreviouslyPaidOrder) return null;
-    return savedProgress?.orderNumber || null;
-  });
-  const [decisionTimestamp, setDecisionTimestamp] = useState<string>(() => {
-    if (isPreviouslyPaidOrder) return '';
-    return savedProgress?.decisionTimestamp || '';
-  });
+  const [quotationDecision, setQuotationDecision] = useState<'pending' | 'accepted' | 'rejected'>('pending');
+  const [orderNumber, setOrderNumber] = useState<string | null>(null);
+  const [decisionTimestamp, setDecisionTimestamp] = useState<string>('');
   const [showRejectModal, setShowRejectModal] = useState<boolean>(false);
   const [rejectionReason, setRejectionReason] = useState<string>('Presupuesto por encima de lo proyectado');
   const [rejectionNotes, setRejectionNotes] = useState<string>('');
@@ -582,14 +554,8 @@ export function StandaloneClientForm({
   const [copiedBankInfo, setCopiedBankInfo] = useState<boolean>(false);
   const [selectedBankPSE, setSelectedBankPSE] = useState<string>('Bancolombia');
   const [paymentProofAttached, setPaymentProofAttached] = useState<boolean>(false);
-  const [paymentConfirmed, setPaymentConfirmed] = useState<boolean>(() => {
-    if (isPreviouslyPaidOrder) return false;
-    return Boolean(savedProgress?.paymentConfirmed);
-  });
-  const [paymentTimestamp, setPaymentTimestamp] = useState<string>(() => {
-    if (isPreviouslyPaidOrder) return '';
-    return savedProgress?.paymentTimestamp || '';
-  });
+  const [paymentConfirmed, setPaymentConfirmed] = useState<boolean>(false);
+  const [paymentTimestamp, setPaymentTimestamp] = useState<string>('');
 
   // Estado para el retorno automático al inicio tras pago y aceptación
   const [paymentSuccessRedirect, setPaymentSuccessRedirect] = useState<{
@@ -605,33 +571,12 @@ export function StandaloneClientForm({
   const [realEmailStatusNotice, setRealEmailStatusNotice] = useState<string | null>(null);
   const [supabaseSavedNotice, setSupabaseSavedNotice] = useState<boolean>(false);
 
-  // Estados para el ciclo automatizado de actualización de pedidos (2s -> Tintometría, 20m -> Despachando, 20m -> Entregado)
-  const [orderLifecyclePhase, setOrderLifecyclePhase] = useState<'aceptado' | 'preparando' | 'en_ruta' | 'entregado'>(() => {
-    const ord = savedProgress?.orderNumber;
-    if (ord) {
-      try {
-        const stored = getSavedClientOrdersFromStorage().find((o) => o.orderNumber === ord || o.id === ord);
-        if (stored?.estado === 'entregado') return 'entregado';
-        if (stored?.estado === 'en_ruta') return 'en_ruta';
-        if (stored?.estado === 'preparando') return 'preparando';
-      } catch {}
-    }
-    const p = savedProgress?.orderLifecyclePhase;
-    return p === 'aceptado' || p === 'preparando' || p === 'en_ruta' || p === 'entregado' ? p : 'aceptado';
-  });
+  // Estados para el ciclo automatizado de actualización de pedidos
+  const [orderLifecyclePhase, setOrderLifecyclePhase] = useState<'aceptado' | 'preparando' | 'en_ruta' | 'entregado'>('aceptado');
   const [phaseSecondsLeft, setPhaseSecondsLeft] = useState<number>(0);
   const isFreshlyAcceptedInCurrentSession = React.useRef<boolean>(false);
   const [lifecycleFastDemo, setLifecycleFastDemo] = useState<boolean>(false);
-  const [aiApprovalStatus, setAiApprovalStatus] = useState<'pending' | 'evaluating' | 'approved'>(() => {
-    const ord = savedProgress?.orderNumber;
-    if (ord) {
-      try {
-        const stored = getSavedClientOrdersFromStorage().find((o) => o.orderNumber === ord || o.id === ord);
-        if (stored?.estado && stored.estado !== 'pendiente') return 'approved';
-      } catch {}
-    }
-    return savedProgress?.orderLifecyclePhase && savedProgress.orderLifecyclePhase !== 'aceptado' ? 'approved' : 'pending';
-  });
+  const [aiApprovalStatus, setAiApprovalStatus] = useState<'pending' | 'evaluating' | 'approved'>('pending');
   const [aiAuditDetail, setAiAuditDetail] = useState<{
     stockVerificado: boolean;
     cedi: string;
@@ -650,12 +595,10 @@ export function StandaloneClientForm({
     placa?: string;
     conductor?: string;
     email: string;
-  }>>(() => (Array.isArray(savedProgress?.phaseNotificationLogs) ? savedProgress.phaseNotificationLogs : []));
+  }>>([]);
 
   // Estados para Historial "Mis Pedidos" (Requirement 6)
-  const [activeMainTab, setActiveMainTab] = useState<'cotizador' | 'pedidos'>(
-    () => (savedProgress?.activeMainTab === 'pedidos' ? 'pedidos' : 'cotizador')
-  );
+  const [activeMainTab, setActiveMainTab] = useState<'cotizador' | 'pedidos'>('cotizador');
   const [orderFilterTab, setOrderFilterTab] = useState<'todos' | 'activos' | 'entregados'>('todos');
   const [clientOrders, setClientOrders] = useState<ClientOrderItem[]>(() => {
     const u = activeSession || activeUser;
@@ -674,69 +617,6 @@ export function StandaloneClientForm({
     return filtered;
   });
   const [loadingClientOrders, setLoadingClientOrders] = useState<boolean>(false);
-
-  // Persistir el avance exacto del cliente para que al refrescar la página siga exactamente donde iba
-  useEffect(() => {
-    try {
-      const key = getClientProgressKey(activeSession || activeUser);
-      const payload = {
-        activeMainTab,
-        currentStep,
-        isSubmitted,
-        quotationDecision,
-        orderNumber,
-        decisionTimestamp,
-        orderLifecyclePhase,
-        paymentConfirmed,
-        paymentTimestamp,
-        phaseNotificationLogs,
-        formData
-      };
-      localStorage.setItem(key, JSON.stringify(payload));
-    } catch {
-      // Si las fotos en base64 exceden cuota de localStorage, guardar con referencia ligera de fotos
-      try {
-        const key = getClientProgressKey(activeSession || activeUser);
-        const lightweightFormData = {
-          ...formData,
-          fotos: (formData.fotos || []).map((f) => ({
-            ...f,
-            previewUrl: f.previewUrl?.startsWith('data:') ? facadeRefImg : f.previewUrl
-          }))
-        };
-        localStorage.setItem(
-          key,
-          JSON.stringify({
-            activeMainTab,
-            currentStep,
-            isSubmitted,
-            quotationDecision,
-            orderNumber,
-            decisionTimestamp,
-            orderLifecyclePhase,
-            paymentConfirmed,
-            paymentTimestamp,
-            phaseNotificationLogs,
-            formData: lightweightFormData
-          })
-        );
-      } catch {}
-    }
-  }, [
-    activeSession,
-    activeUser,
-    activeMainTab,
-    currentStep,
-    isSubmitted,
-    quotationDecision,
-    orderNumber,
-    decisionTimestamp,
-    orderLifecyclePhase,
-    paymentConfirmed,
-    paymentTimestamp,
-    phaseNotificationLogs,
-    formData
-  ]);
 
   const loadClientOrders = async () => {
     const userToQuery = activeSession || activeUser;
@@ -1053,9 +933,7 @@ export function StandaloneClientForm({
       (o) => o.orderNumber === orderNumber || o.id === orderNumber
     );
     if (stored?.estado === 'entregado' || stored?.status === 'entregado') {
-      if (orderLifecyclePhase !== 'entregado') {
-        setOrderLifecyclePhase('entregado');
-      }
+      setOrderLifecyclePhase('entregado');
       return;
     }
 
@@ -1974,6 +1852,7 @@ export function StandaloneClientForm({
     setInternalIsSim(false);
     if (onToggleSimulation) onToggleSimulation(false);
     setFormData(createCleanFormData(activeUser || activeSession));
+    setAreaInputText('');
     setErrors({});
     setIsSubmitted(false);
     setQuotationDecision('pending');
@@ -2198,6 +2077,12 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
             <button
               type="button"
               onClick={() => {
+                try {
+                  const key = getClientProgressKey(activeSession || activeUser);
+                  localStorage.removeItem(key);
+                  sessionStorage.removeItem(key);
+                } catch {}
+                resetForm();
                 setActiveSession(null);
                 onLogout?.();
               }}
@@ -4273,6 +4158,12 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                     <button
                       type="button"
                       onClick={() => {
+                        try {
+                          const key = getClientProgressKey(activeSession || activeUser);
+                          localStorage.removeItem(key);
+                          sessionStorage.removeItem(key);
+                        } catch {}
+                        resetForm();
                         setActiveSession(null);
                         onLogout?.();
                       }}
@@ -4573,18 +4464,44 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                       </div>
 
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                          Área total a cubrir (m²) <span className="text-rose-500">*</span>
-                        </label>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="block text-xs font-bold text-slate-700">
+                            Área total a cubrir (m²) <span className="text-rose-500">*</span>
+                          </label>
+                          {formData.areaM2 > 0 && (
+                            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200 shadow-2xs">
+                              {formData.areaM2} m² registrados
+                            </span>
+                          )}
+                        </div>
                         <div className="relative">
                           <input
                             id="standalone-input-area"
-                            type="number"
-                            min="1"
-                            step="1"
-                            placeholder="Ej. 85"
-                            value={formData.areaM2 || ''}
-                            onChange={(e) => handleInputChange('areaM2', parseFloat(e.target.value) || 0)}
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            placeholder="Ej. 100"
+                            value={areaInputText}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              // Solo dígitos numéricos (permite escribir ceros como 10, 100, 200, 1000 sin borrarlos)
+                              const cleaned = raw.replace(/[^0-9]/g, '');
+                              setAreaInputText(cleaned);
+                              const parsed = cleaned === '' ? 0 : parseInt(cleaned, 10);
+                              handleInputChange('areaM2', isNaN(parsed) ? 0 : parsed);
+                            }}
+                            onBlur={() => {
+                              if (areaInputText === '' || areaInputText === '0') {
+                                setAreaInputText('');
+                                handleInputChange('areaM2', 0);
+                              } else {
+                                const parsed = parseInt(areaInputText, 10);
+                                if (!isNaN(parsed) && parsed > 0) {
+                                  setAreaInputText(String(parsed));
+                                  handleInputChange('areaM2', parsed);
+                                }
+                              }
+                            }}
                             className={`w-full pl-4 pr-12 py-3 text-sm bg-slate-50/80 border ${
                               errors.areaM2 ? 'border-rose-400 focus:ring-rose-400 bg-rose-50/20' : 'border-slate-200 focus:ring-amber-500'
                             } rounded-2xl focus:bg-white focus:outline-none focus:ring-2 font-black text-slate-900 transition-all`}
@@ -4592,6 +4509,28 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                           <span className="absolute right-4 top-3 text-xs font-bold text-slate-400">m²</span>
                         </div>
                         {errors.areaM2 && <p className="text-xs text-rose-600 mt-1.5">{errors.areaM2}</p>}
+
+                        {/* Botones de metraje rápido para agilizar selección en celulares */}
+                        <div className="flex flex-wrap items-center gap-1.5 pt-2">
+                          <span className="text-[10px] text-slate-400 font-bold uppercase mr-1">Rápido:</span>
+                          {[50, 100, 150, 200, 350, 500].map((quickArea) => (
+                            <button
+                              key={quickArea}
+                              type="button"
+                              onClick={() => {
+                                setAreaInputText(String(quickArea));
+                                handleInputChange('areaM2', quickArea);
+                              }}
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer active:scale-95 touch-manipulation ${
+                                formData.areaM2 === quickArea
+                                  ? 'bg-blue-600 text-white border-blue-600 shadow-2xs font-black'
+                                  : 'bg-white hover:bg-slate-100 text-slate-600 border-slate-200'
+                              }`}
+                            >
+                              {quickArea} m²
+                            </button>
+                          ))}
+                        </div>
                       </div>
 
                       <div>
@@ -5382,7 +5321,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                             {/* Botón 2: Tomar foto con la cámara */}
                             <button
                               type="button"
-                              onClick={handleStartLiveCamera}
+                              onClick={() => handleStartLiveCamera()}
                               className="px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
                             >
                               <Camera className="w-3.5 h-3.5 text-white" />

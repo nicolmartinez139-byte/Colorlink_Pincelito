@@ -621,7 +621,7 @@ export function ClientAIAssistant({
           {!advisorConnected ? (
             <button
               type="button"
-              onClick={handleConnectAdvisor}
+              onClick={() => handleConnectAdvisor()}
               disabled={isConnectingAdvisor}
               className="px-2.5 py-1 bg-white/20 hover:bg-white/30 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
               title="Hablar con un asesor humano"
@@ -829,7 +829,7 @@ export function ClientAIAssistant({
           {!advisorConnected && (
             <button
               type="button"
-              onClick={handleConnectAdvisor}
+              onClick={() => handleConnectAdvisor()}
               className="p-2.5 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-xl transition-all border border-slate-200 cursor-pointer shrink-0"
               title="Hablar con un asesor humano"
             >
@@ -865,7 +865,7 @@ export function ClientAIAssistant({
           <span>Pincelito IA • Colorlink Pinturas</span>
           <button
             type="button"
-            onClick={handleConnectAdvisor}
+            onClick={() => handleConnectAdvisor()}
             className="text-sky-600 hover:underline font-semibold cursor-pointer"
           >
             {advisorConnected ? '✓ Asesor conectado' : '¿Prefieres hablar con un asesor? Haz clic aquí'}
