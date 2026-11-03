@@ -58,12 +58,13 @@ export function recordEmailSent(cacheKey: string): void {
   } catch {}
 }
 
-function formatCOP(value: number): string {
+function formatCOP(value?: number | null): string {
+  const num = typeof value === 'number' && !isNaN(value) ? value : 0;
   return new Intl.NumberFormat('es-CO', {
     style: 'currency',
     currency: 'COP',
     maximumFractionDigits: 0
-  }).format(value);
+  }).format(num);
 }
 
 export function generateWelcomeEmailHtml(params: {

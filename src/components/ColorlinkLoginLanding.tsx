@@ -7,7 +7,7 @@ import { sendRegistrationWelcomeEmail, sendPasswordRecoveryEmail } from '../util
 import paintSplatterBg from '../assets/images/paint_splatter_bg_1788742862980.jpg';
 
 interface ColorlinkLoginLandingProps {
-  onLoginSuccess: (user: UserProfile, isSimulation?: boolean) => void;
+  onLoginSuccess: (user: UserProfile) => void;
   onOpenAdminModal: () => void;
   onOpenAdvisorModal: () => void;
   onExploreDemo?: () => void;
@@ -31,35 +31,8 @@ interface StoredAccount {
 
 const ACCOUNTS_STORAGE_KEY = 'colorlink_registered_accounts_v1';
 
-const DEFAULT_REGISTERED_ACCOUNTS: Record<string, StoredAccount> = {
-  'vgomez@constructorahorizonte.com.co': {
-    id: 'horizonte-sim-001',
-    email: 'vgomez@constructorahorizonte.com.co',
-    empresa: 'Constructora Horizonte S.A.S.',
-    nit: '900854219',
-    responsable: 'Arq. Valentina Gómez',
-    telefono: '3124567890',
-    ciudad: 'Medellín'
-  },
-  'proyectos@constructorahorizonte.com.co': {
-    id: 'horizonte-sim-002',
-    email: 'proyectos@constructorahorizonte.com.co',
-    empresa: 'Constructora Horizonte S.A.S.',
-    nit: '900854219',
-    responsable: 'Ing. Sebastián Morales',
-    telefono: '3109876543',
-    ciudad: 'Medellín'
-  },
-  'nicolmartinez139@gmail.com': {
-    id: 'usr-nicol-001',
-    email: 'nicolmartinez139@gmail.com',
-    empresa: 'Proyectos & Obras Colorlink',
-    nit: '901452890',
-    responsable: 'Nicol Martínez',
-    telefono: '3001234567',
-    ciudad: 'Medellín'
-  }
-};
+// Base de usuarios limpia desde cero (sin cuentas ficticias ni de prueba)
+const DEFAULT_REGISTERED_ACCOUNTS: Record<string, StoredAccount> = {};
 
 function getStoredAccounts(): Record<string, StoredAccount> {
   try {
@@ -131,21 +104,6 @@ export function ColorlinkLoginLanding({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Activación de la simulación con el punto chiquito multicolor
-  const handleTriggerSimulation = () => {
-    const simProfile: UserProfile = {
-      id: 'horizonte-sim-001',
-      empresa: 'Constructora Horizonte S.A.S.',
-      nit: '900854219',
-      responsable: 'Arq. Valentina Gómez',
-      email: 'vgomez@constructorahorizonte.com.co',
-      telefono: '+57 312 456 7890',
-      ciudad: 'Medellín',
-      createdAt: new Date().toISOString()
-    };
-    onLoginSuccess(simProfile, true);
-  };
-
   // Acción de Login
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -215,7 +173,7 @@ export function ColorlinkLoginLanding({
         createdAt: userProfile.createdAt
       });
 
-      onLoginSuccess(userProfile, false);
+      onLoginSuccess(userProfile);
     } catch (err: any) {
       console.error('[Login Error]', err);
       setErrorMessage('Error al verificar credenciales.');
@@ -490,7 +448,7 @@ export function ColorlinkLoginLanding({
       };
 
       // Ingreso directo e inmediato al cotizador sin pantallas intermedias ni interrupciones
-      onLoginSuccess(userProfile, false);
+      onLoginSuccess(userProfile);
     } catch (err: any) {
       console.error('[Registro Error]', err);
       setErrorMessage(err?.message || 'No se pudo completar el registro en este momento. Por favor verifica tus datos e intenta nuevamente.');
@@ -811,15 +769,6 @@ export function ColorlinkLoginLanding({
                 >
                   ¿Se te olvidó tu contraseña?
                 </button>
-
-                {/* PUNTO CHIQUITO COLORIDO: Al oprimirse activa la simulación */}
-                <button
-                  type="button"
-                  onClick={handleTriggerSimulation}
-                  className="w-3 h-3 rounded-full bg-gradient-to-r from-amber-400 via-rose-500 to-violet-500 hover:scale-150 transition-all cursor-pointer shadow-xs focus:outline-none"
-                  title="Simulación"
-                  aria-label="Simulación"
-                />
               </div>
             </div>
           </form>
@@ -1171,14 +1120,6 @@ export function ColorlinkLoginLanding({
           </form>
         )}
 
-        {/* Punto chiquito colorido en la tarjeta */}
-        <button
-          type="button"
-          onClick={handleTriggerSimulation}
-          className="absolute bottom-3.5 right-4 w-3 h-3 rounded-full bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500 hover:scale-150 transition-all cursor-pointer shadow-xs focus:outline-none"
-          title="Simulación rápida"
-          aria-label="Simulación"
-        />
       </div>
 
       {!isModalMode && (

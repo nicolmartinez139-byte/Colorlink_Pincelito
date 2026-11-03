@@ -156,10 +156,11 @@ export function TwoColorArchitecturalVisualizer({
   };
 
   // Cálculo de proporciones y m² para desglose de pintura
-  const pct2 = proporcionSecundario || 30;
+  const safeArea = (typeof areaTotalM2 === 'number' && !isNaN(areaTotalM2) && areaTotalM2 > 0) ? areaTotalM2 : 0;
+  const pct2 = (typeof proporcionSecundario === 'number' && !isNaN(proporcionSecundario)) ? proporcionSecundario : 30;
   const pct1 = 100 - pct2;
-  const area1 = Math.round((areaTotalM2 * pct1) / 100);
-  const area2 = Math.round((areaTotalM2 * pct2) / 100);
+  const area1 = Math.round((safeArea * pct1) / 100);
+  const area2 = Math.round((safeArea * pct2) / 100);
 
   return (
     <div className="space-y-4">

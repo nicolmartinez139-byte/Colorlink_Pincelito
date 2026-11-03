@@ -19,7 +19,6 @@ import {
   Loader2
 } from 'lucide-react';
 import { ProjectFormData } from '../types/form';
-import { CASE_STUDY_PRESET } from '../data/dictionaryData';
 import { saveAdvisorLead } from '../utils/advisorService';
 import { validatePhotoWithAI } from '../utils/photoAiValidator';
 
@@ -438,22 +437,11 @@ export function ClientAIAssistant({
           {
             id: Date.now().toString(),
             sender: 'pincelito',
-            text: hasExistingClient
-              ? `¡Listo! He cargado los parámetros técnicos del caso de ejemplo para tu obra:\n\n• **Proyecto:** Fachada edificio de 5 pisos\n• **Área:** 85.00 m²\n• **Superficie:** Concreto exterior con fisuras y humedad\n• **Pintura recomendada:** Pintura Tipo 1 Exterior de Alta Resistencia (Gris Cemento Mate)\n• **Protección de Datos:** Se conservan tus datos personales y empresariales actuales.\n\n¿Deseas aplicar estas especificaciones técnicas a tu formulario?`
-              : '¡Listo! He cargado el caso oficial de demostración técnica en Medellín:\n\n• **Proyecto:** Fachada edificio de 5 pisos\n• **Área:** 85.00 m²\n• **Superficie:** Concreto exterior con fisuras y humedad\n• **Pintura recomendada:** Pintura Tipo 1 Exterior de Alta Resistencia (Gris Cemento Mate)\n• **Flete:** Medellín\n\n¿Deseas aplicar estos datos a tu formulario?',
+            text: '¡Listo! He preparado los parámetros técnicos sugeridos para tu obra (Fachada edificio 85 m², Pintura Tipo 1 Exterior Gris Mate). ¿Deseas aplicar estas especificaciones a tu formulario?',
             timestamp: 'Ahora',
             actionLabel: 'Aplicar especificaciones técnicas (85 m²)',
             actionPayload: {
-              ...(hasExistingClient
-                ? {}
-                : {
-                    cliente: CASE_STUDY_PRESET.cliente || 'Constructora Horizonte S.A.S.',
-                    nitDocumento: CASE_STUDY_PRESET.nitDocumento || '900854219',
-                    responsable: CASE_STUDY_PRESET.responsable || 'Arq. Valentina Gómez',
-                    emailResponsable: CASE_STUDY_PRESET.emailResponsable || 'vgomez@constructorahorizonte.com.co',
-                    telefonoResponsable: CASE_STUDY_PRESET.telefonoResponsable || '+57 312 845 6721',
-                  }),
-              ciudad: 'Medellín',
+              ciudad: currentFormData.ciudad || 'Medellín',
               tipoObra: 'Fachada Edificio',
               areaM2: 85,
               superficie: 'Concreto / Revoque',

@@ -285,7 +285,7 @@ export function AdvisorPortal({ currentAdvisor, onLogout, onSwitchAdvisor }: Adv
   const [newResponsable, setNewResponsable] = useState('');
   const [newTelefono, setNewTelefono] = useState('');
   const [newEmail, setNewEmail] = useState('');
-  const [newCiudad, setNewCiudad] = useState(currentAdvisor.territory.split(' ')[0] || 'Medellín');
+  const [newCiudad, setNewCiudad] = useState((currentAdvisor.territory || 'Medellín').split(' ')[0] || 'Medellín');
   const [newObra, setNewObra] = useState('');
   const [newCanal, setNewCanal] = useState<'correo' | 'llamada' | 'reunion' | 'visita_obra'>('correo');
   const [newTema, setNewTema] = useState('');
@@ -294,11 +294,12 @@ export function AdvisorPortal({ currentAdvisor, onLogout, onSwitchAdvisor }: Adv
   const [newPintura, setNewPintura] = useState('Pintura Tipo 1 Exterior');
 
   const filteredConversations = conversations.filter(conv => {
+    const q = (searchTerm || '').toLowerCase();
     const matchesSearch =
-      conv.cliente.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      conv.responsable.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      conv.temaConversacion.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      conv.ciudad.toLowerCase().includes(searchTerm.toLowerCase());
+      (conv.cliente || '').toLowerCase().includes(q) ||
+      (conv.responsable || '').toLowerCase().includes(q) ||
+      (conv.temaConversacion || '').toLowerCase().includes(q) ||
+      (conv.ciudad || '').toLowerCase().includes(q);
     const matchesStatus = statusFilter === 'todos' || conv.estado === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -604,7 +605,7 @@ export function AdvisorPortal({ currentAdvisor, onLogout, onSwitchAdvisor }: Adv
                     {formatCOP(selectedConversation.montoCOP || 0)}
                   </strong>
                   <span className="text-[10px] text-emerald-600 font-bold block">
-                    Asesor a Cargo: {currentAdvisor.name.split(' ')[0]}
+                    Asesor a Cargo: {(currentAdvisor.name || '').split(' ')[0]}
                   </span>
                 </div>
               </div>

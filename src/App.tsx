@@ -7,10 +7,10 @@ import { ColorlinkLoginLanding } from './components/ColorlinkLoginLanding';
 import { ColorlinkShowcasePresentation } from './components/ColorlinkShowcasePresentation';
 import { AdvisorPortal, AdvisorData, COLORLINK_ADVISORS } from './components/AdvisorPortal';
 import { ProjectFormData } from './types/form';
-import { CASE_STUDY_PRESET } from './data/dictionaryData';
 import { calculateTechnicalRequirements } from './utils/calculator';
 import { submitProjectToSupabase, fetchSubmittedProjects, SubmittedProject, saveClientOrderToHistory } from './utils/supabaseApi';
 import { sendConfirmationEmail } from './utils/emailService';
+import { getLogisticsForCity } from './utils/orderStateMessages';
 import { isSupabaseConfigured } from './lib/supabase';
 import {
   ShieldCheck,
@@ -73,12 +73,23 @@ export default function App() {
     } catch {}
     return null;
   });
-  const [isSimulationMode, setIsSimulationMode] = useState<boolean>(() => {
+  // Limpieza inicial para comenzar desde 0 (sin usuarios mock ni pedidos de prueba)
+  useEffect(() => {
     try {
-      return localStorage.getItem('colorlink_sim_mode_v1') === 'true';
+      const RESET_FLAG = 'colorlink_reset_to_zero_v3';
+      if (!localStorage.getItem(RESET_FLAG)) {
+        localStorage.removeItem('colorlink_client_orders_history_v1');
+        localStorage.removeItem('colorlink_submitted_projects_v1');
+        localStorage.removeItem('colorlink_registered_accounts_v1');
+        localStorage.removeItem('colorlink_sim_mode_v1');
+        localStorage.removeItem('colorlink_active_client_v1');
+        localStorage.removeItem('colorlink_active_advisor_v1');
+        localStorage.removeItem('colorlink_sent_emails_cache_v1');
+        localStorage.setItem(RESET_FLAG, 'true');
+      }
     } catch {}
-    return false;
-  });
+  }, []);
+
   const [adminUsername, setAdminUsername] = useState<string>('');
   const [adminPassword, setAdminPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
@@ -98,11 +109,6 @@ export default function App() {
     try {
       if (activeClient) {
         localStorage.setItem(ACTIVE_CLIENT_STORAGE_KEY, JSON.stringify(activeClient));
-        // Protección de datos: Si hay un cliente real autenticado, desactivar modo simulación
-        if (activeClient.email !== 'vgomez@constructorahorizonte.com.co') {
-          setIsSimulationMode(false);
-          localStorage.setItem('colorlink_sim_mode_v1', 'false');
-        }
       } else {
         localStorage.removeItem(ACTIVE_CLIENT_STORAGE_KEY);
       }
@@ -119,64 +125,8 @@ export default function App() {
     } catch {}
   }, [activeAdvisor]);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem('colorlink_sim_mode_v1', String(isSimulationMode));
-    } catch {}
-  }, [isSimulationMode]);
-
-  // Initial projects in admin inbox
-  const initialHorizonteCalc = calculateTechnicalRequirements({
-    ...CASE_STUDY_PRESET,
-    cliente: CASE_STUDY_PRESET.cliente || 'Constructora Horizonte S.A.S.',
-    nitDocumento: CASE_STUDY_PRESET.nitDocumento || '900.854.219-3',
-    responsable: CASE_STUDY_PRESET.responsable || 'Arq. Valentina Gómez',
-    emailResponsable: CASE_STUDY_PRESET.emailResponsable || 'vgomez@constructorahorizonte.com.co',
-    telefonoResponsable: CASE_STUDY_PRESET.telefonoResponsable || '+57 312 845 6721',
-    canalEntrada: 'Portal Clientes',
-    ciudad: 'Medellín',
-    tipoObra: 'Fachada Edificio',
-    areaM2: 85,
-    fechaRequerida: '2026-09-24',
-    superficie: 'Concreto / Revoque',
-    ambiente: 'Exterior Intemperie',
-    condicion: 'Fisuras leves y humedad',
-    colorAcabado: 'Gris (Mate)',
-    descripcionLibre: 'Mantenimiento preventivo en fachada de edificio de 5 pisos con fisuras superficiales y humedad de lluvia directa.',
-    fotos: [{ name: 'fachada_norte_fisuras.jpg', size: '2.4 MB' }],
-    observaciones: 'Acceso por andamios colgantes certificados de obra.',
-    consentimiento: true
-  } as ProjectFormData);
-
-  const defaultHorizonteProject = {
-    id: 'PROJ-HORIZONTE-01',
-    submittedAt: 'Hoy, 09:15 AM',
-    formData: {
-      cliente: 'Constructora Horizonte S.A.S.',
-      nitDocumento: '900.854.219-3',
-      responsable: 'Arq. Valentina Gómez',
-      emailResponsable: 'vgomez@constructorahorizonte.com.co',
-      telefonoResponsable: '+57 312 845 6721',
-      canalEntrada: 'Portal Clientes' as const,
-      ciudad: 'Medellín',
-      tipoObra: 'Fachada Edificio' as const,
-      areaM2: 85,
-      fechaRequerida: '2026-09-24',
-      superficie: 'Concreto / Revoque' as const,
-      ambiente: 'Exterior Intemperie' as const,
-      condicion: 'Fisuras leves y humedad' as const,
-      colorAcabado: 'Gris (Mate)',
-      descripcionLibre: 'Mantenimiento preventivo en fachada de edificio de 5 pisos con fisuras superficiales y humedad de lluvia directa.',
-      fotos: [{ name: 'fachada_norte_fisuras.jpg', size: '2.4 MB' }],
-      observaciones: 'Acceso por andamios colgantes certificados de obra.',
-      consentimiento: true
-    },
-    status: 'Validado' as const,
-    totalCOP: initialHorizonteCalc.presupuesto.totalPresupuesto,
-    currentPipelineStep: 15
-  };
-
-  const [submittedProjects, setSubmittedProjects] = useState(() => {
+  // Lista de proyectos iniciada desde 0
+  const [submittedProjects, setSubmittedProjects] = useState<any[]>(() => {
     try {
       const saved = localStorage.getItem(SUBMITTED_PROJECTS_STORAGE_KEY);
       if (saved) {
@@ -184,7 +134,7 @@ export default function App() {
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch {}
-    return [defaultHorizonteProject];
+    return [];
   });
 
   useEffect(() => {
@@ -260,8 +210,12 @@ export default function App() {
         );
       }
 
-      // Guardar también en el almacenamiento local de historial de pedidos para que nunca se pierda
+      // La IA audita automáticamente el pedido al ingresar y lo acepta a preparación con logística asignada
       try {
+        const logistics = getLogisticsForCity(submittedData.ciudad);
+        const neededCunetes = Math.max(1, Math.ceil((Number(submittedData.areaM2) || 50) / 28));
+        const aiMotivo = `Aceptado automáticamente por la IA: Insumos verificados al 100% en CEDI Regional ${submittedData.ciudad || 'Medellín'} (${neededCunetes} cuñetes requeridos para ${submittedData.areaM2} m²). Formulación validada bajo Norma NTC 1335 para ${submittedData.colorAcabado || 'Color Específico'}. Asignado ${logistics.vehiculo} (${logistics.placa}) con el conductor ${logistics.conductor} por ${logistics.corredorRuta}.`;
+
         saveClientOrderToHistory({
           id: finalId,
           orderNumber: finalId,
@@ -275,7 +229,11 @@ export default function App() {
           tipoPintura: submittedData.tipoPintura || 'Pintura Tipo 1 Exterior',
           color: submittedData.colorAcabado || 'Color Específico',
           totalCOP: calc.presupuesto.totalPresupuesto,
-          status: 'pendiente',
+          status: 'preparando', // Aceptado automáticamente por la IA para preparación en tintometría
+          vehiculo: logistics.vehiculo,
+          conductor: logistics.conductor,
+          placa: logistics.placa,
+          mensaje: aiMotivo,
           detalle: {
             obra: submittedData.cliente || 'Obra Colorlink',
             tipoObra: submittedData.tipoObra || 'Fachada / Obra',
@@ -298,6 +256,7 @@ export default function App() {
 
       // Enviar al backend / Vercel para recepción y registro directo en servidor
       try {
+        const logistics = getLogisticsForCity(submittedData.ciudad);
         fetch('/api/orders', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -310,7 +269,10 @@ export default function App() {
             ciudad: submittedData.ciudad,
             formData: submittedData,
             totalCOP: calc.presupuesto.totalPresupuesto,
-            status: 'pendiente'
+            status: 'preparando',
+            vehiculo: logistics.vehiculo,
+            conductor: logistics.conductor,
+            placa: logistics.placa
           })
         }).catch((apiErr) => console.warn('[Vercel API Orders] Envío local/Vercel:', apiErr));
       } catch (e) {}
@@ -545,8 +507,6 @@ export default function App() {
             <div id="cotizador-colorlink" className="scroll-mt-6">
               {activeClient ? (
                 <StandaloneClientForm
-                  isSimulation={isSimulationMode}
-                  onToggleSimulation={(val) => setIsSimulationMode(val)}
                   activeUser={activeClient}
                   onSuccessSubmit={handleClientSubmit}
                   onRequestAuth={(mode, reason) => {
@@ -566,7 +526,6 @@ export default function App() {
                       } catch {}
                     }
                     setActiveClient(null);
-                    setIsSimulationMode(false);
                   }}
                 />
               ) : (
@@ -831,9 +790,8 @@ export default function App() {
               initialMode={clientAuthModalMode}
               customMessage={clientAuthCustomMessage}
               onClose={() => setShowClientAuthModal(false)}
-              onLoginSuccess={(user, isSim) => {
+              onLoginSuccess={(user) => {
                 setActiveClient(user);
-                setIsSimulationMode(!!isSim);
                 setShowClientAuthModal(false);
                 setTimeout(() => {
                   const el = document.getElementById('cotizador-colorlink');

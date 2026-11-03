@@ -691,7 +691,8 @@ export function calculateTechnicalRequirements(formData: Partial<ProjectFormData
 
   // Guard para proyectos con área no especificada aún
   if (area <= 0) {
-    const fleteInfo = REAL_PRICES_COP.fletesPorCiudad[ciudad as keyof typeof REAL_PRICES_COP.fletesPorCiudad] || REAL_PRICES_COP.fletesPorCiudad['Medellín'];
+    const defaultFlete = { costo: 45000, tiempo: '24 a 48 horas', cedi: 'CEDI Principal Guarne / Medellín' };
+    const fleteInfo = REAL_PRICES_COP.fletesPorCiudad[ciudad as keyof typeof REAL_PRICES_COP.fletesPorCiudad] || REAL_PRICES_COP.fletesPorCiudad['Medellín'] || defaultFlete;
     return {
       productoRecomendado,
       tipoSolucion,
@@ -942,7 +943,8 @@ export function calculateTechnicalRequirements(formData: Partial<ProjectFormData
   const subtotalConDescuento = subtotalMateriales - descuentoValor;
 
   // Flete de envío según ciudad
-  const fleteInfo = REAL_PRICES_COP.fletesPorCiudad[ciudad as keyof typeof REAL_PRICES_COP.fletesPorCiudad] || REAL_PRICES_COP.fletesPorCiudad['Medellín'];
+  const defaultFlete = { costo: 45000, tiempo: '24 a 48 horas', cedi: 'CEDI Principal Guarne / Medellín' };
+  const fleteInfo = REAL_PRICES_COP.fletesPorCiudad[ciudad as keyof typeof REAL_PRICES_COP.fletesPorCiudad] || REAL_PRICES_COP.fletesPorCiudad['Medellín'] || defaultFlete;
   const fleteEnvio = fleteInfo.costo;
 
   // IVA del 19%

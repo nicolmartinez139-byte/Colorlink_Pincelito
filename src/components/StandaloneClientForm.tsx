@@ -95,8 +95,6 @@ import trafficCourtImg from '../assets/images/traffic_road_court_paint_179341444
 import woodVarnishImg from '../assets/images/wood_varnish_deck_1793208136674.jpg';
 
 interface StandaloneClientFormProps {
-  isSimulation?: boolean;
-  onToggleSimulation?: (val: boolean) => void;
   activeUser?: UserProfile | null;
   onSuccessSubmit?: (data: ProjectFormData, preferredOrderId?: string) => void;
   onNavigateToSpecs?: () => void;
@@ -104,67 +102,6 @@ interface StandaloneClientFormProps {
   onRequestAuth?: (mode: 'login' | 'register', reason?: string) => void;
   onUserLoggedIn?: (user: UserProfile) => void;
 }
-
-const SIMULATION_CASE_STUDY: ProjectFormData = {
-  cliente: 'Constructora Horizonte S.A.S.',
-  nitDocumento: '900854219',
-  passwordCliente: 'Horizonte2026*',
-  responsable: 'Arq. Valentina Gómez',
-  emailResponsable: 'proyectos@constructorahorizonte.com',
-  telefonoResponsable: '+57 312 456 7890',
-  canalEntrada: 'Portal Clientes',
-  ciudad: 'Medellín',
-  direccionEntrega: 'Calle 48 # 65-34, Obra Torre del Valle, Medellín',
-  puntoReferencia: 'Portería vehicular principal Edificio Torre del Valle',
-  contactoObra: 'Ing. Carlos Mendoza (Residente de Obra)',
-  telefonoObra: '+57 312 845 6721',
-  indicacionesEntrega: 'Entrada por bahía de cargue sobre Carrera 65. Horario recepción de 8:00 AM a 5:00 PM.',
-  tipoObra: 'Fachada Edificio',
-  areaM2: 85,
-  fechaRequerida: '2026-09-15',
-  superficie: 'Concreto / Revoque',
-  ambiente: 'Exterior Intemperie',
-  condicion: 'Fisuras leves y humedad',
-  marcaPintura: 'Pintuco®',
-  tipoPintura: 'Exterior Tipo 1',
-  metodoPago: 'bancolombia',
-  colorAcabado: 'Gris (Mate)',
-  dosColoresHabilitado: true,
-  colorSecundario: 'Blanco Nieve [RAL 9016]',
-  proporcionColorSecundario: 30,
-  manosPersonalizadas: undefined,
-  herramientasSeleccionadas: [
-    {
-      id: 'brocha-pro-2',
-      nombre: 'Brocha Profesional 2" Cerdas Suaves',
-      categoria: 'brochas',
-      precioCOP: 14500,
-      cantidad: 2,
-      subtotalCOP: 29000,
-      sku: 'BR-PRO-20',
-      unidad: 'Unidad',
-      stock: 120
-    },
-    {
-      id: 'rodillo-microfibra-9',
-      nombre: 'Rodillo Antigoteo Microfibra 9" con Mango',
-      categoria: 'rodillos',
-      precioCOP: 28500,
-      cantidad: 1,
-      subtotalCOP: 28500,
-      sku: 'ROD-MIC-09',
-      unidad: 'Unidad + Mango',
-      stock: 95
-    }
-  ],
-  descripcionLibre: 'Mantenimiento preventivo y correctivo en fachada de edificio de 5 pisos. Presenta fisuras superficiales no estructurales y rastros de humedad por lluvia directa.',
-  fotos: [
-    { name: 'fachada_norte_fisuras.jpg', size: '2.8 MB', previewUrl: facadeRefImg },
-    { name: 'detalle_humedad_concreto.png', size: '1.9 MB', previewUrl: interiorRefImg }
-  ],
-  observaciones: 'Acceso por andamios colgantes certificados de obra.',
-  consentimiento: true
-};
 
 const createCleanFormData = (user?: UserProfile | null): ProjectFormData => ({
   cliente: user?.empresa || '',
@@ -410,8 +347,6 @@ const PAINT_LINE_CARDS: Record<
 };
 
 export function StandaloneClientForm({
-  isSimulation = false,
-  onToggleSimulation,
   activeUser,
   onSuccessSubmit,
   onNavigateToSpecs,
@@ -419,10 +354,7 @@ export function StandaloneClientForm({
   onRequestAuth,
   onUserLoggedIn
 }: StandaloneClientFormProps) {
-  const [internalIsSim, setInternalIsSim] = useState<boolean>(isSimulation);
-
   const [formData, setFormData] = useState<ProjectFormData>(() => {
-    if (isSimulation) return { ...SIMULATION_CASE_STUDY };
     return createCleanFormData(activeUser);
   });
 
@@ -446,23 +378,6 @@ export function StandaloneClientForm({
 
   // Pestaña activa del selector de tipo de pintura (Exterior, Interior, Esmaltes, Industrial, Maderas)
   const [activePaintLine, setActivePaintLine] = useState<'Exterior' | 'Interior' | 'Esmaltes & Metales' | 'Industrial & Pisos' | 'Maderas & Especiales'>('Exterior');
-
-  useEffect(() => {
-    if (isSimulation) {
-      setInternalIsSim(true);
-      setFormData({ ...SIMULATION_CASE_STUDY });
-    } else if (activeUser) {
-      setInternalIsSim(false);
-      setFormData((prev) => ({
-        ...prev,
-        cliente: activeUser.empresa || prev.cliente,
-        nitDocumento: activeUser.nit || prev.nitDocumento,
-        responsable: activeUser.responsable || prev.responsable,
-        emailResponsable: activeUser.email || prev.emailResponsable,
-        telefonoResponsable: activeUser.telefono || prev.telefonoResponsable
-      }));
-    }
-  }, [isSimulation]);
 
   // Sincronizar datos cuando cambia el usuario activo para garantizar aislamiento de cuentas (Protección de Datos)
   useEffect(() => {
@@ -620,10 +535,10 @@ export function StandaloneClientForm({
 
   const loadClientOrders = async () => {
     const userToQuery = activeSession || activeUser;
-    const queryNit = userToQuery?.nit || (isSimulation ? formData.nitDocumento : '');
-    const queryEmail = userToQuery?.email || (isSimulation ? formData.emailResponsable : '');
+    const queryNit = userToQuery?.nit || '';
+    const queryEmail = userToQuery?.email || '';
 
-    // Si no hay un usuario autenticado ni modo simulación, no mostrar pedidos de terceros (Protección de Datos)
+    // Si no hay un usuario autenticado, no mostrar pedidos de terceros (Protección de Datos)
     if (!queryNit && !queryEmail) {
       setClientOrders([]);
       return;
@@ -1368,17 +1283,8 @@ export function StandaloneClientForm({
     }
   };
 
-  const handleLoadCaseStudy = () => {
-    setInternalIsSim(true);
-    if (onToggleSimulation) onToggleSimulation(true);
-    setFormData({ ...SIMULATION_CASE_STUDY });
-    setErrors({});
-    setIsSubmitted(false);
-    setCurrentStep(1);
-  };
-
   useEffect(() => {
-    if (activeSession && !internalIsSim) {
+    if (activeSession) {
       setFormData(prev => ({
         ...prev,
         cliente: activeSession.empresa || prev.cliente,
@@ -1389,7 +1295,7 @@ export function StandaloneClientForm({
         ciudad: activeSession.ciudad || prev.ciudad,
       }));
     }
-  }, [activeSession, internalIsSim]);
+  }, [activeSession]);
 
   const validateStep = (stepNumber: number) => {
     const err: Record<string, string> = {};
@@ -1849,8 +1755,6 @@ export function StandaloneClientForm({
   };
 
   const resetForm = () => {
-    setInternalIsSim(false);
-    if (onToggleSimulation) onToggleSimulation(false);
     setFormData(createCleanFormData(activeUser || activeSession));
     setAreaInputText('');
     setErrors({});

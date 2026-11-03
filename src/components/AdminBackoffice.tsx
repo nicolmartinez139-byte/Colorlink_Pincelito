@@ -300,7 +300,20 @@ export function AdminBackoffice({
   // Estados para Auditoría Inteligente con IA (Gemini 3.8 Flash)
   const [isAuditingWithAI, setIsAuditingWithAI] = useState<boolean>(false);
   const [isAutoPilotRunning, setIsAutoPilotRunning] = useState<boolean>(false);
-  const [aiAutoPilotEnabled, setAiAutoPilotEnabled] = useState<boolean>(false);
+  const [aiAutoPilotEnabled, setAiAutoPilotEnabled] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('colorlink_ai_autopilot_enabled_v1');
+      return saved !== null ? saved === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('colorlink_ai_autopilot_enabled_v1', String(aiAutoPilotEnabled));
+    } catch {}
+  }, [aiAutoPilotEnabled]);
 
   // Estados para el Ciclo de Actualización Automática de Pedidos cada 20 Minutos
   // (2s -> Tintometría | 20m -> Despachando con mensaje | 20m -> Entregado con mensaje)
@@ -414,52 +427,8 @@ export function AdminBackoffice({
   const [loadingClients, setLoadingClients] = useState(false);
   const [clientSearch, setClientSearch] = useState('');
 
-  const DEFAULT_ENTERPRISE_CLIENTS: SupabaseClientRow[] = [
-    {
-      id: 'cli-horiz-01',
-      auth_user_id: null,
-      nombre_razon_social: 'Constructora Horizonte S.A.S.',
-      nit_documento: '900854219-3',
-      responsable: 'Arq. Valentina Gómez',
-      email_responsable: 'vgomez@constructorahorizonte.com.co',
-      telefono_responsable: '+57 312 845 6721',
-      canal_entrada: 'Corporativo Constructoras',
-      created_at: new Date(Date.now() - 86400000 * 5).toISOString()
-    },
-    {
-      id: 'cli-boliv-02',
-      auth_user_id: null,
-      nombre_razon_social: 'Constructora Bolívar S.A.',
-      nit_documento: '860034590-8',
-      responsable: 'Arq. Mateo Restrepo',
-      email_responsable: 'mrestrepo@bolivar.com.co',
-      telefono_responsable: '+57 310 982 3411',
-      canal_entrada: 'Licitaciones & Obra',
-      created_at: new Date(Date.now() - 86400000 * 12).toISOString()
-    },
-    {
-      id: 'cli-concon-03',
-      auth_user_id: null,
-      nombre_razon_social: 'Conconcreto Proyectos & Obras',
-      nit_documento: '890901452-1',
-      responsable: 'Ing. Juan Camilo Osorio',
-      email_responsable: 'jcosorio@conconcreto.com',
-      telefono_responsable: '+57 318 456 7890',
-      canal_entrada: 'Grandes Cuentas Medellín',
-      created_at: new Date(Date.now() - 86400000 * 20).toISOString()
-    },
-    {
-      id: 'cli-marval-04',
-      auth_user_id: null,
-      nombre_razon_social: 'Marval Desarrollos Urbanos',
-      nit_documento: '800123456-7',
-      responsable: 'Ing. Diana Milena Vargas',
-      email_responsable: 'dvargas@marval.com.co',
-      telefono_responsable: '+57 315 678 9012',
-      canal_entrada: 'Portal Web Colorlink',
-      created_at: new Date(Date.now() - 86400000 * 30).toISOString()
-    }
-  ];
+  // Lista inicial de clientes limpia desde cero (sin datos de prueba)
+  const DEFAULT_ENTERPRISE_CLIENTS: SupabaseClientRow[] = [];
 
   const getConsolidatedClients = (): SupabaseClientRow[] => {
     const clientMap = new Map<string, SupabaseClientRow>();
@@ -521,10 +490,11 @@ export function AdminBackoffice({
     fetchClientsFromSupabase();
   }, []);
 
-  // Pedidos de prueba reales de la empresa distribuidos por ciudades de Colombia
-  const [orders, setOrders] = useState<OrderItem[]>([
-    {
-      id: 'PED-2026-081',
+  // Pedidos iniciados desde cero (sin datos de prueba)
+  const [orders, setOrders] = useState<OrderItem[]>([]);
+  const [selectedOrderId, setSelectedOrderId] = useState<string>('');
+  const _unusedDemoOrders: OrderItem[] = [];
+  /*
       cliente: 'Constructora Horizonte S.A.S.',
       nit: '900854219',
       responsable: 'Arq. Valentina Gómez',
@@ -770,10 +740,8 @@ export function AdminBackoffice({
           fecha: 'Hoy, 10:15 AM'
         }
       ]
-    }
-  ]);
+  */
 
-  const [selectedOrderId, setSelectedOrderId] = useState<string>('PED-2026-081');
 
   // Cálculos dinámicos de análisis de ciudades ("cuál vendió más" y "qué se necesita pedir para cada lado")
   const cityAnalytics = useMemo(() => {
@@ -1024,7 +992,7 @@ export function AdminBackoffice({
     // Si había pedidos en espera en esta ciudad, liberarlos a preparación con el nuevo stock
     setOrders((prev) =>
       prev.map((o) =>
-        o.ciudad.toLowerCase().includes(ciudad.toLowerCase()) && o.status === 'en_espera'
+        (o.ciudad || '').toLowerCase().includes(ciudad.toLowerCase()) && o.status === 'en_espera'
           ? {
               ...o,
               status: 'preparando',
@@ -1181,7 +1149,7 @@ export function AdminBackoffice({
     // 3. Justificación de Aceptación por la IA ("¿Por qué se aceptó?")
     const porQueSeAcepto = `Aceptado automáticamente por la IA: Insumos verificados al 100% en ${cedi} (${stock} cuñetes disponibles vs ${neededCunetes} requeridos para cubrir ${order.areaM2} m²). Formulación tintométrica autorizada bajo norma NTC 1335 para el acabado '${order.color}' (${order.tipoPintura}). Asignado flete directo en ${busInfo.tipo} (Placa ${busInfo.placa}) conducido por ${busInfo.conductor} por el corredor '${rutaInfo.recorrido}', logrando un ahorro logístico de ${rutaInfo.ahorroMin} minutos con entrega estimada a las ${rutaInfo.horaEstimada}.`;
 
-    return {
+    const acceptedOrder: OrderItem = {
       ...order,
       status: 'preparando' as const,
       vehiculoAsignado: busInfo.tipo,
@@ -1216,6 +1184,32 @@ export function AdminBackoffice({
         ...(order.notificaciones || [])
       ]
     };
+
+    try {
+      saveClientOrderToHistory({
+        id: acceptedOrder.id,
+        orderNumber: acceptedOrder.id,
+        fecha: new Date().toISOString(),
+        cliente: acceptedOrder.cliente,
+        nit: acceptedOrder.nit,
+        responsable: acceptedOrder.responsable,
+        email: acceptedOrder.email,
+        ciudad: acceptedOrder.ciudad,
+        areaM2: acceptedOrder.areaM2,
+        tipoPintura: acceptedOrder.tipoPintura,
+        color: acceptedOrder.color,
+        totalCOP: acceptedOrder.totalCOP,
+        status: 'preparando',
+        vehiculo: busInfo.tipo,
+        conductor: busInfo.conductor,
+        placa: busInfo.placa,
+        mensaje: porQueSeAcepto
+      });
+    } catch (e) {
+      console.warn('[Auto-Pilot Save Error]', e);
+    }
+
+    return acceptedOrder;
   };
 
   // Función robusta para sincronizar pedidos de todas las fuentes: Servidor (/api/orders), Almacenamiento Local y Sesión
@@ -1316,23 +1310,28 @@ export function AdminBackoffice({
           for (const inc of uniqueIncoming) {
             const existing = prevMap.get(inc.id);
             if (!existing) {
-              const processed = aiAutoPilotEnabled ? generateAiAutoAssignment(inc) : inc;
+              const processed = (aiAutoPilotEnabled && (inc.status === 'pendiente' || !inc.status))
+                ? generateAiAutoAssignment(inc)
+                : inc;
               nextList.unshift(processed);
               prevMap.set(inc.id, processed);
             } else {
-              // Si ya existe, actualizar respetando la regla inviolable: si ya fue entregado, NUNCA retrocede
+              // Si el pedido existente está pendiente y el piloto IA está activo, evaluarlo y aceptarlo
+              const shouldAutoAccept = aiAutoPilotEnabled && (existing.status === 'pendiente' || inc.status === 'pendiente') && !existing.dictamenIA;
+              const sourceOrder = shouldAutoAccept ? generateAiAutoAssignment({ ...existing, ...inc }) : inc;
+
               const finalStatus =
-                existing.status === 'entregado' && inc.status !== 'entregado'
+                existing.status === 'entregado' && sourceOrder.status !== 'entregado'
                   ? 'entregado'
-                  : inc.status || existing.status;
+                  : sourceOrder.status || existing.status;
 
               const merged: OrderItem = {
                 ...existing,
-                ...inc,
+                ...sourceOrder,
                 status: finalStatus,
-                vehiculoAsignado: inc.vehiculoAsignado || existing.vehiculoAsignado,
-                placa: inc.placa || existing.placa,
-                conductor: inc.conductor || existing.conductor
+                vehiculoAsignado: sourceOrder.vehiculoAsignado || existing.vehiculoAsignado,
+                placa: sourceOrder.placa || existing.placa,
+                conductor: sourceOrder.conductor || existing.conductor
               };
               const idx = nextList.findIndex((o) => o.id === inc.id);
               if (idx >= 0) nextList[idx] = merged;
@@ -1360,6 +1359,32 @@ export function AdminBackoffice({
     const interval = setInterval(syncAllOrders, 4000);
     return () => clearInterval(interval);
   }, [submittedProjects, aiAutoPilotEnabled]);
+
+  // La IA ve los pedidos entrantes y los audita y acepta automáticamente a preparación
+  useEffect(() => {
+    if (!aiAutoPilotEnabled) return;
+    const pendingOrders = orders.filter((o) => o.status === 'pendiente');
+    if (pendingOrders.length === 0) return;
+
+    const timer = setTimeout(() => {
+      setOrders((prev) => {
+        let count = 0;
+        const updated = prev.map((o) => {
+          if (o.status === 'pendiente') {
+            count++;
+            return generateAiAutoAssignment(o);
+          }
+          return o;
+        });
+        if (count > 0) {
+          showToast(`🤖 IA Pincelito: ${count} pedido(s) inspeccionado(s) y aceptado(s) automáticamente.`);
+        }
+        return updated;
+      });
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [orders, aiAutoPilotEnabled]);
 
   // Ejecutar Auto-Asignación IA para un pedido individual
   const handleRunAutoPilotForOrder = (orderId: string) => {
@@ -1789,7 +1814,7 @@ export function AdminBackoffice({
 
     try {
       const cityData = cityAnalytics.find(
-        (c) => c.ciudad.toLowerCase() === order.ciudad.toLowerCase()
+        (c) => (c.ciudad || '').toLowerCase() === (order.ciudad || '').toLowerCase()
       );
       const stock = cityData ? cityData.stockDisponibleCunetes : 18;
 
@@ -2226,20 +2251,50 @@ export function AdminBackoffice({
               </span>
             </div>
 
-            <div className="p-3.5 rounded-2xl bg-slate-50/80 border border-slate-200/90 shadow-2xs">
+            <button
+              type="button"
+              onClick={() => {
+                const nextVal = !aiAutoPilotEnabled;
+                setAiAutoPilotEnabled(nextVal);
+                showToast(
+                  nextVal
+                    ? '🤖 Auto-Piloto IA Activado: La IA inspecciona y acepta los pedidos automáticamente.'
+                    : '⏸️ Auto-Piloto IA Pausado: Los pedidos esperarán decisión manual.'
+                );
+              }}
+              className={`p-3.5 rounded-2xl border shadow-2xs text-left transition-all cursor-pointer ${
+                aiAutoPilotEnabled
+                  ? 'bg-emerald-50/80 border-emerald-300 ring-2 ring-emerald-500/20 hover:bg-emerald-100/70'
+                  : 'bg-slate-50/80 border-slate-200/90 hover:bg-slate-100'
+              }`}
+              title="Haz clic para activar o pausar la aceptación automática por IA"
+            >
               <div className="flex items-center justify-between text-slate-400 mb-1">
-                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-600 flex items-center gap-1">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                   Auto-Piloto IA
                 </span>
-                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                <span
+                  className={`text-[9px] font-black px-2 py-0.5 rounded-full ${
+                    aiAutoPilotEnabled
+                      ? 'bg-emerald-200 text-emerald-950 font-black'
+                      : 'bg-slate-200 text-slate-700'
+                  }`}
+                >
+                  {aiAutoPilotEnabled ? 'ON' : 'OFF'}
+                </span>
               </div>
-              <strong className="text-lg sm:text-xl font-black text-slate-900 block font-mono">
-                Pincelito IA
+              <strong className="text-base sm:text-lg font-black text-slate-900 block font-mono">
+                {aiAutoPilotEnabled ? 'Aceptación Auto' : 'Pausado'}
               </strong>
-              <span className="text-[10px] text-emerald-700 font-bold block mt-0.5">
-                ● Auditoría & Despacho Activos
+              <span
+                className={`text-[10px] font-bold block mt-0.5 ${
+                  aiAutoPilotEnabled ? 'text-emerald-700' : 'text-slate-500'
+                }`}
+              >
+                {aiAutoPilotEnabled ? '● Ve pedidos y los acepta' : '○ En espera manual'}
               </span>
-            </div>
+            </button>
           </div>
 
           {/* TABS PRINCIPALES DE GESTIÓN (SEGMENTED CONTROL CON CONTADORES) */}
@@ -2345,14 +2400,14 @@ export function AdminBackoffice({
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="font-extrabold text-sm sm:text-base tracking-tight text-white">
-                    Modo Despacho & Asignación Autónoma IA
+                    Inspección & Aceptación Autónoma de Pedidos por IA
                   </h3>
                   <span className="px-2.5 py-0.5 bg-emerald-400 text-slate-950 font-black text-[10px] rounded-full uppercase tracking-wider shadow-xs">
-                    ● ACTIVO
+                    ● IA ACTIVA
                   </span>
                 </div>
                 <p className="text-xs text-sky-100 max-w-2xl mt-0.5">
-                  La IA escoge automáticamente el bus de la flota, calcula y asigna la ruta vial óptima y despacha las notificaciones al cliente.
+                  La IA inspecciona cada pedido entrante, verifica el stock en CEDI, aprueba la formulación bajo norma NTC 1335, asigna el vehículo y la ruta óptima, y lo acepta automáticamente a preparación.
                 </p>
               </div>
             </div>
@@ -2365,7 +2420,7 @@ export function AdminBackoffice({
                 className="px-4 py-2.5 bg-white hover:bg-sky-50 text-sky-900 font-black text-xs rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-60"
               >
                 <Sparkles className="w-4 h-4 text-sky-600" />
-                <span>{isAutoPilotRunning ? 'Asignando Flota y Rutas...' : '⚡ Auto-Asignar Todos los Pendientes con IA'}</span>
+                <span>{isAutoPilotRunning ? 'Inspeccionando y Aceptando con IA...' : '⚡ Ver & Aceptar Todos los Pendientes con IA'}</span>
                 <span className="px-2 py-0.5 bg-sky-100 text-sky-900 rounded-md text-[10px] font-mono font-black">
                   {orders.filter((o) => o.status === 'pendiente').length}
                 </span>
@@ -2558,18 +2613,22 @@ export function AdminBackoffice({
                       <div className="p-6 text-center bg-slate-50 border border-dashed border-slate-300 rounded-2xl space-y-2.5 animate-fadeIn">
                         <Inbox className="w-8 h-8 text-slate-400 mx-auto" />
                         <p className="text-xs font-bold text-slate-700">
-                          No se encontraron pedidos con el filtro actual ({orderStatusFilter})
+                          {orders.length === 0
+                            ? 'No hay pedidos activos aún (Iniciado desde 0)'
+                            : `No se encontraron pedidos con el filtro actual (${orderStatusFilter})`}
                         </p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setOrderStatusFilter('todos');
-                            setOrderSearchText('');
-                          }}
-                          className="px-3 py-1.5 bg-sky-100 hover:bg-sky-200 text-sky-800 rounded-lg text-xs font-bold cursor-pointer transition-colors"
-                        >
-                          Mostrar todos los pedidos ({orders.length})
-                        </button>
+                        {orders.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOrderStatusFilter('todos');
+                              setOrderSearchText('');
+                            }}
+                            className="px-3 py-1.5 bg-sky-100 hover:bg-sky-200 text-sky-800 rounded-lg text-xs font-bold cursor-pointer transition-colors"
+                          >
+                            Mostrar todos los pedidos ({orders.length})
+                          </button>
+                        )}
                       </div>
                     );
                   }
@@ -2681,6 +2740,25 @@ export function AdminBackoffice({
 
           {/* Columna Derecha: Detalle de Supervisión, Auditoría de Stock con IA y Notificaciones por Correo */}
           <div className="lg:col-span-7 space-y-4">
+            {!activeOrder ? (
+              <div className="bg-white rounded-3xl p-8 sm:p-12 border border-slate-200 shadow-sm text-center space-y-4 animate-fadeIn">
+                <div className="w-16 h-16 rounded-3xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto shadow-inner">
+                  <Inbox className="w-8 h-8 text-slate-400" />
+                </div>
+                <div className="space-y-2 max-w-md mx-auto">
+                  <h3 className="text-base sm:text-lg font-black text-slate-900">
+                    Bandeja de Pedidos Lista (0 Pedidos)
+                  </h3>
+                  <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
+                    Se han eliminado todos los pedidos y usuarios de simulación para comenzar desde cero. Cuando un cliente o constructora genere un pedido desde el cotizador oficial, aparecerá aquí inmediatamente en tiempo real para supervisión técnica, cálculo de ruta y despacho.
+                  </p>
+                </div>
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span>Esperando nuevos pedidos reales</span>
+                </div>
+              </div>
+            ) : (
             <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-sm space-y-6">
               {/* Encabezado del Pedido Seleccionado */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 gap-3">
@@ -3076,7 +3154,7 @@ export function AdminBackoffice({
                   <div className="bg-white p-3 rounded-xl border border-sky-100 shadow-2xs">
                     <span className="text-[10px] font-bold text-slate-400 uppercase block">Pigmentos Tintom.</span>
                     <strong className="text-xs font-black text-purple-700 block mt-0.5">
-                      Base {activeOrder.color.split(' ')[0]}
+                      Base {(activeOrder.color || 'Blanco').split(' ')[0]}
                     </strong>
                     <span className="text-[10px] text-slate-500 block">Dióxido Titanio Óptimo</span>
                   </div>
@@ -3348,6 +3426,7 @@ export function AdminBackoffice({
                 )}
               </div>
             </div>
+            )}
           </div>
         </div>
       </div>)}
@@ -4035,15 +4114,22 @@ export function AdminBackoffice({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {orders
-                    .filter((o) => {
-                      if (selectedCityFilter === 'todas') return true;
-                      return (
-                        o.ciudad?.toLowerCase().includes(selectedCityFilter.toLowerCase()) ||
-                        selectedCityFilter.toLowerCase().includes(o.ciudad?.toLowerCase() || '')
-                      );
-                    })
-                    .map((order) => (
+                  {orders.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="py-8 text-center text-xs text-slate-500 font-medium">
+                        No hay pedidos registrados aún. Los pedidos nuevos generados desde el cotizador aparecerán aquí automáticamente.
+                      </td>
+                    </tr>
+                  ) : (
+                    orders
+                      .filter((o) => {
+                        if (selectedCityFilter === 'todas') return true;
+                        return (
+                          o.ciudad?.toLowerCase().includes(selectedCityFilter.toLowerCase()) ||
+                          selectedCityFilter.toLowerCase().includes(o.ciudad?.toLowerCase() || '')
+                        );
+                      })
+                      .map((order) => (
                       <tr key={order.id} className="hover:bg-slate-50/80 transition-colors">
                         <td className="py-3 px-3 font-mono font-bold text-sky-700">{order.id}</td>
                         <td className="py-3 px-3">
@@ -4095,7 +4181,8 @@ export function AdminBackoffice({
                           </a>
                         </td>
                       </tr>
-                    ))}
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -4410,7 +4497,7 @@ export function AdminBackoffice({
                       Vista previa del correo que se enviará al cliente:
                     </span>
                     <span className="text-slate-400 font-mono text-[10px]">
-                      {activeOrder.email}
+                      {activeOrder?.email || ''}
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-700 whitespace-pre-line leading-relaxed">

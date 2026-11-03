@@ -871,12 +871,15 @@ export function AdminStockAndAIAdvisor({
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
               {toolsStock
-                .filter(t => 
-                  toolsSearch === '' ||
-                  t.nombre.toLowerCase().includes(toolsSearch.toLowerCase()) ||
-                  t.sku.toLowerCase().includes(toolsSearch.toLowerCase()) ||
-                  t.categoria.toLowerCase().includes(toolsSearch.toLowerCase())
-                )
+                .filter(t => {
+                  const q = (toolsSearch || '').toLowerCase();
+                  return (
+                    q === '' ||
+                    (t.nombre || '').toLowerCase().includes(q) ||
+                    (t.sku || '').toLowerCase().includes(q) ||
+                    (t.categoria || '').toLowerCase().includes(q)
+                  );
+                })
                 .map((tool) => {
                   const isCrit = tool.stock > 0 && tool.stock <= tool.stockMinimo;
                   const isZero = tool.stock <= 0;

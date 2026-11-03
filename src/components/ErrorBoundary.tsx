@@ -29,8 +29,16 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   private handleReset = () => {
     try {
-      // Limpiar posibles estados corruptos en caso de crash
-      localStorage.removeItem('colorlink_client_progress_v1_default');
+      // Limpiar posibles estados corruptos en caso de inconsistencia sin saltar índices
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('colorlink_')) {
+          keysToRemove.push(k);
+        }
+      }
+      keysToRemove.forEach((k) => localStorage.removeItem(k));
+      sessionStorage.clear();
     } catch {}
     this.setState({ hasError: false, error: null });
     window.location.reload();

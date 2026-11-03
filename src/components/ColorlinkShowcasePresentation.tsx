@@ -103,7 +103,7 @@ export function ColorlinkShowcasePresentation({
                 {activeUser ? (
                   <div className="w-full sm:w-auto px-3.5 py-1.5 rounded-xl bg-emerald-100 border border-emerald-300 text-emerald-900 font-bold flex items-center justify-center gap-1.5 text-xs">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <span>Sesión: {activeUser.responsable?.split(' ')[0] || activeUser.empresa}</span>
+                    <span>Sesión: {activeUser.responsable?.split(' ')[0] || activeUser.empresa || 'Cliente'}</span>
                   </div>
                 ) : (
                   <>
@@ -138,7 +138,7 @@ export function ColorlinkShowcasePresentation({
               </button>
               <span className="text-xs text-slate-500 font-semibold text-center sm:text-left">
                 {activeUser
-                  ? `✓ Sesión de ${activeUser.responsable?.split(' ')[0] || activeUser.empresa} lista para formalizar pedido`
+                  ? `✓ Sesión de ${activeUser.responsable?.split(' ')[0] || activeUser.empresa || 'Cliente'} lista para formalizar pedido`
                   : '✓ Acceso a cotizador mayorista para clientes y constructoras'}
               </span>
             </div>
