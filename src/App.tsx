@@ -40,6 +40,42 @@ import { UserProfile } from './types/form';
 const ACTIVE_CLIENT_STORAGE_KEY = 'colorlink_active_client_v1';
 const USER_ROLE_STORAGE_KEY = 'colorlink_user_role_v1';
 const SUBMITTED_PROJECTS_STORAGE_KEY = 'colorlink_submitted_projects_v1';
+const PURGE_FLAG_V10 = 'colorlink_purge_zero_v10_total_reset';
+
+export function purgeAllStoredData(): void {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const keys = [
+        'colorlink_client_orders_history_v1',
+        'colorlink_submitted_projects_v1',
+        'colorlink_registered_accounts_v1',
+        'colorlink_sim_mode_v1',
+        'colorlink_active_client_v1',
+        'colorlink_active_advisor_v1',
+        'colorlink_sent_emails_cache_v1',
+        'colorlink_advisor_conversations_v1'
+      ];
+      keys.forEach((k) => localStorage.removeItem(k));
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('colorlink_client_progress_') || k.startsWith('colorlink_reset_to_zero_'))) {
+          localStorage.removeItem(k);
+        }
+      }
+    }
+  } catch {}
+}
+
+// Ejecutar inmediatamente al cargar el módulo para que los initializers de useState arranquen estrictamente desde 0
+if (typeof window !== 'undefined' && window.localStorage) {
+  try {
+    if (localStorage.getItem(PURGE_FLAG_V10) !== 'done') {
+      purgeAllStoredData();
+      localStorage.setItem(PURGE_FLAG_V10, 'done');
+      fetch('/api/orders', { method: 'DELETE' }).catch(() => {});
+    }
+  } catch {}
+}
 
 export default function App() {
   // Role switcher: 'client' (default) | 'admin' | 'advisor'
@@ -54,13 +90,7 @@ export default function App() {
   });
   const [showAdminLoginModal, setShowAdminLoginModal] = useState<boolean>(false);
   const [showAdvisorLoginModal, setShowAdvisorLoginModal] = useState<boolean>(false);
-  const [activeAdvisor, setActiveAdvisor] = useState<AdvisorData | null>(() => {
-    try {
-      const saved = localStorage.getItem('colorlink_active_advisor_v1');
-      if (saved) return JSON.parse(saved);
-    } catch {}
-    return null;
-  });
+  const [activeAdvisor, setActiveAdvisor] = useState<AdvisorData | null>(null);
   const [advisorEmail, setAdvisorEmail] = useState<string>('');
   const [advisorPassword, setAdvisorPassword] = useState<string>('');
   const [showAdvisorPassword, setShowAdvisorPassword] = useState<boolean>(false);
@@ -68,25 +98,24 @@ export default function App() {
 
   const [activeClient, setActiveClient] = useState<UserProfile | null>(() => {
     try {
-      const savedClient = localStorage.getItem(ACTIVE_CLIENT_STORAGE_KEY);
-      if (savedClient) return JSON.parse(savedClient);
+      if (typeof window !== 'undefined' && localStorage.getItem(PURGE_FLAG_V10) === 'done') {
+        const savedClient = localStorage.getItem(ACTIVE_CLIENT_STORAGE_KEY);
+        if (savedClient) return JSON.parse(savedClient);
+      }
     } catch {}
     return null;
   });
+
   // Limpieza inicial para comenzar desde 0 (sin usuarios mock ni pedidos de prueba)
   useEffect(() => {
     try {
-      const RESET_FLAG = 'colorlink_reset_to_zero_v3';
-      if (!localStorage.getItem(RESET_FLAG)) {
-        localStorage.removeItem('colorlink_client_orders_history_v1');
-        localStorage.removeItem('colorlink_submitted_projects_v1');
-        localStorage.removeItem('colorlink_registered_accounts_v1');
-        localStorage.removeItem('colorlink_sim_mode_v1');
-        localStorage.removeItem('colorlink_active_client_v1');
-        localStorage.removeItem('colorlink_active_advisor_v1');
-        localStorage.removeItem('colorlink_sent_emails_cache_v1');
-        localStorage.setItem(RESET_FLAG, 'true');
+      if (localStorage.getItem(PURGE_FLAG_V10) !== 'done') {
+        purgeAllStoredData();
+        localStorage.setItem(PURGE_FLAG_V10, 'done');
+        setSubmittedProjects([]);
+        setActiveClient(null);
       }
+      fetch('/api/orders', { method: 'DELETE' }).catch(() => {});
     } catch {}
   }, []);
 
@@ -128,10 +157,12 @@ export default function App() {
   // Lista de proyectos iniciada desde 0
   const [submittedProjects, setSubmittedProjects] = useState<any[]>(() => {
     try {
-      const saved = localStorage.getItem(SUBMITTED_PROJECTS_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (typeof window !== 'undefined' && localStorage.getItem(PURGE_FLAG_V10) === 'done') {
+        const saved = localStorage.getItem(SUBMITTED_PROJECTS_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
       }
     } catch {}
     return [];
@@ -626,6 +657,7 @@ export default function App() {
           <AdminBackoffice
             onBackToClientView={() => setUserRole('client')}
             submittedProjects={submittedProjects}
+            onClearSubmittedProjects={() => setSubmittedProjects([])}
           />
         )}
       </main>

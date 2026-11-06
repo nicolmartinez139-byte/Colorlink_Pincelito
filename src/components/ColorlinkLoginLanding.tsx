@@ -34,6 +34,29 @@ const ACCOUNTS_STORAGE_KEY = 'colorlink_registered_accounts_v1';
 // Base de usuarios limpia desde cero (sin cuentas ficticias ni de prueba)
 const DEFAULT_REGISTERED_ACCOUNTS: Record<string, StoredAccount> = {};
 
+// Validación estricta de correo electrónico verídico con dominio y TLD válido
+export function isValidEmail(email: string): boolean {
+  if (!email || typeof email !== 'string') return false;
+  const clean = email.trim().toLowerCase();
+  const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+  if (!emailRegex.test(clean)) return false;
+
+  const parts = clean.split('@');
+  if (parts.length !== 2) return false;
+  const [local, domain] = parts;
+  if (!local || local.length < 2 || !domain) return false;
+
+  const domainParts = domain.split('.');
+  if (domainParts.length < 2) return false;
+  const tld = domainParts[domainParts.length - 1];
+  if (!tld || tld.length < 2 || !/^[a-zA-Z]+$/.test(tld)) return false;
+
+  const blockedDomains = ['example.com', 'test.com', 'algo.com', 'correo.com', 'fake.com', 'localhost'];
+  if (blockedDomains.includes(domain)) return false;
+
+  return true;
+}
+
 function getStoredAccounts(): Record<string, StoredAccount> {
   try {
     const raw = localStorage.getItem(ACCOUNTS_STORAGE_KEY);
@@ -104,7 +127,7 @@ export function ColorlinkLoginLanding({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Acción de Login
+  // Acción de Login Estricta
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
@@ -114,64 +137,70 @@ export function ColorlinkLoginLanding({
     const passToUse = password.trim();
 
     if (!emailToUse || !passToUse) {
-      setErrorMessage('Por favor ingresa tu correo electrónico y contraseña.');
+      setErrorMessage('Por favor ingresa tu correo electrónico y tu contraseña.');
+      return;
+    }
+
+    // 1. REGLA ESTRICTA: El correo debe ser un correo verídico y bien estructurado
+    if (!isValidEmail(emailToUse)) {
+      setErrorMessage('Por favor ingresa un correo electrónico verídico y válido con dominio real (ejemplo: usuario@empresa.com.co).');
       return;
     }
 
     setLoading(true);
     try {
-      // Verificar si tiene contraseña actualizada o registrada en el almacén local
+      // 2. Buscar en almacén de cuentas locales registradas
       const storedAccounts = getStoredAccounts();
       const storedAccount = storedAccounts[emailToUse];
-      if (storedAccount?.password && storedAccount.password !== passToUse) {
-        setErrorMessage('La contraseña ingresada no coincide con la registrada para este correo. Puedes usar "¿Se te olvidó tu contraseña?" para cambiarla.');
+
+      // 3. Buscar en Supabase si está disponible
+      let authUser: any = null;
+      let clientRow: any = null;
+      if (isSupabaseConfigured()) {
+        try {
+          const { data: authData } = await supabase.auth.signInWithPassword({
+            email: emailToUse,
+            password: passToUse
+          });
+          authUser = authData?.user;
+        } catch {}
+
+        try {
+          const { data } = await supabase
+            .from('clientes')
+            .select('*')
+            .eq('email_responsable', emailToUse)
+            .maybeSingle();
+          clientRow = data;
+        } catch {}
+      }
+
+      // 4. REGLA ESTRICTA: Si la cuenta NO existe en ninguna base de datos, PROHIBIDO auto-crearla.
+      // Debe solicitar explícitamente el registro al usuario.
+      const accountFound = Boolean(storedAccount || clientRow || authUser);
+      if (!accountFound) {
+        setErrorMessage('Esta cuenta no está registrada en el portal. Por favor haz clic en "¿No tienes una cuenta?" para registrarte antes de iniciar sesión.');
         setLoading(false);
         return;
       }
 
-      // 1. Intentar autenticar con Supabase Auth si coincide
-      let authUser: any = null;
-      try {
-        const { data: authData } = await supabase.auth.signInWithPassword({
-          email: emailToUse,
-          password: passToUse
-        });
-        authUser = authData?.user;
-      } catch {
-        // Continuar verificando en tabla de clientes
+      // 5. REGLA ESTRICTA: Validar contraseña registrada
+      if (storedAccount?.password && storedAccount.password !== passToUse) {
+        setErrorMessage('La contraseña ingresada no coincide con la registrada. Si la olvidaste, usa "¿Se te olvidó tu contraseña?".');
+        setLoading(false);
+        return;
       }
 
-      // 2. Buscar datos del cliente en la tabla clientes
-      const nitQuery = emailToUse.replace(/[.\-\s]/g, '');
-      const { data: clientRow } = await supabase
-        .from('clientes')
-        .select('*')
-        .or(`email_responsable.ilike.${emailToUse},nit_documento.eq.${nitQuery},nombre_razon_social.ilike.%${emailToUse}%`)
-        .maybeSingle();
-
       const userProfile: UserProfile = {
-        id: clientRow?.id || storedAccount?.id || authUser?.id || `usr-${Date.now()}`,
-        empresa: clientRow?.nombre_razon_social || storedAccount?.empresa || emailToUse.split('@')[0],
-        nit: clientRow?.nit_documento || storedAccount?.nit || '',
-        responsable: clientRow?.responsable || storedAccount?.responsable || emailToUse.split('@')[0],
-        email: clientRow?.email_responsable || storedAccount?.email || emailToUse,
-        telefono: clientRow?.telefono_responsable || storedAccount?.telefono || '',
-        ciudad: 'Medellín',
-        createdAt: clientRow?.created_at || storedAccount?.createdAt || new Date().toISOString()
+        id: storedAccount?.id || clientRow?.id || authUser?.id || `usr-${Date.now()}`,
+        empresa: storedAccount?.empresa || clientRow?.nombre_razon_social || 'Cliente Registrado',
+        nit: storedAccount?.nit || clientRow?.nit_documento || 'S/N',
+        responsable: storedAccount?.responsable || clientRow?.responsable || 'Responsable',
+        email: storedAccount?.email || clientRow?.email_responsable || emailToUse,
+        telefono: storedAccount?.telefono || clientRow?.telefono_responsable || '',
+        ciudad: storedAccount?.ciudad || 'Medellín',
+        createdAt: storedAccount?.createdAt || clientRow?.created_at || new Date().toISOString()
       };
-
-      // Sincronizar cuenta en registro local para futuras recuperaciones de contraseña
-      saveStoredAccount({
-        id: userProfile.id,
-        email: userProfile.email,
-        password: storedAccount?.password || passToUse,
-        empresa: userProfile.empresa,
-        nit: userProfile.nit,
-        responsable: userProfile.responsable,
-        telefono: userProfile.telefono,
-        ciudad: userProfile.ciudad,
-        createdAt: userProfile.createdAt
-      });
 
       onLoginSuccess(userProfile);
     } catch (err: any) {
@@ -189,8 +218,8 @@ export function ColorlinkLoginLanding({
     setSuccessMessage(null);
 
     const cleanEmail = recoveryEmail.trim().toLowerCase();
-    if (!cleanEmail || !cleanEmail.includes('@')) {
-      setErrorMessage('Por favor ingresa un correo electrónico válido.');
+    if (!cleanEmail || !isValidEmail(cleanEmail)) {
+      setErrorMessage('Por favor ingresa un correo electrónico verídico y válido (ejemplo: usuario@empresa.com.co).');
       return;
     }
 
@@ -344,33 +373,88 @@ export function ColorlinkLoginLanding({
     }
   };
 
-  // Acción de Registro
+  // Acción de Registro Estricta
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    if (!regEmail || !regPassword) {
-      setErrorMessage('Por favor ingresa correo y contraseña.');
+    const cleanRegEmail = regEmail.trim().toLowerCase();
+    const cleanPassword = regPassword.trim();
+    const cleanEmpresa = regEmpresa.trim();
+    const cleanNit = (regNit || '').replace(/[.\-\s]/g, '');
+    const cleanResponsable = regResponsable.trim();
+    const cleanTelefono = (regTelefono || '').replace(/\D/g, '');
+
+    if (!cleanEmpresa || cleanEmpresa.length < 3) {
+      setErrorMessage('Por favor ingresa la Empresa o Razón Social (mínimo 3 caracteres).');
+      return;
+    }
+
+    if (!cleanNit || cleanNit.length < 6) {
+      setErrorMessage('Por favor ingresa un NIT o documento válido (mínimo 6 dígitos).');
+      return;
+    }
+
+    if (!cleanResponsable || cleanResponsable.length < 3) {
+      setErrorMessage('Por favor ingresa el nombre de la persona responsable o contacto.');
+      return;
+    }
+
+    // Validación estricta de correo verídico
+    if (!cleanRegEmail || !isValidEmail(cleanRegEmail)) {
+      setErrorMessage('Por favor ingresa un correo electrónico verídico y válido con dominio real (ejemplo: contacto@empresa.com.co).');
+      return;
+    }
+
+    if (!cleanTelefono || cleanTelefono.length < 7) {
+      setErrorMessage('Por favor ingresa un número de teléfono o celular válido (mínimo 7 dígitos).');
+      return;
+    }
+
+    if (!cleanPassword || cleanPassword.length < 6) {
+      setErrorMessage('Por favor ingresa una contraseña segura de mínimo 6 caracteres.');
       return;
     }
 
     setLoading(true);
     try {
-      const nitLimpio = (regNit || '').replace(/[.\-\s]/g, '');
-      const cleanRegEmail = regEmail.trim().toLowerCase();
+      // 1. Verificar si ya existe en cuentas locales
+      const storedAccounts = getStoredAccounts();
+      if (storedAccounts[cleanRegEmail]) {
+        setErrorMessage('Ya existe una cuenta registrada con este correo electrónico. Por favor ve a "Inicia sesión ahora" con tu contraseña.');
+        setLoading(false);
+        return;
+      }
 
-      // 1. Intentar registrar en Supabase Auth
+      // 2. Verificar si ya existe en Supabase
+      if (isSupabaseConfigured()) {
+        try {
+          const { data: existingClient } = await supabase
+            .from('clientes')
+            .select('id')
+            .eq('email_responsable', cleanRegEmail)
+            .maybeSingle();
+
+          if (existingClient) {
+            setErrorMessage('Ya existe una cuenta registrada con este correo electrónico en la base de datos. Por favor inicia sesión.');
+            setLoading(false);
+            return;
+          }
+        } catch {}
+      }
+
+      // 3. Intentar registrar en Supabase Auth
       let authUserId: string | null = null;
       try {
         const { data: authData } = await supabase.auth.signUp({
           email: cleanRegEmail,
-          password: regPassword,
+          password: cleanPassword,
           options: {
             data: {
-              empresa: regEmpresa,
-              responsable: regResponsable,
-              nit: nitLimpio
+              empresa: cleanEmpresa,
+              responsable: cleanResponsable,
+              nit: cleanNit
             }
           }
         });
@@ -381,7 +465,7 @@ export function ColorlinkLoginLanding({
         console.warn('[Supabase Auth] Registro Auth:', authErr);
       }
 
-      // 2. Guardar registro en la tabla 'clientes' de Supabase si está disponible
+      // 4. Guardar registro en la tabla 'clientes' de Supabase si está disponible
       let clienteId = `CLI-${Date.now().toString().slice(-6)}`;
       let clientCreatedAt = new Date().toISOString();
 
@@ -391,11 +475,11 @@ export function ColorlinkLoginLanding({
             .from('clientes')
             .insert({
               auth_user_id: authUserId,
-              nombre_razon_social: regEmpresa || 'Cliente Registrado',
-              nit_documento: nitLimpio || `NIT-${Date.now().toString().slice(-6)}`,
-              responsable: regResponsable || cleanRegEmail.split('@')[0],
+              nombre_razon_social: cleanEmpresa,
+              nit_documento: cleanNit,
+              responsable: cleanResponsable,
               email_responsable: cleanRegEmail,
-              telefono_responsable: regTelefono || null,
+              telefono_responsable: cleanTelefono || null,
               canal_entrada: 'Registro Portal Web'
             })
             .select('*')
@@ -410,27 +494,27 @@ export function ColorlinkLoginLanding({
         }
       }
 
-      // Guardar también en almacén local para soporte de login y cotizaciones
+      // 5. Guardar en almacén local
       saveStoredAccount({
         id: clienteId,
         email: cleanRegEmail,
-        password: regPassword.trim(),
-        empresa: regEmpresa || 'Cliente Registrado',
-        nit: nitLimpio || '',
-        responsable: regResponsable || cleanRegEmail.split('@')[0],
-        telefono: regTelefono || '',
+        password: cleanPassword,
+        empresa: cleanEmpresa,
+        nit: cleanNit,
+        responsable: cleanResponsable,
+        telefono: cleanTelefono,
         ciudad: 'Medellín',
         createdAt: clientCreatedAt
       });
 
-      // Enviar correo de bienvenida corporativo mediante EmailJS
+      // 6. Enviar correo de bienvenida corporativo mediante EmailJS
       try {
         await sendRegistrationWelcomeEmail({
           email: cleanRegEmail,
-          nombre: regResponsable || cleanRegEmail.split('@')[0],
-          empresa: regEmpresa || 'Cliente Registrado',
-          nit: nitLimpio || 'No especificado',
-          telefono: regTelefono
+          nombre: cleanResponsable,
+          empresa: cleanEmpresa,
+          nit: cleanNit || 'No especificado',
+          telefono: cleanTelefono
         });
       } catch (welcomeErr) {
         console.warn('[EmailJS] Advertencia al enviar bienvenida:', welcomeErr);
@@ -438,11 +522,11 @@ export function ColorlinkLoginLanding({
 
       const userProfile: UserProfile = {
         id: clienteId,
-        empresa: regEmpresa || 'Cliente Registrado',
-        nit: nitLimpio || '',
-        responsable: regResponsable || cleanRegEmail.split('@')[0],
+        empresa: cleanEmpresa,
+        nit: cleanNit,
+        responsable: cleanResponsable,
         email: cleanRegEmail,
-        telefono: regTelefono || '',
+        telefono: cleanTelefono,
         ciudad: 'Medellín',
         createdAt: clientCreatedAt
       };

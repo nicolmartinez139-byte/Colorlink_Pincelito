@@ -200,6 +200,18 @@ app.get(['/api/orders', '/orders', '/api/cotizaciones', '/cotizaciones'], (req, 
   });
 });
 
+// Endpoint para purgar / vaciar todos los pedidos del servidor e iniciar de 0
+app.delete(['/api/orders', '/orders', '/api/cotizaciones', '/cotizaciones'], (req, res) => {
+  receivedOrdersStore.length = 0;
+  console.log('[API ORDERS] Almacén de pedidos purgado a cero.');
+  return res.json({
+    success: true,
+    count: 0,
+    orders: [],
+    message: 'Todos los pedidos en memoria del servidor han sido eliminados correctamente.'
+  });
+});
+
 // Webhook para recepción de notificaciones externas
 app.all(['/api/webhook', '/webhook'], (req, res) => {
   console.log('[WEBHOOK - VERCEL] Notificación recibida:', req.method, req.body);

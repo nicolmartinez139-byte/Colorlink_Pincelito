@@ -25,15 +25,27 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('ErrorBoundary caught an unhandled error:', error, errorInfo);
+    const msg = (error?.message || '').toLowerCase();
+    // Auto-recuperación de errores de traducción externa o autofill en navegadores móviles (Chrome Android)
+    if (
+      msg.includes('removechild') ||
+      msg.includes('insertbefore') ||
+      msg.includes('not a child') ||
+      msg.includes('no es hijo')
+    ) {
+      setTimeout(() => {
+        this.setState({ hasError: false, error: null });
+      }, 60);
+    }
   }
 
   private handleReset = () => {
     try {
-      // Limpiar posibles estados corruptos en caso de inconsistencia sin saltar índices
+      // Limpiar solo estados de interfaz o borradores temporales, preservando cuentas registradas
       const keysToRemove: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        if (k && k.startsWith('colorlink_')) {
+        if (k && k.startsWith('colorlink_client_progress_')) {
           keysToRemove.push(k);
         }
       }

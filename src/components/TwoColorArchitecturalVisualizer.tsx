@@ -99,6 +99,115 @@ interface TwoColorArchitecturalVisualizerProps {
   areaTotalM2?: number;
 }
 
+// Mapa de colores arquitectónicos y comerciales comunes para resolución fidedigna sin fallback gris
+const COLOR_NAME_TO_HEX: Record<string, string> = {
+  'blanco puro': '#FFFFFF',
+  'blanco nieve': '#F8FAFC',
+  'blanco': '#FFFFFF',
+  'hueso natural': '#F5F5F0',
+  'blanco hueso': '#F5F5F0',
+  'hueso': '#F5F5F0',
+  'marfil / arena': '#E8DFD1',
+  'marfil': '#E8DFD1',
+  'arena': '#E8DFD1',
+  'crema': '#FDFBF7',
+  'beige canela': '#D4C5B9',
+  'beige': '#D4C5B9',
+  'canela': '#D4C5B9',
+  'gris perla': '#CBD5E1',
+  'gris cemento': '#64748B',
+  'gris concreto': '#475569',
+  'gris grafito': '#334155',
+  'gris plomo': '#334155',
+  'gris': '#64748B',
+  'negro mate': '#1E293B',
+  'negro': '#0F172A',
+  'azul océano': '#0284C7',
+  'azul oceano': '#0284C7',
+  'azul marino real': '#1E3A8A',
+  'azul marino': '#1E3A8A',
+  'azul petróleo': '#0369A1',
+  'azul petroleo': '#0369A1',
+  'azul cielo': '#38BDF8',
+  'azul cobalto': '#0284C7',
+  'azul': '#0284C7',
+  'verde oliva': '#65A30D',
+  'verde salvia': '#84A98C',
+  'verde menta': '#6EE7B7',
+  'verde bosque': '#166534',
+  'verde': '#65A30D',
+  'terracota / teja': '#B45309',
+  'terracota': '#B45309',
+  'teja': '#B45309',
+  'ladrillo': '#B45309',
+  'café moka': '#78350F',
+  'cafe moka': '#78350F',
+  'moka': '#78350F',
+  'chocolate': '#451A03',
+  'naranja vivo': '#EA580C',
+  'naranja': '#EA580C',
+  'mostaza suave': '#EAB308',
+  'mostaza': '#EAB308',
+  'amarillo ocre': '#CA8A04',
+  'amarillo': '#EAB308',
+  'rojo teja': '#B91C1C',
+  'rojo': '#DC2626',
+  'vinotinto': '#881337',
+  'coral': '#F43F5E'
+};
+
+export function resolveHexColor(colorStr?: string | null, fallback = '#334155'): string {
+  if (!colorStr || typeof colorStr !== 'string') return fallback;
+  const raw = colorStr.trim();
+  if (!raw) return fallback;
+
+  // 1. Extraer HEX directo si contiene #hex
+  const hexMatch = raw.match(/#[0-9A-Fa-f]{6}/) || raw.match(/#[0-9A-Fa-f]{3}/);
+  if (hexMatch) {
+    return hexMatch[0];
+  }
+
+  // 2. Limpiar texto de acabados como (Mate), (Satinado), (Brillante), [RAL ...]
+  const cleaned = raw
+    .replace(/\s*\([^)]*\)/g, '')
+    .replace(/\s*\[[^\]]*\]/g, '')
+    .replace(/\s*RAL\s*\d+/gi, '')
+    .trim()
+    .toLowerCase();
+
+  // 3. Buscar en PRESET_COLORS por coincidencia exacta
+  const presetExact = PRESET_COLORS.find(
+    (c) => c.name.toLowerCase() === cleaned || c.id.toLowerCase() === cleaned
+  );
+  if (presetExact) return presetExact.hex;
+
+  // 4. Buscar en diccionario de colores arquitectónicos
+  if (COLOR_NAME_TO_HEX[cleaned]) {
+    return COLOR_NAME_TO_HEX[cleaned];
+  }
+
+  // 5. Buscar en ARCHITECTURAL_HARMONY_PAIRS
+  for (const pair of ARCHITECTURAL_HARMONY_PAIRS) {
+    if (pair.colorPrincipal.name.toLowerCase() === cleaned) return pair.colorPrincipal.hex;
+    if (pair.colorSecundario.name.toLowerCase() === cleaned) return pair.colorSecundario.hex;
+  }
+
+  // 6. Buscar por inclusión parcial en PRESET_COLORS
+  const presetPartial = PRESET_COLORS.find(
+    (c) => cleaned.includes(c.name.toLowerCase()) || c.name.toLowerCase().includes(cleaned)
+  );
+  if (presetPartial) return presetPartial.hex;
+
+  // 7. Buscar por palabras clave en diccionario
+  for (const [key, hexVal] of Object.entries(COLOR_NAME_TO_HEX)) {
+    if (cleaned.includes(key) || key.includes(cleaned)) {
+      return hexVal;
+    }
+  }
+
+  return fallback;
+}
+
 export function TwoColorArchitecturalVisualizer({
   colorPrincipal,
   colorSecundario = 'Gris Grafito',
@@ -114,30 +223,14 @@ export function TwoColorArchitecturalVisualizer({
   const [customHex1, setCustomHex1] = useState<string>('#F8FAFC');
   const [customHex2, setCustomHex2] = useState<string>('#334155');
 
-  // Resolver color HEX para Color 1
+  // Resolver color HEX fiel para Color 1 (sin caer en gris por error de parseo)
   const hex1 = useMemo(() => {
-    if (!colorPrincipal) return '#F8FAFC';
-    const found = PRESET_COLORS.find(
-      (c) => c.name.toLowerCase() === colorPrincipal.toLowerCase() || c.id === colorPrincipal
-    );
-    if (found) return found.hex;
-    if (colorPrincipal.startsWith('#')) return colorPrincipal;
-    const match = colorPrincipal.match(/#[0-9A-Fa-f]{6}/);
-    if (match) return match[0];
-    return '#E2E8F0';
+    return resolveHexColor(colorPrincipal, '#F8FAFC');
   }, [colorPrincipal]);
 
-  // Resolver color HEX para Color 2
+  // Resolver color HEX fiel para Color 2
   const hex2 = useMemo(() => {
-    if (!colorSecundario) return '#334155';
-    const found = PRESET_COLORS.find(
-      (c) => c.name.toLowerCase() === colorSecundario.toLowerCase() || c.id === colorSecundario
-    );
-    if (found) return found.hex;
-    if (colorSecundario.startsWith('#')) return colorSecundario;
-    const match = colorSecundario.match(/#[0-9A-Fa-f]{6}/);
-    if (match) return match[0];
-    return '#334155';
+    return resolveHexColor(colorSecundario, '#334155');
   }, [colorSecundario]);
 
   // Intercambiar colores 1 y 2

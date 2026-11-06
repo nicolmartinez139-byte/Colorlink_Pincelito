@@ -464,7 +464,7 @@ export function ColorFinishSelector({ value, onChange, error }: ColorFinishSelec
     setIsCustomMode(false);
     setCustomHex(preset.hex);
     const finishToUse = selectedFinish || 'Mate';
-    const combined = `${preset.name} (${finishToUse})`;
+    const combined = `${preset.name} [${preset.hex}] (${finishToUse})`;
     onChange(combined);
   };
 
@@ -477,7 +477,8 @@ export function ColorFinishSelector({ value, onChange, error }: ColorFinishSelec
     } else if (selectedPresetId) {
       const currentPreset = PRESET_COLORS.find((p) => p.id === selectedPresetId);
       const colorLabel = currentPreset ? currentPreset.name : 'Color';
-      onChange(`${colorLabel} (${finish})`);
+      const hexPart = currentPreset?.hex ? ` [${currentPreset.hex}]` : '';
+      onChange(`${colorLabel}${hexPart} (${finish})`);
     }
   };
 
@@ -553,28 +554,7 @@ export function ColorFinishSelector({ value, onChange, error }: ColorFinishSelec
         </div>
       </div>
 
-      {/* BANNER INSTITUCIONAL: MANEJAMOS TODOS LOS COLORES */}
-      <div className="p-3.5 rounded-2xl bg-gradient-to-r from-sky-50/90 via-blue-50/60 to-purple-50/70 border border-sky-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-2xs">
-        <div className="space-y-0.5">
-          <strong className="text-sky-950 font-black flex items-center gap-1.5">
-            <span>🎨 Colorlink® maneja todos los colores del mercado</span>
-          </strong>
-          <p className="text-slate-600 text-[11px] leading-relaxed">
-            Puedes escoger entre los <strong>tonos más pedidos de la carta de fábrica</strong>, introducir cualquier <strong>código RAL / Pantone / NCS</strong>, o utilizar el <strong>selector cuentagotas para formular cualquier color exacto</strong> en máquina computarizada.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            setIsCustomMode(true);
-            setSelectedPresetId('');
-          }}
-          className="px-3.5 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-800 font-bold border border-slate-200 shadow-2xs text-[11px] cursor-pointer shrink-0 transition-all active:scale-95 flex items-center gap-1.5"
-        >
-          <Pipette className="w-3.5 h-3.5 text-sky-600" />
-          <span>Formular Color Propio</span>
-        </button>
-      </div>
+
 
       {/* SELECTOR DESPLEGABLE RÁPIDO */}
       <div>

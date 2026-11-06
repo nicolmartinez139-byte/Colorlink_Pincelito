@@ -1323,20 +1323,7 @@ export function StandaloneClientForm({
         const autoDesc = `Mantenimiento preventivo y aplicación técnica de ${formData.tipoPintura || 'Pintura Colorlink'} sobre ${formData.superficie || 'superficie arquitectónica'} en ${formData.ciudad || 'Medellín'}. Área total a cubrir: ${formData.areaM2 || 0} m² en acabado color ${formData.colorAcabado || 'Blanco Puro'}. Despacho solicitado a la dirección indicada.`;
         formData.descripcionLibre = autoDesc;
       }
-      const hasReviewing = formData.fotos?.some((f) => f.aiReviewing);
-      const hasInvalid = formData.fotos?.some((f) => f.aiDiagnosis && f.aiDiagnosis.valid === false);
-
-      if (hasReviewing) {
-        err.fotos = 'Espera unos segundos mientras la IA termina de verificar si la foto subida corresponde a una fachada, pared o superficie para pintar.';
-      } else if (hasInvalid) {
-        err.fotos = 'Una o más fotografías no corresponden a fachadas, paredes ni cosas para pintar. Elimínalas y sube una foto válida de la superficie.';
-      } else if (!formData.fotos || formData.fotos.length === 0) {
-        if (rejectedPhotos.length > 0) {
-          err.fotos = 'La fotografía que subiste fue rechazada por la IA porque no es una fachada, pared ni superficie para pintar. Por favor sube una foto válida de la obra o pulsa "Usar Foto Técnica de Muestra".';
-        } else {
-          handleAttachReferencePhoto();
-        }
-      }
+      // Las fotos son 100% opcionales: el cliente puede avanzar directamente sin adjuntar imágenes
       if (!formData.consentimiento) {
         err.consentimiento = 'Debe autorizar el tratamiento de datos para la emisión formal de la cotización y despacho';
       }
@@ -4291,7 +4278,7 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                          Ciudad de entrega <span className="text-rose-500">*</span>
+                          Ciudad de entrega / Sede de Despacho <span className="text-rose-500">*</span>
                         </label>
                         <select
                           id="standalone-select-ciudad"
@@ -4301,21 +4288,24 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                             errors.ciudad ? 'border-rose-400 bg-rose-50/20' : 'border-slate-200'
                           } rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all font-semibold text-slate-800`}
                         >
-                          <option value="">-- Seleccionar Ciudad de Entrega --</option>
-                          <option value="Medellín">Medellín</option>
-                          <option value="Bogotá D.C.">Bogotá D.C.</option>
-                          <option value="Cali">Cali</option>
-                          <option value="Barranquilla">Barranquilla</option>
-                          <option value="Cartagena">Cartagena</option>
-                          <option value="Bucaramanga">Bucaramanga</option>
-                          <option value="Pereira">Pereira</option>
+                          <option value="">-- Seleccionar Ciudad de Entrega / Sede --</option>
+                          <option value="Medellín">Medellín (Planta Central Itagüí • CEDI Guarne)</option>
+                          <option value="Bogotá D.C.">Bogotá D.C. (CEDI Sabana Mosquera)</option>
+                          <option value="Cali">Cali (CEDI Valle Yumbo)</option>
+                          <option value="Barranquilla">Barranquilla (CEDI Costa Malambo)</option>
+                          <option value="Cartagena">Cartagena (CEDI Bolívar Mamonal)</option>
+                          <option value="Bucaramanga">Bucaramanga (CEDI Santanderes Girón)</option>
+                          <option value="Envigado">Envigado (CEDI Sur Aburrá)</option>
+                          <option value="Rionegro">Rionegro (CEDI Oriente Llanogrande)</option>
+                          <option value="Pereira">Pereira (CEDI Eje Cafetero)</option>
                           <option value="Otra Ciudad">Otra ciudad o municipio nacional</option>
                         </select>
                         {errors.ciudad ? (
                           <p className="text-xs text-rose-600 mt-1.5">{errors.ciudad}</p>
                         ) : (
-                          <span className="text-[11px] text-slate-500 block mt-1">Tiempo de despacho: {presupuesto.tiempoEntregaDias}</span>
+                          <span className="text-[11px] text-slate-500 block mt-1">Tiempo estimado de despacho: {presupuesto.tiempoEntregaDias}</span>
                         )}
+
                       </div>
 
                       <div>
@@ -5197,128 +5187,50 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                         className="hidden"
                       />
 
-                      <div className="border-2 border-dashed border-sky-300 hover:border-sky-500 rounded-3xl p-6 text-center bg-sky-50/40 hover:bg-sky-50/70 transition-all">
-                        <div className="max-w-lg mx-auto space-y-3">
-                          <div className="w-12 h-12 rounded-2xl bg-sky-100 text-sky-700 mx-auto flex items-center justify-center font-bold shadow-xs">
-                            <Upload className="w-6 h-6 text-sky-600" />
-                          </div>
-                          <div>
-                            <p className="text-xs font-black text-slate-900">
-                              Adjuntar Registro Fotográfico de la Superficie u Obra
-                            </p>
-                            <p className="text-[11px] text-slate-600 mt-0.5">
-                              Puedes subir fotos desde tu dispositivo, tomar fotos con la cámara o usar la foto técnica de muestra.
-                            </p>
+                      {/* Registro Fotográfico (100% Opcional - Sin obligatoriedad) */}
+                      <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50/70">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-9 h-9 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center font-bold shrink-0">
+                              <Camera className="w-4 h-4 text-sky-600" />
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                                <span>Fotografía o Imagen de Referencia</span>
+                                <span className="text-[10px] font-semibold text-slate-500 bg-slate-200/70 px-2 py-0.5 rounded-full">
+                                  Opcional
+                                </span>
+                              </p>
+                              <p className="text-[11px] text-slate-500">
+                                No es obligatoria para cotizar ni despachar. Puedes adjuntarla solo si lo deseas.
+                              </p>
+                            </div>
                           </div>
 
-                          <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-                            {/* Botón 1: Subir desde el computador */}
+                          <div className="flex items-center gap-2">
                             <button
                               type="button"
                               onClick={() => fileInputRef.current?.click()}
-                              className="px-4 py-2.5 bg-white hover:bg-sky-50 text-slate-800 font-bold text-xs rounded-xl border border-sky-200 shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                              className="px-3 py-2 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer"
                             >
                               <Upload className="w-3.5 h-3.5 text-sky-600" />
-                              <span>📁 Subir desde el Computador</span>
+                              <span>Subir Foto</span>
                             </button>
 
-                            {/* Botón 2: Tomar foto con la cámara */}
                             <button
                               type="button"
                               onClick={() => handleStartLiveCamera()}
-                              className="px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                              className="px-3 py-2 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer"
                             >
-                              <Camera className="w-3.5 h-3.5 text-white" />
-                              <span>📷 Tomar Foto con Cámara</span>
-                            </button>
-
-                            {/* Botón 3: Usar foto de muestra de la superficie */}
-                            <button
-                              type="button"
-                              onClick={handleAttachReferencePhoto}
-                              className="px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
-                              title="Adjuntar foto de muestra oficial para agilizar la cotización"
-                            >
-                              <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                              <span>✨ Usar Foto Técnica de Muestra</span>
+                              <Camera className="w-3.5 h-3.5 text-slate-700" />
+                              <span>Cámara</span>
                             </button>
                           </div>
-                          <p className="text-[11px] text-emerald-800 font-semibold flex items-center justify-center gap-1 mt-1">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>Filtro Estricto IA Vision: Solo se aceptan fotos de fachadas, paredes, muros, techos y cosas para pintar (se rechazan fotos ajenas)</span>
-                          </p>
                         </div>
                       </div>
 
                       {/* Alerta de Fotos Rechazadas por la IA (cuando suben cosas que no son paredes, fachadas ni superficies a pintar) */}
-                      {rejectedPhotos.length > 0 && (
-                        <div className="mt-3 p-4 rounded-2xl bg-rose-50 border-2 border-rose-300 space-y-2.5 animate-fadeIn">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-                              <span className="text-xs font-black text-rose-900 uppercase tracking-wide">
-                                🚫 Fotografía Rechazada por IA Vision (No Aceptada)
-                              </span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setRejectedPhotos([])}
-                              className="text-[11px] font-bold text-rose-700 hover:text-rose-900 underline cursor-pointer"
-                            >
-                              Limpiar aviso
-                            </button>
-                          </div>
-                          <div className="space-y-2">
-                            {rejectedPhotos.map((rej) => (
-                              <div
-                                key={rej.id}
-                                className="flex items-start justify-between gap-3 p-2.5 rounded-xl bg-white border border-rose-200 shadow-2xs"
-                              >
-                                <div className="flex items-start gap-3 min-w-0">
-                                  {rej.previewUrl && (
-                                    <div className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0 border-2 border-rose-400">
-                                      <img
-                                        src={rej.previewUrl}
-                                        alt={rej.name}
-                                        className="w-full h-full object-cover opacity-75"
-                                      />
-                                      <div className="absolute inset-0 bg-rose-600/30 flex items-center justify-center">
-                                        <XCircle className="w-5 h-5 text-white drop-shadow" />
-                                      </div>
-                                    </div>
-                                  )}
-                                  <div className="min-w-0">
-                                    <div className="flex flex-wrap items-center gap-1.5">
-                                      <span className="text-xs font-bold text-slate-900 truncate">
-                                        {rej.name}
-                                      </span>
-                                      <span className="px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 border border-rose-300 text-[10px] font-black">
-                                        Rechazada por IA ✕
-                                      </span>
-                                    </div>
-                                    <p className="text-[11px] font-bold text-rose-700 mt-0.5">
-                                      🔍 IA detectó: {rej.detectedObject}
-                                    </p>
-                                    <p className="text-[11px] text-slate-600 leading-snug mt-0.5">
-                                      {rej.reason}
-                                    </p>
-                                  </div>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setRejectedPhotos((prev) => prev.filter((item) => item.id !== rej.id))
-                                  }
-                                  className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 cursor-pointer shrink-0"
-                                  title="Cerrar aviso"
-                                >
-                                  <X className="w-4 h-4" />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+
 
                       {/* Galería de Fotos Adjuntas con Revisión Automática IA */}
                       {formData.fotos && formData.fotos.length > 0 && (
@@ -5387,7 +5299,6 @@ Tiempo estimado de entrega: ${presupuesto.tiempoEntregaDias}`;
                           ))}
                         </div>
                       )}
-                      {errors.fotos && <p className="text-xs text-rose-600 mt-1.5">{errors.fotos}</p>}
                     </div>
 
                     {/* Observaciones Opcionales */}

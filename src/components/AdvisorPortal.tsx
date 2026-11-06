@@ -243,11 +243,7 @@ export function AdvisorPortal({ currentAdvisor, onLogout, onSwitchAdvisor }: Adv
   const getMergedConversations = () => {
     const stored = getStoredAdvisorConversations();
     const storedForAdvisor = stored[currentAdvisor.id] || [];
-    const initialList = INITIAL_CONVERSATIONS[currentAdvisor.id] || INITIAL_CONVERSATIONS.sofia_martinez;
-    // Evitar duplicados por id
-    const existingIds = new Set(storedForAdvisor.map((c: any) => c.id));
-    const combined = [...storedForAdvisor, ...initialList.filter((c: any) => !existingIds.has(c.id))];
-    return combined;
+    return storedForAdvisor;
   };
 
   const [conversations, setConversations] = useState<ClientConversation[]>(getMergedConversations());

@@ -44,7 +44,8 @@ import {
   X,
   Bot,
   Zap,
-  Activity
+  Activity,
+  Trash2
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { sendOrderStatusUpdateEmail } from '../utils/emailService';
@@ -176,6 +177,7 @@ interface AdminBackofficeProps {
     totalCOP: number;
     currentPipelineStep: number;
   }>;
+  onClearSubmittedProjects?: () => void;
 }
 
 export interface AdvisorProfile {
@@ -240,7 +242,8 @@ export const COLORLINK_ADVISORS: AdvisorProfile[] = [
 
 export function AdminBackoffice({
   onBackToClientView,
-  submittedProjects
+  submittedProjects,
+  onClearSubmittedProjects
 }: AdminBackofficeProps) {
   // Tabs: 'pedidos' (Supervisión & Auditoría IA) | 'ciudades' (Sedes, Fotos & Reabastecimiento) | 'clientes' (Directorio Supabase) | 'stock' (Inventario & Fórmulas)
   const [activeTab, setActiveTab] = useState<'pedidos' | 'ciudades' | 'clientes' | 'stock'>('pedidos');
@@ -427,34 +430,33 @@ export function AdminBackoffice({
   const [loadingClients, setLoadingClients] = useState(false);
   const [clientSearch, setClientSearch] = useState('');
 
-  // Lista inicial de clientes limpia desde cero (sin datos de prueba)
+  // Directorio de clientes en base a cuentas registradas reales
   const DEFAULT_ENTERPRISE_CLIENTS: SupabaseClientRow[] = [];
 
   const getConsolidatedClients = (): SupabaseClientRow[] => {
     const clientMap = new Map<string, SupabaseClientRow>();
 
-    DEFAULT_ENTERPRISE_CLIENTS.forEach((c) => {
-      clientMap.set(c.nit_documento.replace(/[.\-\s]/g, ''), c);
-    });
-
     try {
-      const stored = getSavedClientOrdersFromStorage();
-      stored.forEach((o, idx) => {
-        const nitClean = (o.nit || `901456${idx}`).replace(/[.\-\s]/g, '');
-        if (!clientMap.has(nitClean)) {
-          clientMap.set(nitClean, {
-            id: `cli-ord-${o.id || idx}`,
-            auth_user_id: null,
-            nombre_razon_social: o.detalle?.obra || o.cliente || 'Empresa Constructora',
-            nit_documento: o.nit || nitClean,
-            responsable: o.responsable || 'Responsable de Obra',
-            email_responsable: o.email || 'cliente@colorlink.com.co',
-            telefono_responsable: '+57 300 123 4567',
-            canal_entrada: 'Cotizador Colorlink',
-            created_at: o.fecha && o.fecha.includes('T') ? o.fecha : new Date().toISOString()
-          });
-        }
-      });
+      const rawAccounts = localStorage.getItem('colorlink_registered_accounts_v1');
+      if (rawAccounts) {
+        const parsedAccounts = JSON.parse(rawAccounts);
+        Object.values(parsedAccounts).forEach((acc: any) => {
+          if (acc && (acc.email || acc.nit || acc.empresa)) {
+            const key = (acc.nit || acc.email || acc.id).replace(/[.\-\s]/g, '');
+            clientMap.set(key, {
+              id: acc.id || `cli-${key}`,
+              auth_user_id: null,
+              nombre_razon_social: acc.empresa || acc.responsable || 'Empresa Registrada',
+              nit_documento: acc.nit || 'S/N',
+              responsable: acc.responsable || 'Responsable',
+              email_responsable: acc.email || 'contacto@colorlink.com.co',
+              telefono_responsable: acc.telefono || null,
+              canal_entrada: 'Portal Clientes',
+              created_at: acc.createdAt || new Date().toISOString()
+            });
+          }
+        });
+      }
     } catch {}
 
     return Array.from(clientMap.values());
@@ -490,257 +492,9 @@ export function AdminBackoffice({
     fetchClientsFromSupabase();
   }, []);
 
-  // Pedidos iniciados desde cero (sin datos de prueba)
+  // Pedidos iniciados estrictamente desde cero (sin pedidos de prueba)
   const [orders, setOrders] = useState<OrderItem[]>([]);
   const [selectedOrderId, setSelectedOrderId] = useState<string>('');
-  const _unusedDemoOrders: OrderItem[] = [];
-  /*
-      cliente: 'Constructora Horizonte S.A.S.',
-      nit: '900854219',
-      responsable: 'Arq. Valentina Gómez',
-      telefono: '+57 312 845 6721',
-      email: 'vgomez@constructorahorizonte.com.co',
-      ciudad: 'Medellín',
-      areaM2: 420,
-      tipoPintura: 'Pintura Tipo 1 Exterior',
-      marca: 'Pintuco®',
-      metodoPago: 'Transferencia Bancolombia / QR',
-      color: 'Gris Cemento (Mate)',
-      totalCOP: 18450000,
-      status: 'pendiente',
-      notificaciones: []
-    },
-    {
-      id: 'PED-2026-085',
-      cliente: 'Consorcio Metropolitano Calle 100',
-      nit: '901452890',
-      responsable: 'Ing. Felipe Samper',
-      telefono: '+57 311 987 6543',
-      email: 'fsamper@consorciometropolitano.co',
-      ciudad: 'Bogotá D.C.',
-      areaM2: 320,
-      tipoPintura: 'Pintura Tipo 1 Exterior',
-      marca: 'Pintuco®',
-      metodoPago: 'PSE - Banco de Bogotá',
-      color: 'Blanco Puro (Satinado)',
-      totalCOP: 14850000,
-      status: 'en_ruta',
-      vehiculoAsignado: 'Camión Distribución Bogotá #03',
-      placa: 'DEX-712',
-      conductor: 'Hernán Morales',
-      rutaOptima: {
-        origen: 'CEDI Sabana Mosquera',
-        destino: 'Torre Empresarial Calle 100 # 19-61, Chicó, Bogotá',
-        recorrido: 'Calle 13 ➔ Av. Boyacá ➔ Calle 100',
-        distanciaKm: 24.6,
-        tiempoMin: 55,
-        ahorroMin: 20,
-        horaEstimada: '02:30 PM'
-      },
-      dictamenIA: {
-        decision: 'aceptar',
-        motivo: 'Stock completo en CEDI Mosquera (52 cuñetes disponibles). Pigmentos para Blanco Puro aprobados.',
-        porQueSeAcepto: 'Aceptado automáticamente por la IA: Disponibilidad inmediata de 52 cuñetes en CEDI Sabana Mosquera y programación de entrega en camión de distribución directo por Calle 13 y Av. Boyacá.',
-        fechaAuditoria: 'Hoy, 08:45 AM',
-        modo: 'Automático por IA',
-        busAsignado: {
-          tipo: 'Camión Distribución Bogotá #03',
-          placa: 'DEX-712',
-          conductor: 'Hernán Morales',
-          capacidad: '80 cuñetes (4.5 Ton)'
-        },
-        rutaAsignada: {
-          origen: 'CEDI Sabana Mosquera',
-          destino: 'Torre Empresarial Calle 100 # 19-61, Chicó, Bogotá',
-          recorrido: 'Calle 13 ➔ Av. Boyacá ➔ Calle 100',
-          distanciaKm: 24.6,
-          tiempoMin: 55,
-          ahorroMin: 20,
-          horaEstimada: '02:30 PM'
-        },
-        mensajesEnviados: {
-          email: 'fsamper@consorciometropolitano.co',
-          fechaEnvio: 'Hoy, 08:46 AM'
-        },
-        insumosVerificados: {
-          pinturaValida: true,
-          colorFormulado: true,
-          stockSuficiente: true,
-          cuñetesFaltantes: 0
-        }
-      },
-      notificaciones: [
-        {
-          tipo: 'email',
-          texto: 'Pedido despachado en Camión Distribución Bogotá #03 (DEX-712). ETA 02:30 PM. Notificación por correo enviada.',
-          fecha: 'Hoy, 08:46 AM'
-        }
-      ]
-    },
-    {
-      id: 'PED-2026-082',
-      cliente: 'Conjunto Residencial Laureles Parque',
-      nit: '890123567',
-      responsable: 'Dra. Andrea Londoño',
-      telefono: '+57 314 555 8822',
-      email: 'administracion@laurelesparque.com',
-      ciudad: 'Medellín',
-      areaM2: 210,
-      tipoPintura: 'Pintura Tipo 2 Interior Lavable',
-      marca: 'Colorlink® Pro',
-      metodoPago: 'Transferencia Bancolombia',
-      color: 'Marfil Arena (Mate)',
-      totalCOP: 8900000,
-      status: 'pendiente',
-      notificaciones: []
-    },
-    {
-      id: 'PED-2026-086',
-      cliente: 'Edificio Oficinas Chicó Norte',
-      nit: '900334889',
-      responsable: 'Arq. Camila Torres',
-      telefono: '+57 315 444 3321',
-      email: 'ctorres@chiconorte.com',
-      ciudad: 'Bogotá D.C.',
-      areaM2: 180,
-      tipoPintura: 'Pintura Tipo 2 Interior Lavable',
-      marca: 'Tito Pabón®',
-      metodoPago: 'Crédito Corporativo 30 Días',
-      color: 'Gris Grafito (Mate)',
-      totalCOP: 6420000,
-      status: 'preparando',
-      notificaciones: []
-    },
-    {
-      id: 'PED-2026-087',
-      cliente: 'Centro Médico Especializado Ciudad Jardín',
-      nit: '901009876',
-      responsable: 'Dr. Alejandro Osorio',
-      telefono: '+57 318 667 9900',
-      email: 'gerencia@clinicaciudadjardin.com.co',
-      ciudad: 'Cali',
-      areaM2: 195,
-      tipoPintura: 'Pintura Tipo 1 Exterior',
-      marca: 'Corona® Pinturas',
-      metodoPago: 'PSE - Bancolombia',
-      color: 'Blanco Antihongos',
-      totalCOP: 7350000,
-      status: 'en_ruta',
-      vehiculoAsignado: 'Furgón Cali CEDI Yumbo #01',
-      placa: 'VBL-903',
-      conductor: 'Javier Caicedo',
-      rutaOptima: {
-        origen: 'CEDI Valle Yumbo',
-        destino: 'Cra 105 # 14-80, Ciudad Jardín, Cali',
-        recorrido: 'Autopista Cali-Yumbo ➔ Calle 5ta ➔ Cra 100',
-        distanciaKm: 28.5,
-        tiempoMin: 42,
-        ahorroMin: 15,
-        horaEstimada: '01:15 PM'
-      },
-      notificaciones: []
-    },
-    {
-      id: 'PED-2026-088',
-      cliente: 'Bodega Logística del Caribe Vía 40',
-      nit: '800554123',
-      responsable: 'Ing. Rodrigo Char',
-      telefono: '+57 300 234 5678',
-      email: 'operaciones@logisticacaribe.com',
-      ciudad: 'Barranquilla',
-      areaM2: 260,
-      tipoPintura: 'Pintura Tipo 1 Exterior',
-      marca: 'Sapolín®',
-      metodoPago: 'Contra Entrega en Obra',
-      color: 'Gris Cemento Fachada',
-      totalCOP: 5120000,
-      status: 'pendiente',
-      notificaciones: []
-    },
-    {
-      id: 'PED-2026-089',
-      cliente: 'Centro Empresarial Cabecera',
-      nit: '900778811',
-      responsable: 'Arq. Mónica Prada',
-      telefono: '+57 317 889 0011',
-      email: 'mprada@cabeceraempresarial.com',
-      ciudad: 'Bucaramanga',
-      areaM2: 140,
-      tipoPintura: 'Pintura Tipo 2 Interior Lavable',
-      marca: 'Tito Pabón®',
-      metodoPago: 'Transferencia Bancolombia / QR',
-      color: 'Marfil Cálido',
-      totalCOP: 3840000,
-      status: 'preparando',
-      notificaciones: []
-    },
-    {
-      id: 'PED-2026-090',
-      cliente: 'Hotel & Suites Costa Azul Bocagrande',
-      nit: '900223114',
-      responsable: 'Sr. Daniel Martelo',
-      telefono: '+57 301 998 7766',
-      email: 'mantenimiento@hotelcostaazul.co',
-      ciudad: 'Cartagena',
-      areaM2: 150,
-      tipoPintura: 'Pintura Tipo 1 Exterior',
-      marca: 'Pintuco®',
-      metodoPago: 'Tarjeta de Crédito Visa',
-      color: 'Arena Caribe',
-      totalCOP: 4650000,
-      status: 'pendiente',
-      notificaciones: []
-    },
-    {
-      id: 'PED-2026-079',
-      cliente: 'Inversiones & Acabados del Valle',
-      nit: '890901234',
-      responsable: 'Ing. Mateo Arango',
-      telefono: '+57 310 654 3210',
-      email: 'marango@inversionesvalle.com',
-      ciudad: 'Envigado',
-      areaM2: 120,
-      tipoPintura: 'Pintura Tipo 2 Interior Lavable',
-      marca: 'Colorlink® Pro',
-      color: 'Blanco Puro (Satinado)',
-      totalCOP: 2150000,
-      status: 'pendiente',
-      notificaciones: []
-    },
-    {
-      id: 'PED-2026-074',
-      cliente: 'Condominio Campestre Los Sauces',
-      nit: '901223456',
-      responsable: 'Dra. Carolina Ríos',
-      telefono: '+57 301 789 4455',
-      email: 'administracion@lossauces.com',
-      ciudad: 'Rionegro',
-      areaM2: 240,
-      tipoPintura: 'Pintura Tipo 1 Exterior',
-      marca: 'Pintuco®',
-      color: 'Arena Cálido',
-      totalCOP: 3890000,
-      status: 'en_ruta',
-      vehiculoAsignado: 'Camión Reparto #02',
-      placa: 'SKJ-841',
-      conductor: 'Mauricio Vélez',
-      rutaOptima: {
-        origen: 'Planta Central Colorlink (Itagüí)',
-        destino: 'Condominio Los Sauces - Km 7 Vía Llanogrande',
-        recorrido: 'Túnel de Oriente ➔ Glorieta Sajonia ➔ Vía Llanogrande',
-        distanciaKm: 34.2,
-        tiempoMin: 45,
-        ahorroMin: 18,
-        horaEstimada: '12:45 PM'
-      },
-      notificaciones: [
-        {
-          tipo: 'email',
-          texto: 'Su pedido va en camino en el Camión #02 con el conductor Mauricio Vélez. Notificación oficial por correo.',
-          fecha: 'Hoy, 10:15 AM'
-        }
-      ]
-  */
 
 
   // Cálculos dinámicos de análisis de ciudades ("cuál vendió más" y "qué se necesita pedir para cada lado")
@@ -772,6 +526,26 @@ export function AdminBackoffice({
       'Envigado': { cedi: 'CEDI Sur Aburrá (Av. Las Vegas)', stock: cediStocks['Envigado'] ?? 20 },
       'Rionegro': { cedi: 'CEDI Oriente Llanogrande (Aeropuerto)', stock: cediStocks['Rionegro'] ?? 18 }
     };
+
+    // Inicializar siempre las 8 Sedes Nacionales Oficiales de Colorlink para que nunca desaparezcan
+    Object.entries(cediMap).forEach(([cityName, info]) => {
+      cityMap[cityName] = {
+        ciudad: cityName,
+        totalCOP: 0,
+        pedidosCount: 0,
+        areaM2: 0,
+        tipo1Cunetes: 0,
+        tipo2Cunetes: 0,
+        tipo3Cunetes: 0,
+        selladorGalones: 0,
+        marcasDemandadas: {},
+        pedidos: [],
+        cedi: info.cedi,
+        stockDisponibleCunetes: info.stock,
+        cunetesRequeridosTotal: 0,
+        urgencia: 'abastecido'
+      };
+    });
 
     orders.forEach(order => {
       let rawCity = order.ciudad?.trim() || 'Medellín';
@@ -1302,7 +1076,10 @@ export function AdminBackoffice({
         uniqueIncoming.push(item);
       }
 
-      if (uniqueIncoming.length > 0) {
+      if (uniqueIncoming.length === 0) {
+        setOrders([]);
+        setSelectedOrderId('');
+      } else {
         setOrders((prev) => {
           const prevMap = new Map<string, OrderItem>(prev.map((o) => [o.id, o]));
           const nextList = [...prev];
@@ -1342,8 +1119,8 @@ export function AdminBackoffice({
         });
 
         setSelectedOrderId((prevId) => {
-          if (!prevId || prevId === 'PED-2026-081') {
-            return uniqueIncoming[0]?.id || prevId;
+          if (!prevId || !uniqueIncoming.some((o) => o.id === prevId)) {
+            return uniqueIncoming[0]?.id || '';
           }
           return prevId;
         });
@@ -1422,6 +1199,50 @@ export function AdminBackoffice({
   // CICLO DE ACTUALIZACIÓN AUTOMÁTICA CADA 20 MINUTOS PARA TODOS LOS PEDIDOS
   // Requirement: 2s -> Tintometría | 20 min -> Despachando con mensaje | 20 min -> Entregado
   // =========================================================================
+
+  // Limpieza total y reseteo de cuentas y pedidos para comenzar estrictamente de cero
+  const handlePurgeAllData = async () => {
+    try {
+      const keys = [
+        'colorlink_client_orders_history_v1',
+        'colorlink_submitted_projects_v1',
+        'colorlink_registered_accounts_v1',
+        'colorlink_sim_mode_v1',
+        'colorlink_active_client_v1',
+        'colorlink_active_advisor_v1',
+        'colorlink_sent_emails_cache_v1',
+        'colorlink_advisor_conversations_v1'
+      ];
+      keys.forEach((k) => localStorage.removeItem(k));
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('colorlink_client_progress_') || k.startsWith('colorlink_reset_to_zero_'))) {
+          localStorage.removeItem(k);
+        }
+      }
+      if (onClearSubmittedProjects) {
+        onClearSubmittedProjects();
+      }
+      if (isSupabaseConfigured()) {
+        try {
+          await supabase.from('evidencias').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+          await supabase.from('especificaciones_tecnicas').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+          await supabase.from('cotizaciones').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+          await supabase.from('proyectos').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+          await supabase.from('clientes').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        } catch (dbErr) {
+          console.warn('[Purge DB Warn]', dbErr);
+        }
+      }
+      await fetch('/api/orders', { method: 'DELETE' }).catch(() => {});
+      setOrders([]);
+      setSelectedOrderId('');
+      setSupabaseClients([]);
+      showToast('🗑️ Todas las cuentas de clientes y pedidos han sido eliminados de la base de datos y memoria. Sistema en estado cero.');
+    } catch {
+      showToast('Error al limpiar base de datos.');
+    }
+  };
 
   // 1. Los pedidos 'pendiente' (Aceptados por el Cliente) deben ser auditados y aprobados por la IA antes de ingresar a Tintometría
   // No se adelantan a ciegas: se aprueban mediante el Auto-Piloto IA o la Auditoría en vivo de Pincelito Inspector
@@ -2172,6 +1993,15 @@ export function AdminBackoffice({
                 >
                   <LogOut className="w-4 h-4 text-slate-500" />
                   <span>Cerrar Sesión</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePurgeAllData}
+                  className="px-3 py-2.5 text-rose-700 hover:text-rose-900 bg-rose-50 hover:bg-rose-100 text-xs font-bold rounded-xl transition-all border border-rose-200 flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  title="Borrar todas las cuentas de clientes y pedidos existentes para iniciar desde 0"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                  <span>Borrar Cuentas y Pedidos (0)</span>
                 </button>
               </div>
             </div>
@@ -3466,6 +3296,15 @@ export function AdminBackoffice({
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${loadingClients ? 'animate-spin text-sky-600' : ''}`} />
                   <span>{loadingClients ? 'Consultando...' : 'Actualizar'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePurgeAllData}
+                  className="px-3 py-2 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 flex items-center gap-1.5 transition-all cursor-pointer"
+                  title="Eliminar todas las cuentas de clientes y pedidos existentes para iniciar desde cero"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                  <span>Borrar Cuentas y Pedidos (0)</span>
                 </button>
               </div>
             </div>
